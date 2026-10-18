@@ -23,7 +23,8 @@ public final class HookEntry extends XposedModule {
      Method start=main.getDeclaredMethod("startVm"),connect=main.getDeclaredMethod("connectToTerminalService",fragment),destroy=main.getDeclaredMethod("onDestroy");
      // Verify the whole UI contract before changing the VM launch path.
      for(String field:new String[]{"terminalView","bootProgressView","ttydStatus","ttydTimeoutRunnable"})fragment.getDeclaredField(field);
-     main.getDeclaredField("tabAddButton");
+     main.getDeclaredField("tabAddButton");main.getDeclaredField("displayMenu");
+     Method tabDestroy=fragment.getDeclaredMethod("onDestroy");ModernHook.deoptimize(tabDestroy);
      // APK's onCreate and synthetic access bridge call startVm; onViewCreated calls connect.
      for(Method caller:main.getDeclaredMethods())if(caller.getName().equals("onCreate")||caller.getName().contains("access$startVm")||caller.getName().equals("onAccessibilityStateChanged"))if(!ModernHook.deoptimize(caller))throw new IllegalStateException("Caller unavailable");
      for(Method caller:fragment.getDeclaredMethods())if(caller.getName().equals("onViewCreated"))if(!ModernHook.deoptimize(caller))throw new IllegalStateException("Fragment caller unavailable");
@@ -34,6 +35,7 @@ public final class HookEntry extends XposedModule {
      Method viewCreated=fragment.getDeclaredMethod("onViewCreated",android.view.View.class,Bundle.class);
      Method getActivity=fragment.getMethod("getActivity");
      installed.add(ModernHook.hookMethod(viewCreated,new ModernHook.Callback(){protected void afterHookedMethod(ModernHook.Param x)throws Throwable{if(!x.hasThrowable()&&enabled(c)){Activity activity=(Activity)getActivity.invoke(x.thisObject);if(activity!=null)Controller.bind(activity,x.thisObject,c,apk);}}}));
+     installed.add(ModernHook.hookMethod(tabDestroy,new ModernHook.Callback(){protected void beforeHookedMethod(ModernHook.Param x){Controller.closeFragment(x.thisObject);}}));
      status(c,"ready");android.util.Log.i("ProtectedLinux","HOOK_READY api=102");
     }catch(Throwable e){for(ModernHook.Handle handle:installed)try{handle.unhook();}catch(Throwable ignored){}status(c,"unsupported");android.util.Log.e("ProtectedLinux","HOOK_STOP "+e.getClass().getSimpleName());}
    }

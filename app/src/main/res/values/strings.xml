@@ -17,14 +17,18 @@
 <string name="enabled_detail">Changes apply when Terminal is reopened. Turning this off restores its original behavior, which may not support this device.</string>
 <string name="open_terminal">Open Terminal</string>
 <string name="prepare">Prepare VM launcher</string>
+<string name="stop_vm">Stop VM and launcher</string>
+<string name="stop_detail">Close all guest sessions and stop the VM. Save your work first. The private Linux disk is retained.</string>
+<string name="runtime_stopped">Stopped. Prepare the launcher before opening Terminal again.</string>
+<string name="stop_failed">Could not confirm shutdown. Check root permission.</string>
 <string name="licenses">Licenses</string>
 <string name="terminal_missing">The stock Terminal is missing or disabled.</string>
 <string name="limits_title">Available in this preview</string>
-<string name="limits">Read-only Debian shell · 512 MiB RAM · 1 vCPU\nOne console · 30-minute session limit\nNo network, GUI, disk settings, or persistent writes. Temporary files disappear when the VM stops. Close Terminal or type exit to stop the VM.</string>
+<string name="limits">Debian with a private writable disk · 512 MiB RAM · 1 vCPU\nMultiple independent shell tabs · 30-minute VM limit\nHTTP/HTTPS proxy for compatible tools; no virtual NIC, UDP or ping. GUI requires plb-install-gui. Stock images stay unchanged; private base copy uses up to about 3 GiB plus saved data.</string>
 <string name="safety_title">Existing kernels only</string>
 <string name="safety">No kernel updates, partition writes, reboot, or SELinux changes. Uses the device’s existing Microdroid kernel. Root and Gunyah are required. This route omits pvmfw verified boot and is not equivalent to a verified AVF guest.</string>
 <string name="setup_title">Setup</string>
-<string name="setup">1. Enable the stock Terminal and install its Linux image.\n2. In Vector, enable this module for Terminal only.\n3. Allow root here, then open Terminal.\nAfter root is lost or the launcher expires, prepare it again here.</string>
+<string name="setup">1. Use the buttons above to enable Terminal and open its Linux installer.\n2. In Vector, enable this module for Terminal only.\n3. Allow root here, then open Terminal.\nFirst startup creates a private Linux disk. For a software desktop, run plb-install-gui in Terminal, then use its display button.</string>
 <string name="state_ready">Ready</string>
 <string name="state_attention">Needs attention</string>
 <string name="state_waiting">Waiting</string>
@@ -34,4 +38,6 @@
 <string name="setup_done">Terminal and its installer are enabled.</string>
 <string name="setup_failed">Could not enable Terminal. Check root permission and whether this OS includes the stock Terminal.</string>
 <string name="unsupported_version">This OS or Terminal version is untested. The bridge is disabled for compatibility.</string>
+<string name="network_title">Network behavior</string>
+<string name="network_detail">The proxy uses Terminal’s UID and INTERNET permission. It follows Android’s app network, VPN and power restrictions. Host routes, DNS and firewall settings are not changed. Background or Doze restrictions may pause networking.</string>
 </resources>

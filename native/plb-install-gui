@@ -1,0 +1,9 @@
+#!/bin/sh
+# Guest user-space packages only. Never upgrade or install any kernel.
+set -eu
+export DEBIAN_FRONTEND=noninteractive
+export http_proxy=http://127.0.0.1:3128
+export https_proxy=http://127.0.0.1:3128
+apt-get -o Acquire::http::Proxy="$http_proxy" -o Acquire::https::Proxy="$https_proxy" update
+apt-get -o Acquire::http::Proxy="$http_proxy" -o Acquire::https::Proxy="$https_proxy" install -y --no-install-recommends tigervnc-standalone-server xterm openbox xfonts-base x11-xserver-utils
+printf '\nGUI packages are ready. Open the display button in Terminal.\n'

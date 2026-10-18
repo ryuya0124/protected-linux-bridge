@@ -1,0 +1,7 @@
+{
+  "name": "noVNC",
+  "version": "1.6.0",
+  "source": "https://github.com/novnc/noVNC/archive/refs/tags/v1.6.0.tar.gz",
+  "sha256": "5066103959ef4e9b10f37e5a148627360dd8414e4cf8a7db92bdbd022e728aaa",
+  "changes": "Unmodified core and vendor ES modules; custom application bridge is separate."
+}

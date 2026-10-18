@@ -1,0 +1,29 @@
+<!doctype html>
+<html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'"><title>Protected Linux Display</title><style>
+html,body{margin:0;height:100%;background:#101014;color:#eee;font:16px sans-serif}body{display:flex;flex-direction:column}#screen{flex:1;min-height:0;overflow:hidden}#status{padding:16px;white-space:pre-wrap}#keys{margin:8px;padding:12px;border-radius:16px;border:1px solid #777;background:#25252e;color:#fff;font:16px sans-serif;resize:none;box-sizing:border-box}#controls{display:flex;gap:8px;padding:0 8px 8px}button{border:0;border-radius:24px;padding:10px 16px;background:#d0bcff;color:#381e72;font:14px sans-serif}
+</style></head><body><div id="status"></div><div id="screen"></div><textarea id="keys" rows="1" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea><div id="controls"><button id="send"></button><button id="enter">Enter</button><button id="tab">Tab</button><button id="escape">Esc</button><button id="interrupt">Ctrl+C</button></div>
+<script type="module">
+import RFB from '/novnc/core/rfb.js';
+const status=document.getElementById('status');
+const ja=navigator.language.toLowerCase().startsWith('ja');status.textContent=ja?'画面を接続しています…':'Connecting display…';
+const raw={readyState:1,binaryType:'arraybuffer',protocol:'binary',onopen:null,onerror:null,onmessage:null,onclose:null,
+send(data){const bytes=new Uint8Array(data.buffer??data,data.byteOffset??0,data.byteLength??data.length);for(let offset=0;offset<bytes.length;offset+=16384)ProtectedDisplay.write(btoa(String.fromCharCode(...bytes.subarray(offset,offset+16384))));},
+close(){this.readyState=3;ProtectedDisplay.finish();}};
+const pending=[];
+window.feedVnc=encoded=>{const bytes=Uint8Array.from(atob(encoded),c=>c.charCodeAt(0));if(raw.onmessage)raw.onmessage({data:bytes.buffer});else if(pending.length<8){pending.push(bytes);const flush=()=>{if(raw.onmessage){for(const item of pending.splice(0))raw.onmessage({data:item.buffer});}else if(raw.readyState!==3)setTimeout(flush,20);};setTimeout(flush,20);}};
+window.displayEnded=encoded=>{status.textContent=new TextDecoder().decode(Uint8Array.from(atob(encoded),c=>c.charCodeAt(0)));status.style.display='block';raw.readyState=3;raw.onclose?.({wasClean:true,code:1000});};
+const rfb=new RFB(document.getElementById('screen'),raw,{shared:true});rfb.scaleViewport=true;rfb.resizeSession=false;rfb.showDotCursor=true;
+function refresh(){const canvas=document.querySelector('#screen canvas');if(raw.readyState!==1||!canvas)return;const w=canvas.width,h=canvas.height;raw.send(new Uint8Array([3,0,0,0,0,0,w>>8,w&255,h>>8,h&255]));}
+// A single full-frame request covers the desktop mapping after the RFB handshake; no polling.
+rfb.addEventListener('connect',()=>{status.style.display='none';for(const bytes of pending.splice(0))raw.onmessage?.({data:bytes.buffer});setTimeout(()=>{const c=document.querySelector('#screen canvas');if(raw.readyState!==1||!c)return;const x=c.width>>1,y=c.height>>1;raw.send(new Uint8Array([5,0,x>>8,x&255,y>>8,y&255]));refresh();},1000);});
+rfb.addEventListener('securityfailure',()=>{status.textContent=ja?'画面の認証に失敗しました。':'Display authentication failed.';status.style.display='block';});
+const keys=document.getElementById('keys');keys.placeholder=ja?'入力して送信':'Type text, then send';document.getElementById('send').textContent=ja?'送信':'Send';
+// Keep the IME draft intact, including spaces and composition. Send only on an explicit tap.
+function text(){for(const ch of keys.value){const cp=ch.codePointAt(0);rfb.sendKey(cp===10?0xff0d:cp>255?(0x01000000|cp):cp);}keys.value='';}
+document.getElementById('send').onclick=text;
+document.getElementById('enter').onclick=()=>{text();rfb.sendKey(0xff0d);};
+document.getElementById('tab').onclick=()=>rfb.sendKey(0xff09);
+document.getElementById('escape').onclick=()=>rfb.sendKey(0xff1b);
+document.getElementById('interrupt').onclick=()=>{rfb.sendKey(0xffe3,'ControlLeft',true);rfb.sendKey(99);rfb.sendKey(0xffe3,'ControlLeft',false);};
+ProtectedDisplay.ready();
+</script></body></html>

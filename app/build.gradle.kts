@@ -4,7 +4,7 @@ val signing = Properties().apply { providers.environmentVariable("PROTECTED_LINU
 android {
  namespace = "net.ryuya_dev.protectedlinux"
  compileSdk = 37
- defaultConfig { applicationId = "net.ryuya_dev.protectedlinux"; minSdk = 36; targetSdk = 36; versionCode = 1; versionName = "0.1.0" }
+ defaultConfig { applicationId = "net.ryuya_dev.protectedlinux"; minSdk = 36; targetSdk = 36; versionCode = 3; versionName = "0.1.0-preview.2" }
  signingConfigs { if (!signing.isEmpty) create("distribution") { storeFile = file(signing.getProperty("storeFile")); storePassword = signing.getProperty("storePassword"); keyAlias = signing.getProperty("keyAlias"); keyPassword = signing.getProperty("keyPassword") } }
  buildTypes { release { isDebuggable = false; isMinifyEnabled = false; signingConfig = signingConfigs.findByName("distribution") } }
  compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
@@ -15,7 +15,7 @@ dependencies { compileOnly("io.github.libxposed:api:102.0.0"); implementation("c
 val nativeAssets=layout.buildDirectory.dir("generated/nativeAssets")
 android.sourceSets.getByName("main").assets.directories.add(nativeAssets.get().asFile.absolutePath)
 val buildNative=tasks.register("buildNativeAssets") {
- inputs.dir(rootProject.file("native")); inputs.file(rootProject.file("tools/build_native.py"))
+ inputs.dir(rootProject.file("native")); inputs.dir(rootProject.file("tools"))
  outputs.dir(nativeAssets)
  doLast {
   val local=Properties().apply { val p=rootProject.file("local.properties"); if(p.exists())p.inputStream().use {load(it)} }
@@ -58,7 +58,7 @@ val dependencyLicenses = tasks.register("generateDependencyLicenses") {
                 append(rootProject.file("third_party/$name").readText())
             }
         }
-        out.resolve("THIRD_PARTY_NOTICES.txt").writeText(notices + "\n@xterm/xterm 5.5.0\n" + rootProject.file("third_party/xterm-LICENSE.txt").readText())
+        out.resolve("THIRD_PARTY_NOTICES.txt").writeText(notices + "\n@xterm/xterm 5.5.0\n" + rootProject.file("third_party/xterm-LICENSE.txt").readText()+"\nGuest musl user-space runtime\n"+rootProject.file("third_party/musl-COPYRIGHT.txt").readText()+"\nCompiler runtime (Apache-2.0 WITH LLVM-exception)\n"+rootProject.file("third_party/compiler-rt-LICENSE.txt").readText()+"\nMusl component notices\n"+rootProject.file("third_party/musl-source-notices.txt").readText()+"\nnoVNC 1.6.0 (unmodified MPL-2.0 source modules)\n"+rootProject.file("third_party/novnc").walkTopDown().filter { it.isFile }.sortedBy { it.path }.joinToString("\n\n") {it.relativeTo(rootProject.file("third_party/novnc")).path+"\n"+it.readText()})
     }
 }
 tasks.named("preBuild").configure { dependsOn(dependencyLicenses) }
