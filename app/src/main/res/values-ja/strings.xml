@@ -1,0 +1,37 @@
+<resources>
+<string name="app_name">Protected Linux Bridge</string>
+<string name="intro">Android標準ターミナルから、保護VM上のDebianを開きます。</string>
+<string name="experimental">検証版 · Android 16 / Terminal 16</string>
+<string name="root_title">VM起動支援</string>
+<string name="framework_title">Vectorとの接続</string>
+<string name="checking">確認中…</string>
+<string name="requesting_root">root権限を要求しています…</string>
+<string name="runtime_ready">準備できました。待機中の起動支援は30分間有効です。</string>
+<string name="runtime_unavailable">利用できません。root権限と標準ターミナルを確認してください。su -M 対応のroot環境が必要です。</string>
+<string name="runtime_disabled">無効です。VMは起動しません。</string>
+<string name="framework_unavailable">未接続です。Vectorでモジュールを有効にし、適用先を標準ターミナルのみにして、このアプリを開き直してください。</string>
+<string name="scope_missing">Vectorの適用先に標準ターミナルが含まれていません。</string>
+<string name="scope_ready">適用先は設定済みです。標準ターミナルを開くとモジュールが読み込まれます。</string>
+<string name="module_loaded">標準ターミナルにモジュールが読み込まれています。Linuxの起動完了はコンソールで確認できます。</string>
+<string name="enabled">標準ターミナルを保護VMへ接続</string>
+<string name="enabled_detail">設定はターミナルを開き直したときに反映します。オフでは元の動作に戻るため、この端末で起動できるとは限りません。</string>
+<string name="open_terminal">標準ターミナルを開く</string>
+<string name="prepare">VM起動支援を準備</string>
+<string name="licenses">ライセンス</string>
+<string name="terminal_missing">標準ターミナルが無効か、インストールされていません。</string>
+<string name="limits_title">この検証版で使える機能</string>
+<string name="limits">読み取り専用Debianシェル · RAM 512 MiB · 1 vCPU\nコンソール1つ · 1回最大30分\nネットワーク・GUI・ディスク設定・永続書き込みは未対応です。一時ファイルはVM終了時に消えます。ターミナルを閉じるか exit でVMを終了します。</string>
+<string name="safety_title">既存カーネルのみ使用</string>
+<string name="safety">カーネル更新、パーティション書き換え、再起動、SELinux設定変更は行いません。端末に元からあるMicrodroidカーネルを使います。rootとGunyahが必要です。pvmfwによる起動検証は省略するため、検証済みAVFゲストと同じ保証はありません。</string>
+<string name="setup_title">導入手順</string>
+<string name="setup">1. 標準ターミナルを有効にしてLinuxイメージをインストール\n2. Vectorでこのモジュールを有効にし、適用先を標準ターミナルのみに設定\n3. このアプリのrootを許可して標準ターミナルを開く\nrootが失われた場合や待機時間が切れた場合は、ここで起動支援を再準備してください。</string>
+<string name="state_ready">準備完了</string>
+<string name="state_attention">要確認</string>
+<string name="state_waiting">待機中</string>
+<string name="enable_terminal">標準ターミナルを有効化</string>
+<string name="install_linux">Linuxインストール画面を開く</string>
+<string name="setup_running">標準ターミナルを準備しています…</string>
+<string name="setup_done">標準ターミナルとインストール画面を有効にしました。</string>
+<string name="setup_failed">有効化できませんでした。root権限と、このOSに標準ターミナルが含まれているか確認してください。</string>
+<string name="unsupported_version">未検証のOSまたはターミナルです。互換性を確認できないため接続を停止しています。</string>
+</resources>

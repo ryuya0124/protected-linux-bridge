@@ -1,0 +1,37 @@
+<resources>
+<string name="app_name">Protected Linux Bridge</string>
+<string name="intro">Open a protected Debian VM inside Android’s Terminal app.</string>
+<string name="experimental">Experimental · Android 16 / Terminal 16</string>
+<string name="root_title">VM launcher</string>
+<string name="framework_title">Vector connection</string>
+<string name="checking">Checking…</string>
+<string name="requesting_root">Requesting root permission…</string>
+<string name="runtime_ready">Ready. The launcher is available for 30 minutes while idle.</string>
+<string name="runtime_unavailable">Unavailable. Check root permission and that the stock Terminal is installed. Root must support su -M.</string>
+<string name="runtime_disabled">Disabled. No VM will be launched.</string>
+<string name="framework_unavailable">Not connected. Enable this module in Vector, select Terminal as its only scope, and reopen this app.</string>
+<string name="scope_missing">Terminal is not in the Vector scope.</string>
+<string name="scope_ready">Scope configured. Open Terminal to load the module.</string>
+<string name="module_loaded">Module loaded in Terminal. Successful Linux startup is shown in its console.</string>
+<string name="enabled">Connect Terminal to the protected VM</string>
+<string name="enabled_detail">Changes apply when Terminal is reopened. Turning this off restores its original behavior, which may not support this device.</string>
+<string name="open_terminal">Open Terminal</string>
+<string name="prepare">Prepare VM launcher</string>
+<string name="licenses">Licenses</string>
+<string name="terminal_missing">The stock Terminal is missing or disabled.</string>
+<string name="limits_title">Available in this preview</string>
+<string name="limits">Read-only Debian shell · 512 MiB RAM · 1 vCPU\nOne console · 30-minute session limit\nNo network, GUI, disk settings, or persistent writes. Temporary files disappear when the VM stops. Close Terminal or type exit to stop the VM.</string>
+<string name="safety_title">Existing kernels only</string>
+<string name="safety">No kernel updates, partition writes, reboot, or SELinux changes. Uses the device’s existing Microdroid kernel. Root and Gunyah are required. This route omits pvmfw verified boot and is not equivalent to a verified AVF guest.</string>
+<string name="setup_title">Setup</string>
+<string name="setup">1. Enable the stock Terminal and install its Linux image.\n2. In Vector, enable this module for Terminal only.\n3. Allow root here, then open Terminal.\nAfter root is lost or the launcher expires, prepare it again here.</string>
+<string name="state_ready">Ready</string>
+<string name="state_attention">Needs attention</string>
+<string name="state_waiting">Waiting</string>
+<string name="enable_terminal">Enable stock Terminal</string>
+<string name="install_linux">Open Linux installer</string>
+<string name="setup_running">Preparing the stock Terminal…</string>
+<string name="setup_done">Terminal and its installer are enabled.</string>
+<string name="setup_failed">Could not enable Terminal. Check root permission and whether this OS includes the stock Terminal.</string>
+<string name="unsupported_version">This OS or Terminal version is untested. The bridge is disabled for compatibility.</string>
+</resources>
