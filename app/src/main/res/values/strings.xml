@@ -24,7 +24,7 @@
 <string name="licenses">Licenses</string>
 <string name="terminal_missing">The stock Terminal is missing or disabled.</string>
 <string name="limits_title">Available in this preview</string>
-<string name="limits">RAM, CPUs, lifetime and keep-alive are configurable. Disk size only grows through a verified copy. Networking currently uses HTTP/HTTPS proxy, explicit UDP forwarding and IPv4 ping. Transparent networking for arbitrary applications, direct USB assignment, Vulkan and hardware video remain unavailable. Additional guest drivers alone do not complete those paths.</string>
+<string name="limits">RAM, CPUs, lifetime and keep-alive are configurable; storage only grows through a verified copy. Stock networking uses a proxy and explicit UDP/ping. The custom kernel also supports optional guest TUN for ordinary TCP/UDP/DNS. Direct USB, GPU Vulkan and hardware video remain unavailable.</string>
 <string name="safety_title">Host protection</string>
 <string name="safety">Android’s kernel, boot partitions and SELinux stay unchanged; no Android reboot. Choose stock Microdroid or a verified guest image in private app storage. Root and Gunyah are required. This route has no pvmfw verified boot or equivalent AVF guarantee.</string>
 <string name="setup_title">Setup</string>
@@ -39,7 +39,7 @@
 <string name="setup_failed">Could not enable Terminal. Check root permission and whether this OS includes the stock Terminal.</string>
 <string name="unsupported_version">This OS or Terminal version is untested. The bridge is disabled for compatibility.</string>
 <string name="network_title">Network behavior</string>
-<string name="network_detail">The proxy uses Terminal’s UID and INTERNET permission. It follows Android’s app network, VPN and power restrictions. Host routes, DNS and firewall settings are not changed. Background or Doze restrictions may pause networking.</string>
+<string name="network_detail">Network egress uses the selected Android app UID and its INTERNET permission, VPN and power policy. Terminal is the default; the experimental profile can explicitly choose Bridge for its fullscreen GUI. Background/Doze restrictions can block either app. No host routes, DNS, firewall or power restrictions are changed.</string>
 <string name="gpu_title">OpenGL acceleration</string>
 <string name="gpu_detail">Run plb-install-gpu inside Linux, then save graphics settings here and recreate only the VM. Android restart is unnecessary. virgl (Adreno) in plb-gpu-info indicates host GPU OpenGL. Weston composition and direct Android GPU viewing have separate switches. Capture and copying still use CPU. Zero-copy and GPU Vulkan are not supported.</string>
 <string name="tools_title">Network tools</string>
@@ -116,7 +116,7 @@ plb-udp-forward 5353 1.1.1.1 53 forwards guest localhost:5353 to the specified U
 <string name="audio_output_device">Linux audio output</string>
 <string name="audio_input_device">Linux microphone input</string>
 <string name="audio_refresh_devices">Refresh connected devices</string>
-<string name="usb_direct_unavailable">Microdroid has no USB drivers. The experimental kernel includes USB/xHCI, but direct device assignment is not yet exposed. USB audio can use the bridge above. Physical USB/Bluetooth audio hardware has not been tested.</string>
+<string name="usb_direct_unavailable">The installed crosvm disables direct USB in protected VMs, even with guest USB drivers. USB/Bluetooth audio can instead use Android’s per-stream audio bridge above. No physical peripheral was available for testing.</string>
 
 <string name="kernel_title">Guest kernel</string>
 <string name="kernel_profile">VM profile</string>
@@ -130,4 +130,20 @@ plb-udp-forward 5353 1.1.1.1 53 forwards guest localhost:5353 to the specified U
 <string name="kernel_import_failed">Import failed. Check the supported 6.18.57-plb1 Image, root access and free space. Other builds or damaged images are rejected.</string>
 <string name="kernel_switching">Stopping VM and preparing profile. The initial copy may take several minutes.</string>
 <string name="kernel_switch_failed">Could not complete the switch. Check kernel installation, storage and root. Select stock Microdroid to reopen the original environment.</string>
+  <string name="gpu_light_preset">Use lightweight GPU preset</string>
+  <string name="gpu_light_detail">Stop this VM and use 512 MiB, 1 CPU, 960 × 540 at 30 fps, Openbox with GPU apps and the GPU viewer. Disk size and other resource settings are retained. This reduces memory pressure; it does not guarantee stability. Reopen the GUI afterwards.</string>
+  <string name="tun_title">Experimental network</string>
+  <string name="tun_detail">TCP, UDP and DNS without per-app proxy settings, using a TUN interface inside the custom-kernel VM. Android routing and firewall stay unchanged. DNS uses 1.1.1.1 / 8.8.8.8; traffic follows the selected Android app’s network/VPN policy. Background restrictions on that app may block it; choose Bridge for its GUI. No incoming ports, broadcast or arbitrary IP protocols. Ping uses the existing plb-ping relay.</string>
+  <string name="tun_enabled">Enable guest TUN networking</string>
+  <string name="tun_refresh">Refresh network status</string>
+  <string name="tun_apply">Apply network setting (stop VM)</string>
+  <string name="tun_confirm">Stop this VM to apply. Open Terminal or GUI again to start it. No Android restart. The guest resolver change lasts only for this boot.</string>
+  <string name="tun_stock">Requires the experimental Linux kernel profile. Stock mode keeps its existing proxy.</string>
+  <string name="tun_ready">Guest TUN is running</string>
+  <string name="tun_failed">Guest TUN is not ready. See /tmp/plb-network.log in Linux.</string>
+  <string name="tun_off">Guest is running with TUN disabled</string>
+  <string name="tun_waiting">VM is stopped. The saved setting applies on its next start.</string>
+<string name="tun_query_failed">The network state could not be read. Prepare the runtime and try again.</string>
+<string name="tun_source">Android app used for network access</string>
+<string name="tun_summary">Guest-only TCP, UDP and DNS without per-app proxy configuration. The selected Android app’s network/VPN and background restrictions apply.</string>
 </resources>

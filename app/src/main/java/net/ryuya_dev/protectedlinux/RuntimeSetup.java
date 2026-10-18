@@ -60,6 +60,17 @@ final class RuntimeSetup {
       boolean ok=p.waitFor(8,TimeUnit.SECONDS)&&p.exitValue()==0;if(p.isAlive())p.destroyForcibly();return ok;
     }catch(Exception error){return false;}
   }
+  static int networkValue(Context context,boolean live){
+    try{Process p=new ProcessBuilder("su","-M","-c",binary(context).getAbsolutePath()+(live?" --network-live":" --network-state")).redirectErrorStream(true).start();if(!p.waitFor(6,TimeUnit.SECONDS)){p.destroyForcibly();return -1;}String output=new String(p.getInputStream().readAllBytes(),java.nio.charset.StandardCharsets.UTF_8).trim();String prefix=live?"NETWORK_LIVE ":"NETWORK ";if(p.exitValue()!=0||!output.matches(prefix+(live?"[0-3]":"[01]")))return -1;return output.charAt(prefix.length())-'0';}catch(Exception error){return -1;}
+  }
+  static int networkApp(Context context){
+    try{Process p=new ProcessBuilder("su","-M","-c",binary(context).getAbsolutePath()+" --network-app-state").redirectErrorStream(true).start();if(!p.waitFor(6,TimeUnit.SECONDS)){p.destroyForcibly();return -1;}String output=new String(p.getInputStream().readAllBytes(),java.nio.charset.StandardCharsets.UTF_8).trim();return p.exitValue()==0&&output.matches("NETWORK_APP [01]")?output.charAt(12)-'0':-1;}catch(Exception error){return -1;}
+  }
+  static boolean saveNetwork(Context context,boolean enabled,int source){
+    if(source<0||source>1)return false;
+    if(enabled&&!context.getSharedPreferences("config",0).getBoolean("mainline_kernel",false))return false;
+    try{if(!"ready".equals(start(context)))return false;Process p=new ProcessBuilder("su","-M","-c",binary(context).getAbsolutePath()+" --network "+(enabled?1:0)+" && "+binary(context).getAbsolutePath()+" --network-app "+source).redirectErrorStream(true).start();boolean ok=p.waitFor(6,TimeUnit.SECONDS)&&p.exitValue()==0;if(p.isAlive())p.destroyForcibly();return ok;}catch(Exception error){return false;}
+  }
   record GraphicsState(int mode,int resolution,int fps){}
   static synchronized GraphicsState graphicsState(Context context){
     try{File binary=binary(context);if(!binary.isFile())return new GraphicsState(-1,2,30);

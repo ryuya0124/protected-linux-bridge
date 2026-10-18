@@ -32,8 +32,8 @@ static int guest_lifetime=1800;
 static int local_connect(unsigned port){int fd=socket(AF_INET,SOCK_STREAM|SOCK_CLOEXEC,0);if(fd<0)return -1;struct sockaddr_in a={.sin_family=AF_INET,.sin_port=htons((unsigned short)port),.sin_addr={htonl(INADDR_LOOPBACK)}};if(connect(fd,(struct sockaddr*)&a,sizeof(a))){close(fd);return -1;}return fd;}
 static int local_listener(unsigned port){int fd=socket(AF_INET,SOCK_STREAM|SOCK_CLOEXEC,0);if(fd<0)return -1;int one=1;setsockopt(fd,SOL_SOCKET,SO_REUSEADDR,&one,sizeof(one));struct sockaddr_in a={.sin_family=AF_INET,.sin_port=htons((unsigned short)port),.sin_addr={htonl(INADDR_LOOPBACK)}};if(bind(fd,(struct sockaddr*)&a,sizeof(a))||listen(fd,16)){close(fd);return -1;}return fd;}
 static void loopback_up(void){int fd=socket(AF_INET,SOCK_DGRAM,0);struct ifreq iface={0};strcpy(iface.ifr_name,"lo");if(fd>=0){if(!ioctl(fd,SIOCGIFFLAGS,&iface)){iface.ifr_flags|=IFF_UP;ioctl(fd,SIOCSIFFLAGS,&iface);}close(fd);}}
-static void proxy_forwarder(void){
- int listener=local_listener(3128);if(listener<0)_exit(40);signal(SIGCHLD,SIG_DFL);int active=0;
+static void proxy_forwarder(unsigned port){
+ int listener=local_listener(port);if(listener<0)_exit(40);signal(SIGCHLD,SIG_DFL);int active=0;
  for(;;){while(waitpid(-1,NULL,WNOHANG)>0)if(active>0)active--;struct pollfd p={listener,POLLIN,0};if(poll(&p,1,200)<=0)continue;
   int client=accept4(listener,NULL,NULL,SOCK_CLOEXEC);if(client<0)continue;if(active>=16){close(client);continue;}
   pid_t pid=fork();if(pid==0){close(listener);alarm(15);int remote=vsock_connect(PROXY_PORT);if(remote>=0){alarm(0);plb_relay(client,remote,guest_lifetime,0);close(remote);}close(client);_exit(0);}if(pid>0)active++;close(client);
@@ -77,7 +77,13 @@ int main(int argc,char **argv){
  if(getpid()==1){guest_protect_kernel_packages();guest_grow_filesystem();guest_start_systemd();}
  mkdir("/run/user",0755);mkdir("/run/user/0",0700);if(gpu_boot_settings())fputs("GRAPHICS_SETTINGS_FAILED\n",stderr);configure_environment();
  start_audio();
- if(fork()==0){proxy_forwarder();_exit(0);}
+ if(fork()==0){proxy_forwarder(3128);_exit(0);}
+ if(guest_boot_option(" plb.fullkernel=")&&guest_boot_option(" plb.network=")){
+  if(fork()==0){proxy_forwarder(1080);_exit(0);}
+  pid_t network=fork();if(network==0){int log=open("/tmp/plb-network.log",O_WRONLY|O_CREAT|O_TRUNC,0600);if(log>=0){dup2(log,1);dup2(log,2);close(log);}execl("/bin/sh","sh","/run/plb/plb-network",(char*)NULL);_exit(48);}
+  // Don't hand a new shell/GUI to applications before guest routes/DNS are ready.
+  if(network>0)for(int i=0;i<100;i++){if(!access("/run/plb/network/ready",F_OK)||waitpid(network,NULL,WNOHANG)!=0)break;usleep(100000);}
+ }
  if(fork()==0){gpu_forwarder();_exit(0);}
  int listener=socket(AF_VSOCK,SOCK_STREAM|SOCK_CLOEXEC,0);struct sockaddr_vm a={.svm_family=AF_VSOCK,.svm_port=AGENT_PORT,.svm_cid=0xffffffff};
  if(listener<0||bind(listener,(struct sockaddr*)&a,sizeof(a))||listen(listener,16)){perror("guest agent vsock");quitting=1;}
@@ -86,6 +92,7 @@ int main(int argc,char **argv){
   struct sockaddr_vm peer;socklen_t size=sizeof(peer);int client=accept4(listener,(struct sockaddr*)&peer,&size,SOCK_CLOEXEC);if(client<0)continue;if(peer.svm_cid!=2||active>=16){close(client);continue;}
   struct timeval t={2,0};setsockopt(client,SOL_SOCKET,SO_RCVTIMEO,&t,sizeof(t));char request=0;ssize_t n=read(client,&request,1);
   if(n==1&&request=='T'){guest_storage_status(client);close(client);continue;}
+  if(n==1&&request=='N'){unsigned char status=!guest_boot_option(" plb.network=")?1:access("/run/plb/network/ready",F_OK)?2:3;plb_write_all(client,&status,1);close(client);continue;}
   if(n==1&&request=='Q'){sync();plb_write_all(client,"\0",1);close(client);poweroff_requested=1;quitting=1;break;}
   if(n!=1||(request!='P'&&request!='G'&&request!='C'&&request!='O'&&request!='I'&&request!='W')){close(client);continue;}t.tv_sec=0;setsockopt(client,SOL_SOCKET,SO_RCVTIMEO,&t,sizeof(t));
   pid_t child=fork();if(child==0){signal(SIGTERM,SIG_DFL);signal(SIGINT,SIG_DFL);close(listener);if(request=='P')terminal_session(client);else if(request=='W'){clipboard_watch(client);close(client);_exit(0);}else if(request=='O'||request=='I'){audio_session(client,request=='I');close(client);_exit(0);}else if(request=='C'){plb_write_all(client,"\0",1);clipboard_session(client);close(client);_exit(0);}else{int display=start_gui();char status=display==-2?2:display<0?3:0;plb_write_all(client,&status,1);if(display>=0){plb_relay(client,display,guest_lifetime,0);close(display);}close(client);_exit(0);}}

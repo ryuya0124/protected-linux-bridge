@@ -24,7 +24,7 @@
 <string name="licenses">ライセンス</string>
 <string name="terminal_missing">標準ターミナルが無効か、インストールされていません。</string>
 <string name="limits_title">この検証版で使える機能</string>
-<string name="limits">RAM・CPU・稼働時間・常駐は設定で選択できます。保存容量は拡張のみで、専用ディスクをコピー・照合して変更します。通信はHTTP/HTTPSプロキシ、明示的なUDP転送、IPv4 pingです。任意アプリの透過通信・USBの直接割り当て・Vulkan・ハードウェア動画処理は未対応です。ゲストカーネルの機能追加だけでこれらが完成するわけではありません。</string>
+<string name="limits">RAM・CPU・稼働時間・常駐は設定可能で、保存容量はコピー・照合による拡張のみです。通常モードはプロキシと明示的UDP/ping、実験モードは任意でTUNによる一般のTCP・UDP・DNS通信を使えます。直接USB・GPU Vulkan・ハードウェア動画処理は未対応です。</string>
 <string name="safety_title">ホスト環境の保護</string>
 <string name="safety">Androidのカーネル・起動領域・SELinuxは変更せず、再起動もしません。既存Microdroidか、専用領域の検証済みゲストカーネルを選びます。rootとGunyahが必要です。pvmfwによる起動検証はなく、検証済みAVFゲストと同じ保証はありません。</string>
 <string name="setup_title">導入手順</string>
@@ -39,7 +39,7 @@
 <string name="setup_failed">有効化できませんでした。root権限と、このOSに標準ターミナルが含まれているか確認してください。</string>
 <string name="unsupported_version">未検証のOSまたはターミナルです。互換性を確認できないため接続を停止しています。</string>
 <string name="network_title">ネットワークの動作</string>
-<string name="network_detail">標準ターミナルのUIDとINTERNET権限で通信し、Androidのアプリ別通信・VPN・省電力制限に従います。ホストのルート・DNS・ファイアウォール設定は変更しません。バックグラウンドやDozeの制限中は通信が止まる場合があります。</string>
+<string name="network_detail">通信元に選択したAndroidアプリのUID・INTERNET権限を使い、VPN・省電力の設定に従います。初期値は標準ターミナルで、実験プロファイルでは全画面GUI用にBridgeも明示的に選べます。どちらもバックグラウンドやDozeの制限中は通信できない場合があります。Androidの経路・DNS・ファイアウォール・省電力制限は変更しません。</string>
 <string name="gpu_title">OpenGLのGPU描画</string>
 <string name="gpu_detail">Linux内で plb-install-gpu を実行し、このアプリの描画設定を保存してVMを作り直します。Androidの再起動は不要です。plb-gpu-info の virgl (Adreno) は端末GPUでのOpenGL描画を示します。Westonの画面合成と、Android側の直接表示も個別に切り替えられます。画面取得とコピーにはCPU処理が残ります。ゼロコピーやVulkanのGPU化は未対応です。</string>
 <string name="tools_title">ネットワーク用コマンド</string>
@@ -116,7 +116,7 @@ plb-udp-forward 5353 1.1.1.1 53 でゲストのlocalhost:5353を指定したUDP�
 <string name="audio_output_device">Linuxの音声出力</string>
 <string name="audio_input_device">Linuxのマイク入力</string>
 <string name="audio_refresh_devices">接続機器を再検出</string>
-<string name="usb_direct_unavailable">MicrodroidはUSBドライバーが無効です。実験用カーネルにはUSB/xHCIを含みますが、機器を直接割り当てる操作はまだ提供していません。USB音声は上の音声ブリッジで共有できます。実物のUSB・Bluetooth音声機器は未検証です。</string>
+<string name="usb_direct_unavailable">端末のcrosvmは保護VMで直接USBを無効にするため、ゲスト側のドライバーだけでは接続できません。USB・Bluetooth音声は上のAndroid経由ブリッジで共有する方式です。実物の周辺機器は未検証です。</string>
 
 <string name="kernel_title">ゲストカーネル</string>
 <string name="kernel_profile">VMプロファイル</string>
@@ -130,4 +130,20 @@ plb-udp-forward 5353 1.1.1.1 53 でゲストのlocalhost:5353を指定したUDP�
 <string name="kernel_import_failed">読み込めません。対応する6.18.57-plb1のImage、root許可、空き容量を確認してください。別のビルドや破損したイメージは受け付けません。</string>
 <string name="kernel_switching">VMを停止し、プロファイルを準備しています。初回のコピーは数分かかる場合があります。</string>
 <string name="kernel_switch_failed">切り替えを完了できません。カーネルの導入・空き容量・rootを確認してください。既存Microdroidを選んで適用すると元の環境を開けます。</string>
+  <string name="gpu_light_preset">軽量GPU設定を適用</string>
+  <string name="gpu_light_detail">このVMを停止し、512 MiB・1 CPU・960 × 540・30 fps・Openbox＋GPUアプリ描画・GPU表示に設定します。ディスク容量などは維持します。メモリ負荷を減らしますが、安定動作を保証する設定ではありません。適用後にGUIを開き直してください。</string>
+  <string name="tun_title">実験用ネットワーク</string>
+  <string name="tun_detail">独自カーネルのVM内にTUNを作り、TCP・UDP・DNSをアプリごとのプロキシ設定なしで中継します。Androidの経路やファイアウォールは変更しません。DNSは1.1.1.1／8.8.8.8を利用し、通信は選択したAndroidアプリのネットワーク・VPN設定に従います。そのアプリのバックグラウンド通信が制限されていると接続できません。BridgeのGUIでは通信元にBridgeを選べます。外部からの着信、ブロードキャスト、任意のIPプロトコルは未対応です。pingは既存のplb-pingで中継します。</string>
+  <string name="tun_enabled">VM内のTUN通信を有効にする</string>
+  <string name="tun_refresh">通信状態を更新</string>
+  <string name="tun_apply">通信設定を適用（VMを停止）</string>
+  <string name="tun_confirm">このVMを停止して適用します。標準ターミナルやGUIを開き直すと起動します。Androidは再起動しません。VMのDNS変更は起動中だけ有効です。</string>
+  <string name="tun_stock">実験用Linuxカーネルのプロファイルで利用できます。Microdroidは従来のプロキシを使います。</string>
+  <string name="tun_ready">VM内のTUNが稼働中です</string>
+  <string name="tun_failed">VM内のTUNが未準備です。Linuxの /tmp/plb-network.log を確認してください。</string>
+  <string name="tun_off">VMは稼働中・TUN通信は無効です</string>
+  <string name="tun_waiting">VMは停止中です。保存した設定は次のVM起動で反映します。</string>
+<string name="tun_query_failed">通信状態を取得できません。起動支援を準備してから更新してください。</string>
+<string name="tun_source">通信元のAndroidアプリ</string>
+<string name="tun_summary">実験VMのTCP・UDP・DNSを、アプリごとのプロキシ指定なしで中継します。選択したAndroidアプリのVPN・バックグラウンド通信制限に従います。</string>
 </resources>

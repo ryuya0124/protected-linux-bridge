@@ -1,0 +1,64 @@
+#!/bin/sh
+# MIT. Runs inside the guest, never in the Android host's network namespace.
+set -eu
+test "$(id -u)" = 0
+grep -Eq '(^| )plb.fullkernel=1( |$)' /proc/cmdline
+grep -Eq '(^| )plb.network=1( |$)' /proc/cmdline
+test -c /dev/net/tun
+command -v ip >/dev/null
+# Refuse to override another guest network configuration.
+test -z "$(ip route show default)"
+test -z "$(ip -6 route show default)"
+! ip link show plb0 >/dev/null 2>&1
+test -f /etc/resolv.conf
+mkdir -p /run/plb/network
+chmod 700 /run/plb/network
+cat > /run/plb/network/tunnel.yml <<'EOF'
+tunnel:
+  name: plb0
+  mtu: 1280
+  ipv4: 198.18.0.1
+  ipv6: 'fd00:706c:6200::1'
+  icmp: 'off'
+socks5:
+  address: 127.0.0.1
+  port: 1080
+  udp: 'tcp'
+misc:
+  max-session-count: 12
+  tcp-buffer-size: 16384
+  task-stack-size: 65536
+  connect-timeout: 10000
+  tcp-read-write-timeout: 300000
+  udp-read-write-timeout: 60000
+  log-level: warn
+EOF
+child= bound= route4= route6=
+cleanup(){
+  trap - EXIT HUP INT TERM
+  test -z "$route4" || ip route del default dev plb0 2>/dev/null || true
+  test -z "$route6" || ip -6 route del default dev plb0 2>/dev/null || true
+  test -z "$bound" || umount /etc/resolv.conf 2>/dev/null || true
+  if test -n "$child"; then kill "$child" 2>/dev/null || true; wait "$child" 2>/dev/null || true; fi
+  rm -f /run/plb/network/ready
+}
+trap cleanup EXIT
+trap 'exit 0' HUP INT TERM
+/run/plb/hev-socks5-tunnel /run/plb/network/tunnel.yml &
+child=$!
+i=0
+until ip link show plb0 >/dev/null 2>&1; do
+  kill -0 "$child"; i=$((i+1)); test "$i" -lt 50; sleep .1
+done
+ip link set plb0 up
+# A temporary guest-only bind mount; the original resolver file is untouched.
+printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\noptions timeout:3 attempts:2\n' > /run/plb/network/resolv.conf
+mount --bind /run/plb/network/resolv.conf /etc/resolv.conf
+bound=1
+ip route add default dev plb0
+route4=1
+ip -6 route add default dev plb0
+route6=1
+touch /run/plb/network/ready
+echo PLB_TUN_NETWORK_READY
+wait "$child"

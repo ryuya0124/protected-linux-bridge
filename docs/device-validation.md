@@ -137,3 +137,15 @@ The following uses the same Galaxy baseline. The device owner changed the policy
 Direct USB assignment, physical USB/Bluetooth audio/input, transparent arbitrary-application networking, hardware video, Vulkan and Android15/16 guest boot remain unverified/unimplemented. Kernel config alone does not establish these features. See [guest-kernel-plan.md](guest-kernel-plan.md).
 
 Final recovery checks: the app switched back to stock Microdroid, reopened the original4GiB Debian disk, and systemd remained active. Host boot identity stayed unchanged and SELinux remained Enforcing. A missing experimental Image was rejected while the Stop command still worked; a valid import passed, a deliberately corrupted staging Image was rejected, and the installed Image retained its known hash.
+
+## 0.4.0-preview.2 — guest I/O
+
+- Same host boot ID and SELinux Enforcing throughout. Only owned guests were stopped; the existing trusted VM remained running.
+- Experimental512MiB/1CPU: EGL ES3.2 / GLX accelerated Adreno840.20second `glxgears` sample rendered about244–314offscreen frames/second; this is **not** viewer fps. Guest boot ID was unchanged afterwards. A later50second rendering sample also retained the same guest boot ID and completed proxy-free HTTPS afterwards. Separate short Weston/Xwayland initialization passed at low resolution.
+- Proxy-free IPv4/IPv6 HTTPS returned200. Python `socket`+`ssl` received HTTP200 with standard certificate checks. UDP DNS returned the matching transaction ID and answer records. No per-program proxy arguments were used in those tests.
+- Android `APP_BACKGROUND` denied Terminal-network traffic in background; bringing it forward restored old-proxy and new-TUN traffic. Explicit Bridge identity then passed while Bridge was foreground. VPN/power settings were not changed.
+- New native network-status request denied to arbitrary shell; all10 requests rejected. Existing43 destination/authority/ICMP checks passed. New SOCKS transport suite brings native tests to37;24 JVM tests and release Lint passed.
+- Diskless direct virtio-gpu2D/VirGL initialized DRM. Read-only experimental disk gave EGL Adreno response. Correct Venus ICD found no usable Vulkan physical GPU; Vulkan-enabled VirGL failed capset/context setup; gfxstream host initialization aborted. VMM exit0 is not counted as Vulkan success. Both original/experimental disk hashes were unchanged across read-only probes.
+- Protected guest had no xHCI device; USB list returnedI/O/closed-pipe. The corresponding crosvm protected-USB branch explains this; direct USB is not available and no physical device was tested.
+
+Detailed interpretation and remaining limits: [experimental-io.md](experimental-io.md).

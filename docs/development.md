@@ -126,4 +126,14 @@ Clipboard C/W requests are bounded64KiB. The optional root-launched helper immed
 
 The UI uses real Material3 BottomNavigationView. Rotation uses negotiated RFB ExtendedDesktopSize with bounded dimensions/screen IDs; no global Android display settings. Both raw GLES and compatibility viewers retain CPU-copy boundaries. A display failure stops I/O rather than repeatedly logging input errors.
 
-Automated checks currently include24 JVM tests and29 native tests, plus release Lint. Physical USB/Bluetooth hardware, Android guests and hardware video are unverified/unimplemented. See the device record for actual sample limits, including Gunyah PAGE_FAULT under heavy experimental-kernel workloads.
+Automated checks currently include24 JVM tests and37 native tests, plus release Lint. Physical USB/Bluetooth hardware, Android guests and hardware video are unverified/unimplemented. See the device record for actual sample limits, including Gunyah PAGE_FAULT under heavy experimental-kernel workloads.
+
+## Experimental I/O (0.4.0-preview.2)
+
+The guest tunnel is compiled by `tools/build_tun.py` against the pinned guest musl with NDK28.2 Clang. Archives and every submodule revision/checksum are in `third_party/hev/sources.json`; no moving branch is fetched by the build. The ARM64 static binary is placed in the initramfs, copied into guest `/run` and used only when the full-kernel profile and explicit network switch are on. Upstream source is unmodified; compile-only UAPI libc shims are generated in the ignored cache. Root licences and source notices are included in the app. The total additional cache is about15 MiB, not a new kernel checkout.
+
+The SOCKS5 extension uses command5 UDP-in-TCP, validated header lengths and bounded per-destination connected sockets. TCP uses the existing destination checker/relay; UDP uses the same address policy before connect. Root-private network settings accept only0/1. IPC N is module/root-only. Network UID selection is explicit; do not automatically switch identities to evade VPN or background policy. The chosen module identity requires the ordinary INTERNET permission now declared in the manifest.
+
+The lightweight GPU button saves512MiB/1CPU/960x540/30fps/Openbox+VirGL app rendering/raw GLES viewer, retaining disk size, lifetime, keepalive and systemd. It stops/prepares only this VM and asks the user to reopen GUI. It reduces tested load; it does not fix Gunyah's heavy-workload page-provisioning fault.
+
+Read-only GPU diagnostics: `python3 tools/build_gpu_probe.py --sdk ANDROID_SDK_PATH` creates only host-side artifacts. `guest_gpu_probe.c` refuses to run unless it is PID1. In the isolated guest it mounts the selected disk read-only with `noload`, creates only volatile guest mounts, runs bounded EGL/Vulkan diagnostics and powers off. It must be used only after stopping the owned manager, with the experimental disk explicitly `ro=true`; never pass the original writable disk, reuse a CID/VM socket or run simultaneous writers. It is not installed into production launch flags. Consult [experimental-io.md](experimental-io.md) before interpreting results.

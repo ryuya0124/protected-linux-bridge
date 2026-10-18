@@ -41,6 +41,7 @@ static int tcp_connect(const char *host,const char *port){
  }
  freeaddrinfo(addresses);return fd;
 }
+#include "socks_broker.h"
 static int authority(const char *input,char *host,size_t capacity,char port[6],unsigned default_port){
  size_t length=strlen(input);if(!length||length>300)return -1;
  for(size_t i=0;i<length;i++)if((unsigned char)input[i]<=32||strchr("/@\\?#",input[i]))return -1;
@@ -99,7 +100,7 @@ pid_t plb_start_proxy(uid_t network_uid,int manager_listener,int startup_client,
  int active=0;
  for(;;){while(waitpid(-1,NULL,WNOHANG)>0)if(active>0)active--;struct pollfd p={listener,POLLIN,0};if(poll(&p,1,200)<=0)continue;
   struct sockaddr_vm peer;socklen_t size=sizeof(peer);int client=accept4(listener,(struct sockaddr*)&peer,&size,SOCK_CLOEXEC);if(client<0)continue;if(peer.svm_cid!=PLB_CID||active>=16){close(client);continue;}
-  pid_t owner=getpid(),child=fork();if(child==0){prctl(PR_SET_PDEATHSIG,SIGKILL);if(getppid()!=owner)_exit(72);close(listener);alarm(15);unsigned char first=255;ssize_t got=recv(client,&first,1,MSG_PEEK);if(got==1){if(first==0)plb_datagram_broker(client);else http_proxy(client);}close(client);_exit(0);}if(child>0)active++;close(client);
+  pid_t owner=getpid(),child=fork();if(child==0){prctl(PR_SET_PDEATHSIG,SIGKILL);if(getppid()!=owner)_exit(72);close(listener);alarm(15);unsigned char first=255;ssize_t got=recv(client,&first,1,MSG_PEEK);if(got==1){if(first==0)plb_datagram_broker(client);else if(first==5)socks_broker(client);else http_proxy(client);}close(client);_exit(0);}if(child>0)active++;close(client);
  }
 }
 #ifdef PLB_PROXY_STANDALONE

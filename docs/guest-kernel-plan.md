@@ -22,7 +22,7 @@ Android 15/16 support remains an investigation, not an implemented capability. A
 
 ## Current status
 
-The stock Microdroid mode boots Debian. Diskless custom-kernel boot and an isolated Debian-copy boot have been verified; workload stability remains limited (measurements below). Networking, direct USB, DRM/Vulkan and video acceleration must be re-evaluated against an actually bootable guest kernel and devices exposed by the installed VMM; enabling CONFIG options alone is insufficient.
+The stock Microdroid mode boots Debian. Diskless custom-kernel boot and an isolated Debian-copy boot have been verified; workload stability remains limited (measurements below). Preview.2 adds optional guest TUN TCP/UDP/DNS and verifies lightweight VTest GPU activity. Direct USB remains disabled by the installed protected-VMM path. Read-only virtio-gpu probes reach EGL but not usable Vulkan; production flags remain unchanged. See [experimental I/O](experimental-io.md). Enabling CONFIG options alone is insufficient.
 
 ## 2026-10-18 measurements
 
@@ -36,3 +36,7 @@ The stock Microdroid mode boots Debian. Diskless custom-kernel boot and an isola
 - Both profiles use one root-private ownership lock. A manager and an offline disk copy cannot run concurrently. Copying never opens the original writable. Ambiguous/incomplete output is not used as an existing profile.
 
 References: [Gunyah UAPI](https://github.com/OnePlusOSS/android_kernel_oneplus_sm8750/blob/8e66bb68fe6735e93ef5dd59c184cf6341b0098d/include/uapi/linux/gunyah.h), [memory provisioning implementation](https://github.com/OnePlusOSS/android_kernel_oneplus_sm8750/blob/8e66bb68fe6735e93ef5dd59c184cf6341b0098d/drivers/virt/gunyah/vm_mgr_mem.c), [crosvm Gunyah backend](https://chromium.googlesource.com/crosvm/crosvm/+/refs/heads/main/hypervisor/src/gunyah/mod.rs).
+
+## Preview.2 follow-up
+
+The new low-load GPU preset and guest-only TUN are implemented/tested without a kernel rebuild. The earlier heavy-GUI Gunyah fault is not considered fixed. Direct USB and Vulkan results, memory/bandwidth limits and reproducible diagnostic boundaries are in [experimental-io.md](experimental-io.md).

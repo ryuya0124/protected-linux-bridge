@@ -15,6 +15,7 @@ Android標準の「ターミナル」から、Snapdragon / Gunyahの保護VM上�
 - マウス・物理キーボード用の入力経路（実機のUSB/Bluetooth機器は未検証）
 - 任意でOpenGLとWestonの画面合成を端末のAdreno GPUへ転送（VirGL / VTest）
 - 指定した宛先へのUDP転送と、実際のIPv4 ICMP/ping
+- 実験用プロファイルで、アプリごとのプロキシ設定が不要なTCP・UDP・DNS通信
 - アプリのボタンで標準ターミナルを有効化し、Linuxインストール画面を起動
 - RAM・CPU・稼働時間・VM常駐の選択、ディスクの拡張（縮小なし）
 - `systemd`をPID1として起動し、`systemctl`でサービス管理・自動起動
@@ -72,6 +73,8 @@ plb-desktop-mode classic      # 元のOpenboxデスクトップへ戻す（VM再
 plb-desktop-mode gpu          # WestonのGPU合成へ切り替え（同上）
 ```
 
+実験用プロファイルでは「軽量GPU設定を適用」で、512 MiB・1 CPU・960×540・30 fps・Openbox＋GPUアプリ描画をまとめて選べます。VMだけを停止するため、適用後にGUIを開き直してください。この構成で実描画は確認しましたが、高負荷時のGunyahメモリ障害を解消したわけではありません。
+
 Bridgeで描画設定を保存した後は、VM起動時にアプリの設定が下記コマンドの指定より優先します。
 
 実機で `virgl (Adreno (TM) 840)`、OpenGL ES 3.2、OpenGL 2.1、GLXの `Accelerated: yes` と実描画を確認しています。Westonはウィンドウの画面合成にGPUを使います。アプリ自体の2D描画はアプリによって異なります。「転送画面をOpenGLで直接表示」をオンにすると、生の画素をDirectByteBufferで受け取り、GLESのテクスチャへアップロードしてGPUで拡大・合成します。VNCの画像圧縮・JavaScriptでの展開を省きますが、**画面取得・転送・コピーにはCPU処理が残ります。ゼロコピーではありません。** オフでは従来のnoVNC互換表示を使います。切り替えは表示を開き直すと反映し、VMの作り直しは不要です。 GPU VulkanやGPUパススルーには対応しません。Venusの共有メモリー経路には別途実装が必要です。重いアプリが快適になるとは限らず、対応するGLの機能にも制限があります。問題があればCPU描画へ戻せます。GPU描画は追加パッケージを導入するまで無効です。
@@ -110,13 +113,13 @@ systemdは実際のPID1で、`systemctl start/stop/enable`が使えます。Micr
 
 通常はMicrodroidのまま使います。新しいプロファイルはLinux 6.18.57-plb1と、元のDebianをコピーした**別の永続ディスク**を使います。元のディスクは残り、コピー後の変更は同期しません。
 
-1. 同じリリースの `Image-6.18.57-plb1` を入手します。
+1. [共通ゲストカーネル `Image-6.18.57-plb1`](https://github.com/ryuya0124/protected-linux-bridge/releases/download/v0.4.0-preview.1/Image-6.18.57-plb1) を入手します。preview.2でも同じImageを使います。
 2. 「設定」→「検証済みゲストカーネルを読み込む」で選択します。既知のSHA-256・サイズと一致したファイルだけを専用領域へ保存します。別のビルドは拒否します。
 3. Linuxの作業を保存し、VMプロファイルを選んで「適用」。最初は停止中のディスクをコピー・照合するため、端末の追加空き容量が必要です。
 4. 切り替え後は標準ターミナルを開き直すか、Bridgeの全画面GUIを開きます。
 5. 戻すときはMicrodroidを選んで適用します。元のDebianディスクを使います。
 
-**実験用です。** ディスクなし起動、Debian・systemd・Binder、低負荷のCPU描画は確認しましたが、重いGUI/OpenGL処理でGunyahのメモリ提供が失敗しVMが終了する場合があります。初期値は512 MiB・1 CPU・CPU描画です。USB/xHCI・DRM・virtio-netなどのドライバーを含みますが、USB直接割り当てや透過ネットワーク、Androidゲストが利用可能になったという意味ではありません。
+**実験用です。** ディスクなし起動、Debian・systemd・Binder、低負荷のCPU／GPU描画とTUN通信を確認しましたが、重いGUI/OpenGL処理でGunyahのメモリ提供が失敗しVMが終了する場合があります。初期値は512 MiB・1 CPU・CPU描画です。USB/xHCI・DRM・virtio-netなどのドライバーを含みます。直接USBはcrosvmが保護VMで無効にするため利用できません。Androidゲストは未対応です。
 
 ゲスト変更でもホスト障害の危険はゼロではありません。ホストのカーネル、SELinux、Gunyah保護機構は変更しません。[調査結果・対応範囲](docs/guest-kernel-plan.md)と[ソース・ビルド条件](kernels/README.md)を参照してください。
 
@@ -125,6 +128,18 @@ systemdは実際のPID1で、`systemctl start/stop/enable`が使えます。Micr
 現在のDebianシェルはVM内のrootです。`sudo`は導入済みで、`sudo -n id`の成功を確認しています。一般ユーザーのsudoers設定は別途必要です。VM内のrootはAndroidのrootではありません。
 
 AndroidのファイルやGPUデバイスをLinuxへ直接共有しません。GPUコマンド処理は非rootプロセスに分離しています。ただし、**現状のホストcrosvmはrootかつ標準プロセスサンドボックスなしで動く実験経路**です。pvmfwの検証済み起動・アテステーションもありません。悪意あるLinuxソフトからAndroid本体を完全に保護する用途には適しません。[保護境界と確認した制限](docs/security.md)を参照してください。
+
+## 実験用ネットワーク
+
+Linux 6.18のプロファイルで「連携」→「VM内のTUN通信を有効にする」をオンにし、通信元アプリを選んで適用します。VMを停止した後、GUIか標準ターミナルを開き直してください。初期状態はオフで、Microdroidでは従来のプロキシを使います。
+
+TCP・UDP・DNSをVM内の仮想NICから中継するため、通常のアプリにプロキシ指定は不要です。IPv4／IPv6のHTTPS、Pythonの通常ソケット、UDP DNSを実機で確認しました。DNSは1.1.1.1／8.8.8.8を利用し、DNSファイルの変更はVMの起動中だけ有効です。
+
+通信元の初期値は標準ターミナルです。Bridgeの全画面GUIを使う場合はBridgeを選べます。**選んだアプリのVPN・バックグラウンド通信制限に従います。** 実機では標準ターミナルが背景にあると通信を拒否され、前面では成功することを確認しています。Bridgeも背景やDozeでは制限される場合があります。Androidの通信制限を自動解除する機能ではありません。
+
+「通信状態を更新」はVM内のTUNの状態を表示し、インターネット到達性の保証はしません。Linuxの `/tmp/plb-network.log` も確認できます。オフにしてVMを作り直すと、仮想NICと一時DNSは消えます。AndroidのNIC・経路・DNS・ファイアウォールは変更しません。
+
+受信ポート公開、ブロードキャスト／マルチキャスト、任意のIPプロトコルは未対応です。`ping` は従来の実ICMP中継を使い、成功を装うローカル応答はしません。ハードウェアUSBの直接接続、GPU Vulkan、動画のハードウェア処理は引き続き未対応です。[試した経路と結果](docs/experimental-io.md)を公開しています。
 
 ## UDPとping
 
@@ -137,7 +152,7 @@ plb-udp-forward 5353 1.1.1.1 53
 
 `plb-udp-forward` はゲストの `127.0.0.1:5353` に届くUDPを `1.1.1.1:53` へ転送します。利用するツール側もこのローカルポートへ接続する設定が必要です。別シェルタブで実行し、Ctrl+Cで終了します。宛先のホスト名・ポートは変更できます。同時に最大16クライアント、無通信60秒で関連付けを破棄、1回最大30分です。
 
-仮想NICや透過的なIP接続ではありません。一般のLAN上の別ホストには接続できますが、ホスト自身・loopback・link-local・multicastなどは拒否します。UDPの外部からの着信待受は作りません。
+この明示的な転送コマンド自体は仮想NICではありません。一般のLAN上の別ホストには接続できますが、ホスト自身・loopback・link-local・multicastなどは拒否します。UDPの外部からの着信待受は作りません。
 
 ## 保存・終了
 
@@ -154,9 +169,9 @@ plb-udp-forward 5353 1.1.1.1 53
 | VM | RAM 512 MiB〜8 GiB、1〜8 CPU（端末の余裕で制限）。稼働時間・常駐を選択 |
 | シェル | PTY 80×24、同時接続はGUIを含め最大12 |
 | 保存 | 専用ディスク。4 / 8 / 16 / 32 GiBへの拡張のみ。拡張中は追加空き容量が必要 |
-| ネットワーク | HTTP/HTTPS、明示的UDP転送、IPv4 echo。仮想NIC・透過的なIP接続は未対応 |
+| ネットワーク | 通常モードはプロキシ／明示的UDP／IPv4 echo。実験モードは任意でTCP・UDP・DNS用のVM内TUN |
 | ホストへの影響 | 通信・メモリ・ストレージは消費します。ルート・DNS・ファイアウォール設定は変更しません |
-| 通信制限 | 標準ターミナルのUIDで通信し、アプリ別VPN・省電力制限に従います。バックグラウンドやDozeでは通信が止まる場合があります |
+| 通信制限 | 選択したAndroidアプリ（初期値は標準ターミナル）のUIDで通信し、アプリ別VPN・省電力制限に従います。バックグラウンドやDozeでは通信が止まる場合があります |
 | GUI | 9解像度、15〜120 fps上限、全画面。OpenGLと画面表示はGPU化可能。取得・コピーはCPU。音声中継あり。GPU Vulkan・ハードウェア動画処理は未対応 |
 | 動作維持 | 対話前の起動支援待機は最大30分。VM稼働時間は選択可能。プロセス終了やroot喪失後は準備し直す必要があります |
 
@@ -174,6 +189,6 @@ plb-udp-forward 5353 1.1.1.1 53
 
 ## ライセンス
 
-本プロジェクトはMITです。libxposed、AndroidX、Material、xterm.js、musl、compiler-rt、noVNC、virglrenderer、libepoxyなどの依存ライセンスをアプリ内と `third_party/` に収録しています。noVNCのMPL-2.0対象ソースは未改変で収録しています。
+本プロジェクトはMITです。libxposed、AndroidX、Material、xterm.js、musl、compiler-rt、noVNC、virglrenderer、libepoxy、Hev SOCKS5 tunnelと依存ライブラリーなどのライセンスをアプリ内と `third_party/` に収録しています。noVNCのMPL-2.0対象ソースは未改変で収録しています。
 
 Androidのホストカーネル、crosvm、標準ターミナルAPK、Debianイメージは同梱しません。別配布のLinuxゲストカーネルはGPL-2.0で、同じリリースに対応ソースと設定を用意します。ホスト用のユーザー空間GPUライブラリーはAPKに収録します。DebianのGUI・MesaパッケージはAPKに含めず、ユーザーがVM内でDebianの配布元から取得します。

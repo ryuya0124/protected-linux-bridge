@@ -11,7 +11,7 @@
   ├─ タブ別xterm.js → 認証付きUnixソケット → vsock → PTY/bash
   └─ noVNC           → 同じUnixソケット      → vsock → ゲストlocalhostのTigerVNC
 
-ゲストapt/curl → localhost:3128 → vsock → Terminal UIDのHTTPプロキシ → 接続先
+ゲストapt/curl → localhost:3128 → vsock → 選択したアプリUIDのHTTPプロキシ（初期値Terminal） → 接続先
 ```
 
 ## ディスク
@@ -30,7 +30,7 @@
 
 ## ネットワーク
 
-ホスト側のリスナーはvsockのみで、VMのCIDだけを受け付けます。実通信はrootからTerminalのUIDへ降格した子プロセスが実行し、補助グループはinetのみ、capabilityはなく、no_new_privsを設定します。AndroidのTerminal向け通信制限とVPN設定に従います。
+ホスト側のリスナーはvsockのみで、VMのCIDだけを受け付けます。実通信はrootから選択したアプリのUID（初期値Terminal）へ降格した子プロセスが実行し、補助グループはinetのみ、capabilityはなく、no_new_privsを設定します。Androidの選択アプリ向け通信制限とVPN設定に従います。
 
 HTTP forwardとHTTPS CONNECTを提供し、TLSを復号しません。名前解決はAndroidの既存リゾルバーです。ホスト自身のアドレス、loopback、link-local、multicastなどを拒否し、検査できない場合は許可しません。一般のLAN上の別ホストは、この禁止範囲には含みません。
 
@@ -38,7 +38,7 @@ HTTP forwardとHTTPS CONNECTを提供し、TLSを復号しません。名前解�
 
 レコードの上限は65507 bytes、受信途中の切断・過大長は接続を終了します。ホスト側はHTTPを含め最大16ワーカーです。UDPは60秒無通信・30分の期限、pingは最大64回です。透明なIPトンネル・着信待受・IPv6 echoはありません。
 
-調査中、モジュールUIDでの通信がDozeとバックグラウンド制限により拒否されました。ポリシーを解除するのではなく、実際に操作中のTerminal UIDに通信を割り当てる構成へ変更しました。画面OFFやバックグラウンドの維持は別問題であり、この版で保証していません。
+調査中、モジュールUIDでの通信がDozeとバックグラウンド制限により拒否されました。ポリシーを解除するのではなく、実際に操作中のTerminal UIDに通信を割り当てる構成へ変更しました。画面OFFやバックグラウンドの維持は別問題であり、初期版では保証していません。0.4 preview.2では、BridgeのGUI用に明示的なUID選択も提供します。
 
 ## GUI
 
@@ -75,7 +75,7 @@ GPUインストーラーはWestonとXwaylandもゲストに用意し、次回起
 
 これはすべての2Dアプリの内部描画がGPUになるという意味ではありません。Waylandのwl_shmアプリはCPUで作った内容をGPUで合成し、VNC取得・符号化は引き続きCPUを使います。DMA-BUF、共有メモリーによるVM間ゼロコピーは提供していません。
 
-Mesa VenusのVTest実装は `SCM_RIGHTS` で受けたresource FDをmmapし、リング／共有メモリーとして使います。通常のvsockバイト転送ではホストとゲストのFDやページは共有できず、OpenGL用v0への交渉ではVulkanは動きません。既存ゲストにvirtio-gpu/DRMもありません。GPU VulkanにはMesa/Venus側の資源・同期・メモリー転送の追加実装が必要です。LavapipeはCPUであり、GPU Vulkan対応の証拠には使いません。カーネル交換で迂回することはありません。
+Mesa VenusのVTest実装は `SCM_RIGHTS` で受けたresource FDをmmapし、リング／共有メモリーとして使います。通常のvsockバイト転送ではホストとゲストのFDやページは共有できず、OpenGL用v0への交渉ではVulkanは動きません。既存Microdroidゲストにvirtio-gpu/DRMはありません。独自カーネルの別途検証は [experimental-io.md](experimental-io.md) を参照してください。GPU VulkanにはMesa/Venus側の資源・同期・メモリー転送の追加実装が必要です。LavapipeはCPUであり、GPU Vulkan対応の証拠には使いません。独自ゲストカーネルを使う場合も、ホスト保護は変更しません。
 
 
 ## 直接GPU表示とBridgeの全画面GUI（0.3）
@@ -89,3 +89,9 @@ Bridgeの非公開DesktopActivityも同じ認証付きGUI接続を使います�
 ## 0.4の追加
 
 音声・クリップボード・systemd・容量拡張・プロファイルの境界は [development.md](development.md#04-profiles-and-integrations) を参照してください。既存Microdroidと新しいゲストカーネルを区別します。[ゲストカーネル方針](guest-kernel-plan.md)の制約が優先し、ホストのカーネルや保護機構は変更しません。
+
+## Experimental guest I/O (0.4 preview.2)
+
+`plb.network` gates the custom guest-only TUN; stock remains proxy-based. `plb-network` starts the pinned static Hev/lwIP binary, refuses existing default routes/interfaces and binds a temporary resolver file inside the guest. The guest agent waits up to10seconds for readiness before accepting a new shell/GUI. Ordinary TCP/UDP sockets reach a loopback SOCKS forwarder, then the existing host vsock broker. Android egress still drops credentials; the root-private `network-app` selects Terminal (default) or Bridge explicitly. The broker does not bind Android TCP/UDP listening ports.
+
+`--network-live` forwards the authorized N operation to the running guest without starting it:0 stopped,1 TUN disabled,2 not ready,3 guest marker ready. This measures interface readiness, not successful Internet access. The optional network settings and identity require a VM restart, never an Android restart. See [experiment results](experimental-io.md) for the verified paths and remaining limits.

@@ -57,6 +57,7 @@ static void log_child(const char *name){
 
 #include "gpu_host.h"
 #include "graphics_settings.h"
+#include "network_settings.h"
 #include "resource_settings.h"
 #include "clipboard_host.h"
 #include "profile_lock.h"
@@ -110,10 +111,10 @@ static int guest_connect(int retries){
 }
 static int memory_ready(void){FILE *file=fopen("/proc/meminfo","re");if(!file)return 0;char line[128];unsigned long long available=0;while(fgets(line,sizeof(line),file))if(sscanf(line,"MemAvailable: %llu kB",&available)==1)break;fclose(file);return available>=(unsigned long long)(vm_resources.memory+768)*1024&&vm_resources.cpus<=sysconf(_SC_NPROCESSORS_ONLN);}
 static pid_t start_vm(void){
- struct graphics_settings settings;if(graphics_read(&settings))return -1;int graphics=settings.mode;
+ struct graphics_settings settings;int network=network_read();if(graphics_read(&settings)||network<0)return -1;int graphics=settings.mode;
  pid_t parent=getpid(),child=fork();if(child!=0)return child;
  prctl(PR_SET_PDEATHSIG,SIGKILL);if(getppid()!=parent)_exit(83);log_child(BASE "/crosvm-bridge.log");
- char params[384],memory[40],cpus[24];snprintf(memory,sizeof(memory),"size=%d",vm_resources.memory);snprintf(cpus,sizeof(cpus),"num-cores=%d",vm_resources.cpus);snprintf(params,sizeof(params),"console=ttyS0 earlycon 8250.nr_uarts=1 rdinit=/init panic=0 quiet loglevel=3%s%d plb.display=%d:%d plb.lifetime=%d plb.systemd=%d plb.diskgib=%d plb.fullkernel=%d",graphics<0?" plb.preserve=":" plb.graphics=",graphics<0?1:graphics,settings.resolution,settings.fps,vm_seconds,vm_resources.systemd,vm_resources.disk_gib,strcmp(PROFILE_TAG," stock")!=0);
+ char params[384],memory[40],cpus[24];snprintf(memory,sizeof(memory),"size=%d",vm_resources.memory);snprintf(cpus,sizeof(cpus),"num-cores=%d",vm_resources.cpus);snprintf(params,sizeof(params),"console=ttyS0 earlycon 8250.nr_uarts=1 rdinit=/init panic=0 quiet loglevel=3%s%d plb.display=%d:%d plb.lifetime=%d plb.systemd=%d plb.diskgib=%d plb.fullkernel=%d plb.network=%d",graphics<0?" plb.preserve=":" plb.graphics=",graphics<0?1:graphics,settings.resolution,settings.fps,vm_seconds,vm_resources.systemd,vm_resources.disk_gib,strcmp(PROFILE_TAG," stock")!=0,network&&strcmp(PROFILE_TAG," stock")!=0);
  execl("/apex/com.android.virt/bin/crosvm","crosvm","--log-level","info","run","--name","protected-linux","--disable-sandbox","--no-balloon","--protected-vm-without-firmware","--swiotlb","32","--mem",memory,"--cpus",cpus,"--socket",BASE "/control.sock",
  "--serial","type=file,path=" BASE "/boot-console.log,console=true,earlycon=true",
  "--params",params,
@@ -130,11 +131,17 @@ static int client_command(const char *command){
  close(fd);if(ok&&*command=='?'){puts("BRIDGE_WAITING existing");fflush(stdout);}
  if(ok&&*command=='X'){for(int i=0;i<400;i++){fd=local_socket(0);if(fd<0)return 0;close(fd);usleep(100000);}return 1;}return ok?0:1;
 }
+static int network_live(void){int fd=local_socket(0);if(fd<0){puts("NETWORK_LIVE 0");return 0;}struct timeval t={3,0};setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&t,sizeof(t));unsigned char status=255;int ok=!plb_write_all(fd,"N",1)&&read(fd,&status,1)==1&&status<=3;close(fd);if(ok)printf("NETWORK_LIVE %u\n",status);return !ok;}
 #ifdef PLB_PROFILE_MAINLINE
 #include "profile_clone.h"
 #endif
 int main(int argc,char **argv){
  if(getuid()!=0)return 20;
+ if(argc==2&&!strcmp(argv[1],"--network-state")){int mode=network_read();if(mode<0)return 1;printf("NETWORK %d\n",mode);return 0;}
+ if(argc==2&&!strcmp(argv[1],"--network-app-state")){int mode=network_app();if(mode<0)return 1;printf("NETWORK_APP %d\n",mode);return 0;}
+ if(argc==3&&!strcmp(argv[1],"--network-app"))return network_app_save(graphics_number(argv[2]));
+ if(argc==2&&!strcmp(argv[1],"--network-live"))return network_live();
+ if(argc==3&&!strcmp(argv[1],"--network"))return network_save(graphics_number(argv[2]));
 #ifdef PLB_PROFILE_MAINLINE
  if(argc==2&&!strcmp(argv[1],"--kernel-ready"))return kernel_ready();
  if(argc==3&&!strcmp(argv[1],"--install-kernel")){char *end;long uid=strtol(argv[2],&end,10);return *argv[2]&&!(*end)&&uid>=10000&&uid<=19999?kernel_install((uid_t)uid):1;}
@@ -188,6 +195,7 @@ int main(int argc,char **argv){
   if(uid!=terminal_uid&&uid!=module_uid&&uid!=0&&!clip_peer){close(client);continue;}
   struct timeval timeout={2,0};setsockopt(client,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));setsockopt(client,SOL_SOCKET,SO_SNDTIMEO,&timeout,sizeof(timeout));char request=0;ssize_t received=read(client,&request,1);
   if(received==1&&request=='?')plb_write_all(client,READY,sizeof(READY)-1);
+  else if(received==1&&request=='N'&&(uid==module_uid||uid==0)){unsigned char status=vm<0?0:2;int guest=vm>0?guest_connect(1):-1;if(guest>=0){struct timeval short_timeout={1,0};setsockopt(guest,SOL_SOCKET,SO_RCVTIMEO,&short_timeout,sizeof(short_timeout));unsigned char reply=255;if(!plb_write_all(guest,"N",1)&&read(guest,&reply,1)==1&&reply>=1&&reply<=3)status=reply;close(guest);}send_status(client,status);}
   else if(received==1&&request=='L'&&(uid==module_uid||uid==0)){unsigned char mode=255;int error=read(client,&mode,1)!=1||mode>3||clipboard_start((uid_t)module_uid,mode);send_status(client,error?3:0);}
   else if(received==1&&request=='X'&&(uid==module_uid||uid==0))stopped=1;
   else if(received==1&&((request=='R'&&uid==terminal_uid)||((request=='V'||request=='C'||request=='W')&&(uid==terminal_uid||uid==module_uid))||((request=='C'||request=='W')&&clip_peer)||((request=='A'||request=='M')&&uid==module_uid))){
@@ -196,7 +204,7 @@ int main(int argc,char **argv){
    if(vm<0){if(request!='R'&&request!='V'){send_status(client,3);close(client);continue;}
     int error=resources_read(&vm_resources)?3:memory_ready()?prepare_overlay((uid_t)terminal_uid):8;vm_seconds=vm_resources.minutes?vm_resources.minutes*60:2147483647;if(error){send_status(client,(unsigned char)error);close(client);continue;}
     int migration=disk_prepare_growth(control,(uid_t)module_uid);if(migration<0||stopped){send_status(client,11);close(client);continue;}
-    proxy=plb_start_proxy((uid_t)terminal_uid,control,client,vm_seconds);if(proxy<0){if(migration>0)disk_recover();send_status(client,9);close(client);continue;}
+    int source=network_app();proxy=source<0?-1:plb_start_proxy((uid_t)(source==1?module_uid:terminal_uid),control,client,vm_seconds);if(proxy<0){if(migration>0)disk_recover();send_status(client,9);close(client);continue;}
     unlink(BASE "/control.sock");vm=start_vm();if(vm<0){shutdown_vm(-1,proxy);if(migration>0)disk_recover();proxy=-1;send_status(client,3);close(client);continue;}if(migration>0&&disk_confirm_growth()){shutdown_vm(vm,proxy);vm=proxy=-1;disk_recover();vm_resources.disk_gib=0;resources_save(&vm_resources);send_status(client,11);close(client);continue;}gpu_socket=gpu_ready?gpu_listener():-1;vm_deadline=plb_now()+vm_seconds;idle=vm_deadline+5;
    }
    pid_t parent=getpid(),worker=fork();if(worker==0){

@@ -5,4 +5,5 @@
 <string-array name="cpus"><item>1</item><item>2</item><item>4</item><item>8</item></string-array>
 <string-array name="lifetimes"><item>15 min</item><item>30 min</item><item>60 min</item><item>120 min</item><item>360 min</item><item>∞</item></string-array>
 <string-array name="disks"><item>—</item><item>4 GiB</item><item>8 GiB</item><item>16 GiB</item><item>32 GiB</item></string-array>
-<string-array name="microphone_modes"><item>GUI only</item><item>Background</item></string-array><string-array name="desktop_orientations"><item>Follow system</item><item>Portrait</item><item>Landscape</item></string-array><string-array name="audio_device_placeholder"><item>—</item></string-array><string-array name="kernel_profiles"><item>Microdroid</item><item>Linux 6.18.57-plb1 (experimental)</item></string-array></resources>
+<string-array name="microphone_modes"><item>GUI only</item><item>Background</item></string-array><string-array name="desktop_orientations"><item>Follow system</item><item>Portrait</item><item>Landscape</item></string-array><string-array name="audio_device_placeholder"><item>—</item></string-array><string-array name="kernel_profiles"><item>Microdroid</item><item>Linux 6.18.57-plb1 (experimental)</item></string-array><string-array name="network_sources"><item>Terminal</item><item>Protected Linux Bridge</item></string-array>
+</resources>

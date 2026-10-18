@@ -1,0 +1,37 @@
+[
+  {
+    "project": "hev-socks5-tunnel",
+    "revision": "780b396b0fc3d0355fc0614e221e3446933669c4",
+    "destination": ".",
+    "url": "https://codeload.github.com/heiher/hev-socks5-tunnel/tar.gz/780b396b0fc3d0355fc0614e221e3446933669c4",
+    "sha256": "3d7dd88b6f9166ef9eafb96ac1672b07176abcd753789a7c0c0c0b131174dd30"
+  },
+  {
+    "project": "hev-socks5-core",
+    "revision": "9f1cf0bfca0c003dd0cf0fbdcf6912a2b46a8d05",
+    "destination": "src/core",
+    "url": "https://codeload.github.com/heiher/hev-socks5-core/tar.gz/9f1cf0bfca0c003dd0cf0fbdcf6912a2b46a8d05",
+    "sha256": "956b41725b4a619a7ed592c972c38a94425698e5cb3ab2185e48b47131f6838f"
+  },
+  {
+    "project": "hev-task-system",
+    "revision": "b2f2250371c1bd436a42f3c380ee46d4ac3bada8",
+    "destination": "third-part/hev-task-system",
+    "url": "https://codeload.github.com/heiher/hev-task-system/tar.gz/b2f2250371c1bd436a42f3c380ee46d4ac3bada8",
+    "sha256": "e9e4c5abf2a1852ea01b7190cce50208cdf0298e5990a34480a98fd23c1a616e"
+  },
+  {
+    "project": "lwip",
+    "revision": "7f51e51c72d088481af972c3a115cec41c043d49",
+    "destination": "third-part/lwip",
+    "url": "https://codeload.github.com/heiher/lwip/tar.gz/7f51e51c72d088481af972c3a115cec41c043d49",
+    "sha256": "9d6407a47367b3469c5c0b2cb3c6220a9ab40900fde4e5a53dd0b9c4d2dd4795"
+  },
+  {
+    "project": "yaml",
+    "revision": "94441ec8777eb319936735a58b376963d09c73d4",
+    "destination": "third-part/yaml",
+    "url": "https://codeload.github.com/heiher/yaml/tar.gz/94441ec8777eb319936735a58b376963d09c73d4",
+    "sha256": "4d9ca11fe2e2790d102b1da4a5fecc0b668613d901eeb408a295faedbbeeb01a"
+  }
+]

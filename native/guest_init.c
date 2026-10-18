@@ -34,8 +34,8 @@ void start(void){
  mount("proc","/newroot/proc","proc",0,0);mount("sysfs","/newroot/sys","sysfs",0,0);mount("tmpfs","/newroot/tmp","tmpfs",2,"mode=1777,size=128m");mount("tmpfs","/newroot/run","tmpfs",2,"mode=755,size=64m");
  sc(161,(long)"ryuya-linux",11,0,0,0,0);
  mkdir("/newroot/run/plb");
- for(int si=0;si<4;si++){
- const char *sources[]={"/plb-install-gui","/plb-install-gpu","/plb-install-integration","/clipboard-watch.py"},*targets[]={"/newroot/run/plb/plb-install-gui","/newroot/run/plb/plb-install-gpu","/newroot/run/plb/plb-install-integration","/newroot/run/plb/clipboard-watch.py"};
+ for(int si=0;si<6;si++){
+ const char *sources[]={"/plb-install-gui","/plb-install-gpu","/plb-install-integration","/clipboard-watch.py","/plb-network","/hev-socks5-tunnel"},*targets[]={"/newroot/run/plb/plb-install-gui","/newroot/run/plb/plb-install-gpu","/newroot/run/plb/plb-install-integration","/newroot/run/plb/clipboard-watch.py","/newroot/run/plb/plb-network","/newroot/run/plb/hev-socks5-tunnel"};
  long script_in=open(sources[si],0);if(script_in<0)fail("guest script input");
  long script_out=sc(56,-100,(long)targets[si],577,0755,0,0);if(script_out<0)fail("guest script output");
  char script[2048];long script_n;while((script_n=sc(63,script_in,(long)script,sizeof(script),0,0,0))>0){long done=0;while(done<script_n){long part=sc(64,script_out,(long)script+done,script_n-done,0,0,0);if(part<=0)fail("guest script copy");done+=part;}}
