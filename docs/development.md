@@ -137,3 +137,9 @@ The SOCKS5 extension uses command5 UDP-in-TCP, validated header lengths and boun
 The lightweight GPU button saves512MiB/1CPU/960x540/30fps/Openbox+VirGL app rendering/raw GLES viewer, retaining disk size, lifetime, keepalive and systemd. It stops/prepares only this VM and asks the user to reopen GUI. It reduces tested load; it does not fix Gunyah's heavy-workload page-provisioning fault.
 
 Read-only GPU diagnostics: `python3 tools/build_gpu_probe.py --sdk ANDROID_SDK_PATH` creates only host-side artifacts. `guest_gpu_probe.c` refuses to run unless it is PID1. In the isolated guest it mounts the selected disk read-only with `noload`, creates only volatile guest mounts, runs bounded EGL/Vulkan diagnostics and powers off. It must be used only after stopping the owned manager, with the experimental disk explicitly `ro=true`; never pass the original writable disk, reuse a CID/VM socket or run simultaneous writers. It is not installed into production launch flags. Consult [experimental-io.md](experimental-io.md) before interpreting results.
+
+## Preview.3 storage and readability
+
+[Disk management](storage.md) documents the separate offline resize/compaction path, retained previous disk, cancellation socket, usage protocol and crash recovery. Shrink is now explicitly requested; the previous expansion-only preference is superseded. No host mutation exceptions were added. [Host boundary](host-boundary.md) is the exhaustive prohibition list.
+
+First-party source is expanded consistently across Java, C, Python, Gradle, XML, shell and HTML. Test C is in `tests/fixtures/` instead of compressed embedded literals. See [code style and reproducible formatting](code-style.md). Upstream dependency code and wrappers retain their original form.

@@ -7,18 +7,38 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
-int main(void){
- if(getuid()==0){fputs("Refusing root: this tests an untrusted UID\n",stderr);return 2;}
- const char name[]="net.ryuya_dev.protectedlinux.console";
- struct sockaddr_un a={.sun_family=AF_UNIX};memcpy(a.sun_path+1,name,sizeof(name)-1);
- const char requests[]={'?','R','V','X','C','W','A','M','L','N'};
- for(unsigned i=0;i<sizeof(requests);i++){
-  int fd=socket(AF_UNIX,SOCK_STREAM,0);if(fd<0)return 3;
-  if(connect(fd,(struct sockaddr*)&a,offsetof(struct sockaddr_un,sun_path)+sizeof(name))){perror("connect");close(fd);return 4;}
-  struct timeval timeout={2,0};setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));
-  char buf[64];send(fd,&requests[i],1,MSG_NOSIGNAL);ssize_t n=recv(fd,buf,sizeof(buf),0);int saved=errno;close(fd);
-  if(n==0||(n<0&&saved==ECONNRESET)){printf("UNTRUSTED_UID_REJECTED uid=%d command=%c\n",getuid(),requests[i]);continue;}
-  fprintf(stderr,"Unexpected response to untrusted UID: %ld\n",(long)n);return 5;
- }
- return 0;
+int main(void) {
+    if (getuid() == 0) {
+        fputs("Refusing root: this tests an untrusted UID\n", stderr);
+        return 2;
+    }
+    const char name[] = "net.ryuya_dev.protectedlinux.console";
+    struct sockaddr_un a = {.sun_family = AF_UNIX};
+    memcpy(a.sun_path + 1, name, sizeof(name) - 1);
+    const char requests[] = {'?', 'R', 'V', 'X', 'C', 'W', 'A', 'M', 'L', 'N', 'S'};
+    for (unsigned i = 0; i < sizeof(requests); i++) {
+        int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+        if (fd < 0)
+            return 3;
+        if (connect(fd, (struct sockaddr *)&a,
+                    offsetof(struct sockaddr_un, sun_path) + sizeof(name))) {
+            perror("connect");
+            close(fd);
+            return 4;
+        }
+        struct timeval timeout = {2, 0};
+        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+        char buf[64];
+        send(fd, &requests[i], 1, MSG_NOSIGNAL);
+        ssize_t n = recv(fd, buf, sizeof(buf), 0);
+        int saved = errno;
+        close(fd);
+        if (n == 0 || (n < 0 && saved == ECONNRESET)) {
+            printf("UNTRUSTED_UID_REJECTED uid=%d command=%c\n", getuid(), requests[i]);
+            continue;
+        }
+        fprintf(stderr, "Unexpected response to untrusted UID: %ld\n", (long)n);
+        return 5;
+    }
+    return 0;
 }

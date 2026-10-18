@@ -1,0 +1,55 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Protected Linux</title>
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,maximum-scale=1"
+    />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; font-src data:; connect-src 'none'"
+    />
+    <style>
+      /* PLB_XTERM_CSS */
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #101014;
+        color: #ddd;
+        overflow: hidden;
+      }
+      #terminal {
+        height: 100%;
+        padding: 6px;
+        box-sizing: border-box;
+      }
+    </style>
+    <script>
+      /* PLB_XTERM_JS */
+    </script>
+  </head>
+  <body>
+    <div id="terminal"></div>
+    <script>
+      const terminalFontSize = () =>
+        Math.max(7, Math.min(14, (innerWidth - 16) / 48.2));
+      window.term = new Terminal({
+        cols: 80,
+        rows: 24,
+        fontSize: terminalFontSize(),
+        scrollback: 3000,
+        theme: { background: "#101014" },
+      });
+      term.open(document.getElementById("terminal"));
+      term.onData((text) => ProtectedConsole.write(text));
+      addEventListener("resize", () => {
+        term.options.fontSize = terminalFontSize();
+      });
+      window.acceptBytes = (encoded) =>
+        term.write(Uint8Array.from(atob(encoded), (c) => c.charCodeAt(0)));
+      ProtectedConsole.ready();
+    </script>
+  </body>
+</html>

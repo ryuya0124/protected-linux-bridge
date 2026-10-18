@@ -4,8 +4,8 @@ The user uses temporary root on a locked-bootloader Samsung device.
 
 ## Host Android: prohibited
 
-- Never unlock the bootloader, write Android system/vendor/product or boot-related partitions, replace/patch the host kernel, or add/load host kernel modules.
-- Never change the root method, SELinux enforcement/policy, AVB/dm-verity, Gunyah protection mechanisms, or global virtualization properties.
+- Never unlock the bootloader (BLU), write boot/init_boot/vendor_boot/vbmeta/dtbo or any other Android system/vendor/product or boot-related partition, replace/patch the host kernel, or add/load host kernel modules.
+- Never change the root method, disable SELinux, make it Permissive, modify its policy, alter AVB/dm-verity/Gunyah protection mechanisms, or change global virtualization properties.
 - Never reboot/soft-reboot Android or enter recovery.
 - Do not mount/remount host global filesystems. `su -M` only changes the launched process's mount namespace.
 - Test only on the explicitly selected Galaxy. Do not manipulate the attached Pixel or unrelated VMs.
@@ -21,3 +21,17 @@ The user uses temporary root on a locked-bootloader Samsung device.
 
 Limit Xposed scope to `com.android.virtualization.terminal`, API 102.
 Private APKs, device identifiers, console traces, OS images, built kernel artifacts and signing keys must not be committed.
+
+## Guest storage operations: updated request, 2026-10-18
+
+- The user now explicitly requests shrinking as well as common VM size-management features; the earlier expansion-only preference is superseded.
+- Never truncate an active filesystem or mutate the sole original as a trial. Shrink/compaction experiments must work on a verified offline copy and preserve a recoverable original.
+- Keep virtual capacity, physical host allocation and guest filesystem usage distinct in the UI and validation.
+- Android/LineageOS guests are requested as separate VM profiles, not replacements for the host Android or the existing Debian profile.
+- Watch Mac storage. Avoid a full AOSP/LineageOS source checkout; reuse existing SDK images and bounded caches where possible. Do not remove unrelated project data.
+
+## Readable source
+
+- The user explicitly requests every source file to be human-readable. Keep first-party Java, C, Python, Gradle, XML, shell and web code expanded and consistently formatted. No hand-minified code.
+- Use the checked-in formatting configuration and `docs/code-style.md`; retain upstream dependency/wrapper source unchanged.
+- Put test C in formatted `tests/fixtures/` files rather than compressed Python string literals. Explain ownership, offline mutation and recovery invariants.

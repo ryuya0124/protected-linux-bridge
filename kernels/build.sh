@@ -10,7 +10,8 @@ printf '%s\n' '5bd9acdc82ec5efc3790ae840e5aaa40dfde7efff261cf6dde902dc570acf98c 
 printf '%s\n' '450d4be5d747b77dbf16a3d6640dc449a6975da6912f17c24afb18f75fada77f  microdroid_defconfig' | sha256sum -c -
 # Developer signature, checked with pinned official release-key fingerprints.
 export GNUPGHOME="$PROBE_CACHE/gnupg"
-mkdir -p "$GNUPGHOME";chmod 700 "$GNUPGHOME"
+mkdir -p "$GNUPGHOME"
+chmod 700 "$GNUPGHOME"
 gpg --batch --auto-key-locate clear,wkd --locate-keys gregkh@kernel.org sashal@kernel.org
 xz -cd linux-6.18.57.tar.xz | gpg --batch --status-fd 3 --verify linux-6.18.57.tar.sign - 3>signature-status.txt
 python3 - <<'PY'

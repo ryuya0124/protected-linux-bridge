@@ -1,39 +1,304 @@
 package net.ryuya_dev.protectedlinux;
-import android.app.Activity;
+
 import android.Manifest;
+import android.app.Activity;
 import android.content.Context;
-import android.os.Handler;
 import android.content.pm.PackageManager;
 import android.media.*;
 import android.net.*;
+import android.os.Handler;
 import java.io.*;
 import java.util.concurrent.*;
+
 /** PCM bridge owned by a visible GUI or explicit microphone foreground service. */
 final class AudioBridge implements AutoCloseable {
- private final Context activity;private final java.util.function.Consumer<String> status;private final Runnable onFailure,onReady;
- private final ExecutorService workers=Executors.newFixedThreadPool(2);
- private final java.util.List<AudioDeviceCallback> deviceGuards=new java.util.ArrayList<>();
- private volatile boolean closed;private volatile LocalSocket output,input;private AudioTrack track;private AudioRecord record;
- AudioBridge(Context a,java.util.function.Consumer<String> status){this(a,status,()->{});}
- AudioBridge(Context a,java.util.function.Consumer<String> status,Runnable failure){this(a,status,failure,()->{});}
- AudioBridge(Context a,java.util.function.Consumer<String> status,Runnable failure,Runnable ready){activity=a;this.status=status;onFailure=failure;onReady=ready;}
- void start(boolean speaker,boolean microphone){if(speaker)workers.submit(this::playback);if(microphone&&activity.checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED)workers.submit(this::capture);}
- private void report(String en,String ja){boolean jp=activity.getResources().getConfiguration().getLocales().get(0).getLanguage().equals("ja");new Handler(activity.getMainLooper()).post(()->{if(!closed&&(!(activity instanceof Activity a)||!a.isDestroyed()))status.accept(jp?ja:en);});}
- private LocalSocket connect(char request)throws IOException{LocalSocket s=new LocalSocket();try{if(request=='A')output=s;else input=s;s.connect(new LocalSocketAddress("net.ryuya_dev.protectedlinux.console",LocalSocketAddress.Namespace.ABSTRACT));if(s.getPeerCredentials().getUid()!=0)throw new IOException("Untrusted launcher");s.setSoTimeout(12000);s.getOutputStream().write(request);int result=s.getInputStream().read();if(result!=0)throw new IOException("Audio unavailable ("+result+")");s.setSoTimeout(0);return s;}catch(IOException error){disconnect(s);throw error;}}
- private void playback(){
-  try(LocalSocket s=connect('A')){int min=AudioTrack.getMinBufferSize(48000,AudioFormat.CHANNEL_OUT_STEREO,AudioFormat.ENCODING_PCM_16BIT);if(min<1)throw new IOException("Audio format unavailable");AudioTrack t=new AudioTrack.Builder().setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build()).setAudioFormat(new AudioFormat.Builder().setSampleRate(48000).setEncoding(AudioFormat.ENCODING_PCM_16BIT).setChannelMask(AudioFormat.CHANNEL_OUT_STEREO).build()).setTransferMode(AudioTrack.MODE_STREAM).setBufferSizeInBytes(Math.max(min,16384)).build();synchronized(this){if(closed){t.release();return;}track=t;AudioDeviceInfo desired=AudioDevices.preferred(activity,false);if(!t.setPreferredDevice(desired))throw new AudioDevices.DeviceUnavailableException(activity.getString(R.string.audio_route_rejected));routeGuard(t,desired);t.play();}report("Linux speaker connected","Linuxのスピーカーを接続しました");byte[] buffer=new byte[8192];int retained=0,n;while(!closed&&(n=s.getInputStream().read(buffer,retained,buffer.length-retained))>=0){int total=retained+n,aligned=total&~3;int at=0;while(!closed&&at<aligned){int w=t.write(buffer,at,aligned-at,AudioTrack.WRITE_BLOCKING);if(w<=0)throw new IOException("Playback stopped");at+=w;}retained=total-aligned;if(retained>0)System.arraycopy(buffer,aligned,buffer,0,retained);}}
-  catch(Exception error){if(!closed){android.util.Log.w("ProtectedLinux","AUDIO_OUTPUT_FAILED "+error.getClass().getSimpleName());if(error instanceof AudioDevices.DeviceUnavailableException)report(error.getMessage(),error.getMessage());else report("Speaker unavailable. Install integration packages.","スピーカーを接続できません。連携パッケージを確認してください。");}}
-  finally{if(!closed)new Handler(activity.getMainLooper()).post(onFailure);synchronized(this){if(track!=null){try{track.stop();}catch(IllegalStateException ignored){}track.release();track=null;}}}
- }
- private void capture(){
-  try(LocalSocket s=connect('M')){int min=AudioRecord.getMinBufferSize(48000,AudioFormat.CHANNEL_IN_MONO,AudioFormat.ENCODING_PCM_16BIT);if(min<1)throw new IOException("Microphone format unavailable");if(activity.checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED)throw new IOException("Microphone permission denied");AudioRecord r=new AudioRecord.Builder().setAudioSource(MediaRecorder.AudioSource.MIC).setPrivacySensitive(true).setAudioFormat(new AudioFormat.Builder().setSampleRate(48000).setEncoding(AudioFormat.ENCODING_PCM_16BIT).setChannelMask(AudioFormat.CHANNEL_IN_MONO).build()).setBufferSizeInBytes(Math.max(min,8192)).build();synchronized(this){if(closed){r.release();return;}record=r;AudioDeviceInfo desired=AudioDevices.preferred(activity,true);if(!r.setPreferredDevice(desired))throw new AudioDevices.DeviceUnavailableException(activity.getString(R.string.audio_route_rejected));routeGuard(r,desired);r.startRecording();}report("Microphone shared with Linux","Linuxへマイクを共有しています");new Handler(activity.getMainLooper()).post(()->{if(!closed)onReady.run();});byte[] buffer=new byte[4096];while(!closed){int n=r.read(buffer,0,buffer.length,AudioRecord.READ_BLOCKING);if(n<=0)throw new IOException("Microphone stopped");s.getOutputStream().write(buffer,0,n);}}
-  catch(Exception error){if(!closed){android.util.Log.w("ProtectedLinux","AUDIO_INPUT_FAILED "+error.getClass().getSimpleName());if(error instanceof AudioDevices.DeviceUnavailableException)report(error.getMessage(),error.getMessage());else report("Microphone unavailable. Check permission and integration packages.","マイクを接続できません。権限と連携パッケージを確認してください。");}}
-  finally{if(!closed)new Handler(activity.getMainLooper()).post(onFailure);synchronized(this){if(record!=null){try{record.stop();}catch(IllegalStateException ignored){}record.release();record=null;}}}
- }
- private void routeGuard(AudioRouting stream,AudioDeviceInfo desired){
-  AudioDeviceCallback removal=new AudioDeviceCallback(){@Override public void onAudioDevicesRemoved(AudioDeviceInfo[] devices){for(AudioDeviceInfo d:devices)if(!closed&&d.getId()==desired.getId()){report(activity.getString(R.string.audio_device_missing),activity.getString(R.string.audio_device_missing));new Handler(activity.getMainLooper()).post(onFailure);close();return;}}};
-  deviceGuards.add(removal);activity.getSystemService(AudioManager.class).registerAudioDeviceCallback(removal,new Handler(activity.getMainLooper()));
-  stream.addOnRoutingChangedListener(route->{AudioDeviceInfo actual=route.getRoutedDevice();if(!closed&&actual!=null&&actual.getId()!=desired.getId()){report(activity.getString(R.string.audio_route_rejected),activity.getString(R.string.audio_route_rejected));new Handler(activity.getMainLooper()).post(onFailure);close();}},new Handler(activity.getMainLooper()));}
- private static void disconnect(LocalSocket s){if(s==null)return;try{s.shutdownInput();}catch(IOException ignored){}try{s.shutdownOutput();}catch(IOException ignored){}try{s.close();}catch(IOException ignored){}}
- @Override public synchronized void close(){closed=true;for(AudioDeviceCallback guard:deviceGuards)activity.getSystemService(AudioManager.class).unregisterAudioDeviceCallback(guard);deviceGuards.clear();disconnect(output);disconnect(input);if(track!=null){try{track.stop();}catch(IllegalStateException ignored){}track.release();track=null;}if(record!=null){try{record.stop();}catch(IllegalStateException ignored){}record.release();record=null;}workers.shutdownNow();}
+  private final Context activity;
+  private final java.util.function.Consumer<String> status;
+  private final Runnable onFailure, onReady;
+  private final ExecutorService workers = Executors.newFixedThreadPool(2);
+  private final java.util.List<AudioDeviceCallback> deviceGuards = new java.util.ArrayList<>();
+  private volatile boolean closed;
+  private volatile LocalSocket output, input;
+  private AudioTrack track;
+  private AudioRecord record;
+
+  AudioBridge(Context a, java.util.function.Consumer<String> status) {
+    this(a, status, () -> {});
+  }
+
+  AudioBridge(Context a, java.util.function.Consumer<String> status, Runnable failure) {
+    this(a, status, failure, () -> {});
+  }
+
+  AudioBridge(
+      Context a, java.util.function.Consumer<String> status, Runnable failure, Runnable ready) {
+    activity = a;
+    this.status = status;
+    onFailure = failure;
+    onReady = ready;
+  }
+
+  void start(boolean speaker, boolean microphone) {
+    if (speaker) workers.submit(this::playback);
+    if (microphone
+        && activity.checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+            == PackageManager.PERMISSION_GRANTED) workers.submit(this::capture);
+  }
+
+  private void report(String en, String ja) {
+    boolean jp =
+        activity.getResources().getConfiguration().getLocales().get(0).getLanguage().equals("ja");
+    new Handler(activity.getMainLooper())
+        .post(
+            () -> {
+              if (!closed && (!(activity instanceof Activity a) || !a.isDestroyed()))
+                status.accept(jp ? ja : en);
+            });
+  }
+
+  private LocalSocket connect(char request) throws IOException {
+    LocalSocket s = new LocalSocket();
+    try {
+      if (request == 'A') output = s;
+      else input = s;
+      s.connect(
+          new LocalSocketAddress(
+              "net.ryuya_dev.protectedlinux.console", LocalSocketAddress.Namespace.ABSTRACT));
+      if (s.getPeerCredentials().getUid() != 0) throw new IOException("Untrusted launcher");
+      s.setSoTimeout(12000);
+      s.getOutputStream().write(request);
+      int result = s.getInputStream().read();
+      if (result != 0) throw new IOException("Audio unavailable (" + result + ")");
+      s.setSoTimeout(0);
+      return s;
+    } catch (IOException error) {
+      disconnect(s);
+      throw error;
+    }
+  }
+
+  private void playback() {
+    try (LocalSocket s = connect('A')) {
+      int min =
+          AudioTrack.getMinBufferSize(
+              48000, AudioFormat.CHANNEL_OUT_STEREO, AudioFormat.ENCODING_PCM_16BIT);
+      if (min < 1) throw new IOException("Audio format unavailable");
+      AudioTrack t =
+          new AudioTrack.Builder()
+              .setAudioAttributes(
+                  new AudioAttributes.Builder()
+                      .setUsage(AudioAttributes.USAGE_MEDIA)
+                      .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                      .build())
+              .setAudioFormat(
+                  new AudioFormat.Builder()
+                      .setSampleRate(48000)
+                      .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                      .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
+                      .build())
+              .setTransferMode(AudioTrack.MODE_STREAM)
+              .setBufferSizeInBytes(Math.max(min, 16384))
+              .build();
+      synchronized (this) {
+        if (closed) {
+          t.release();
+          return;
+        }
+        track = t;
+        AudioDeviceInfo desired = AudioDevices.preferred(activity, false);
+        if (!t.setPreferredDevice(desired))
+          throw new AudioDevices.DeviceUnavailableException(
+              activity.getString(R.string.audio_route_rejected));
+        routeGuard(t, desired);
+        t.play();
+      }
+      report("Linux speaker connected", "Linuxのスピーカーを接続しました");
+      byte[] buffer = new byte[8192];
+      int retained = 0, n;
+      while (!closed
+          && (n = s.getInputStream().read(buffer, retained, buffer.length - retained)) >= 0) {
+        int total = retained + n, aligned = total & ~3;
+        int at = 0;
+        while (!closed && at < aligned) {
+          int w = t.write(buffer, at, aligned - at, AudioTrack.WRITE_BLOCKING);
+          if (w <= 0) throw new IOException("Playback stopped");
+          at += w;
+        }
+        retained = total - aligned;
+        if (retained > 0) System.arraycopy(buffer, aligned, buffer, 0, retained);
+      }
+    } catch (Exception error) {
+      if (!closed) {
+        android.util.Log.w(
+            "ProtectedLinux", "AUDIO_OUTPUT_FAILED " + error.getClass().getSimpleName());
+        if (error instanceof AudioDevices.DeviceUnavailableException)
+          report(error.getMessage(), error.getMessage());
+        else
+          report(
+              "Speaker unavailable. Install integration packages.",
+              "スピーカーを接続できません。連携パッケージを確認してください。");
+      }
+    } finally {
+      if (!closed) new Handler(activity.getMainLooper()).post(onFailure);
+      synchronized (this) {
+        if (track != null) {
+          try {
+            track.stop();
+          } catch (IllegalStateException ignored) {
+          }
+          track.release();
+          track = null;
+        }
+      }
+    }
+  }
+
+  private void capture() {
+    try (LocalSocket s = connect('M')) {
+      int min =
+          AudioRecord.getMinBufferSize(
+              48000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
+      if (min < 1) throw new IOException("Microphone format unavailable");
+      if (activity.checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+          != PackageManager.PERMISSION_GRANTED)
+        throw new IOException("Microphone permission denied");
+      AudioRecord r =
+          new AudioRecord.Builder()
+              .setAudioSource(MediaRecorder.AudioSource.MIC)
+              .setPrivacySensitive(true)
+              .setAudioFormat(
+                  new AudioFormat.Builder()
+                      .setSampleRate(48000)
+                      .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                      .setChannelMask(AudioFormat.CHANNEL_IN_MONO)
+                      .build())
+              .setBufferSizeInBytes(Math.max(min, 8192))
+              .build();
+      synchronized (this) {
+        if (closed) {
+          r.release();
+          return;
+        }
+        record = r;
+        AudioDeviceInfo desired = AudioDevices.preferred(activity, true);
+        if (!r.setPreferredDevice(desired))
+          throw new AudioDevices.DeviceUnavailableException(
+              activity.getString(R.string.audio_route_rejected));
+        routeGuard(r, desired);
+        r.startRecording();
+      }
+      report("Microphone shared with Linux", "Linuxへマイクを共有しています");
+      new Handler(activity.getMainLooper())
+          .post(
+              () -> {
+                if (!closed) onReady.run();
+              });
+      byte[] buffer = new byte[4096];
+      while (!closed) {
+        int n = r.read(buffer, 0, buffer.length, AudioRecord.READ_BLOCKING);
+        if (n <= 0) throw new IOException("Microphone stopped");
+        s.getOutputStream().write(buffer, 0, n);
+      }
+    } catch (Exception error) {
+      if (!closed) {
+        android.util.Log.w(
+            "ProtectedLinux", "AUDIO_INPUT_FAILED " + error.getClass().getSimpleName());
+        if (error instanceof AudioDevices.DeviceUnavailableException)
+          report(error.getMessage(), error.getMessage());
+        else
+          report(
+              "Microphone unavailable. Check permission and integration packages.",
+              "マイクを接続できません。権限と連携パッケージを確認してください。");
+      }
+    } finally {
+      if (!closed) new Handler(activity.getMainLooper()).post(onFailure);
+      synchronized (this) {
+        if (record != null) {
+          try {
+            record.stop();
+          } catch (IllegalStateException ignored) {
+          }
+          record.release();
+          record = null;
+        }
+      }
+    }
+  }
+
+  private void routeGuard(AudioRouting stream, AudioDeviceInfo desired) {
+    AudioDeviceCallback removal =
+        new AudioDeviceCallback() {
+          @Override
+          public void onAudioDevicesRemoved(AudioDeviceInfo[] devices) {
+            for (AudioDeviceInfo d : devices)
+              if (!closed && d.getId() == desired.getId()) {
+                report(
+                    activity.getString(R.string.audio_device_missing),
+                    activity.getString(R.string.audio_device_missing));
+                new Handler(activity.getMainLooper()).post(onFailure);
+                close();
+                return;
+              }
+          }
+        };
+    deviceGuards.add(removal);
+    activity
+        .getSystemService(AudioManager.class)
+        .registerAudioDeviceCallback(removal, new Handler(activity.getMainLooper()));
+    stream.addOnRoutingChangedListener(
+        route -> {
+          AudioDeviceInfo actual = route.getRoutedDevice();
+          if (!closed && actual != null && actual.getId() != desired.getId()) {
+            report(
+                activity.getString(R.string.audio_route_rejected),
+                activity.getString(R.string.audio_route_rejected));
+            new Handler(activity.getMainLooper()).post(onFailure);
+            close();
+          }
+        },
+        new Handler(activity.getMainLooper()));
+  }
+
+  private static void disconnect(LocalSocket s) {
+    if (s == null) return;
+    try {
+      s.shutdownInput();
+    } catch (IOException ignored) {
+    }
+    try {
+      s.shutdownOutput();
+    } catch (IOException ignored) {
+    }
+    try {
+      s.close();
+    } catch (IOException ignored) {
+    }
+  }
+
+  @Override
+  public synchronized void close() {
+    closed = true;
+    for (AudioDeviceCallback guard : deviceGuards)
+      activity.getSystemService(AudioManager.class).unregisterAudioDeviceCallback(guard);
+    deviceGuards.clear();
+    disconnect(output);
+    disconnect(input);
+    if (track != null) {
+      try {
+        track.stop();
+      } catch (IllegalStateException ignored) {
+      }
+      track.release();
+      track = null;
+    }
+    if (record != null) {
+      try {
+        record.stop();
+      } catch (IllegalStateException ignored) {
+      }
+      record.release();
+      record = null;
+    }
+    workers.shutdownNow();
+  }
 }

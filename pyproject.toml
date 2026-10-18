@@ -1,0 +1,5 @@
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+include = '\.py$'
+force-exclude = '/(artifacts|app/build|\.gradle|third_party)/'

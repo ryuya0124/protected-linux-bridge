@@ -13,7 +13,7 @@ test -z "$(ip -6 route show default)"
 test -f /etc/resolv.conf
 mkdir -p /run/plb/network
 chmod 700 /run/plb/network
-cat > /run/plb/network/tunnel.yml <<'EOF'
+cat >/run/plb/network/tunnel.yml <<'EOF'
 tunnel:
   name: plb0
   mtu: 1280
@@ -34,13 +34,16 @@ misc:
   log-level: warn
 EOF
 child= bound= route4= route6=
-cleanup(){
-  trap - EXIT HUP INT TERM
-  test -z "$route4" || ip route del default dev plb0 2>/dev/null || true
-  test -z "$route6" || ip -6 route del default dev plb0 2>/dev/null || true
-  test -z "$bound" || umount /etc/resolv.conf 2>/dev/null || true
-  if test -n "$child"; then kill "$child" 2>/dev/null || true; wait "$child" 2>/dev/null || true; fi
-  rm -f /run/plb/network/ready
+cleanup() {
+    trap - EXIT HUP INT TERM
+    test -z "$route4" || ip route del default dev plb0 2>/dev/null || true
+    test -z "$route6" || ip -6 route del default dev plb0 2>/dev/null || true
+    test -z "$bound" || umount /etc/resolv.conf 2>/dev/null || true
+    if test -n "$child"; then
+        kill "$child" 2>/dev/null || true
+        wait "$child" 2>/dev/null || true
+    fi
+    rm -f /run/plb/network/ready
 }
 trap cleanup EXIT
 trap 'exit 0' HUP INT TERM
@@ -48,11 +51,14 @@ trap 'exit 0' HUP INT TERM
 child=$!
 i=0
 until ip link show plb0 >/dev/null 2>&1; do
-  kill -0 "$child"; i=$((i+1)); test "$i" -lt 50; sleep .1
+    kill -0 "$child"
+    i=$((i + 1))
+    test "$i" -lt 50
+    sleep .1
 done
 ip link set plb0 up
 # A temporary guest-only bind mount; the original resolver file is untouched.
-printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\noptions timeout:3 attempts:2\n' > /run/plb/network/resolv.conf
+printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\noptions timeout:3 attempts:2\n' >/run/plb/network/resolv.conf
 mount --bind /run/plb/network/resolv.conf /etc/resolv.conf
 bound=1
 ip route add default dev plb0

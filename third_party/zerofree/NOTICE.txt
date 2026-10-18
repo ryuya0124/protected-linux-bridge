@@ -1,0 +1,15 @@
+zerofree 1.1.1, Debian 1.1.1-1+b2 arm64, GPL-2.0.
+Copyright Ron Yorston and contributors. Separate unmodified guest executable;
+not linked with the MIT host/agent code. Requires the guest's libext2fs.
+Binary: https://deb.debian.org/debian/pool/main/z/zerofree/zerofree_1.1.1-1+b2_arm64.deb
+SHA256: 1b96d1b2b3ff430dc0804634397d166fed6fdcd3e7af9bb8bb5cedc330492e12
+Complete corresponding upstream source and Debian build/patch metadata are
+included in this APK under assets/storage-sources/ and can be extracted as ZIP.
+The .bin suffix prevents AAPT from decompressing the pinned gzip bytes:
+zerofree_1.1.1.orig.tar.gz.bin (remove .bin after extraction)
+  https://deb.debian.org/debian/pool/main/z/zerofree/zerofree_1.1.1.orig.tar.gz
+  SHA256 956bc861b55ba0a2b7593c58d32339dab1a0e7da6ea2b813d27c80f08b723867
+zerofree_1.1.1-1.debian.tar.xz
+  https://deb.debian.org/debian/pool/main/z/zerofree/zerofree_1.1.1-1.debian.tar.xz
+  SHA256 8048fe2c7f921ae3e838f7c78efcc2634b6235e5832d78f976c853217a4c5bf3
+Build recipe and validation: tools/fetch_storage_runtime.py.

@@ -1,24 +1,296 @@
 package net.ryuya_dev.protectedlinux;
-import org.junit.Test;
+
 import static org.junit.Assert.*;
+
 import java.io.*;
 import java.nio.*;
 import java.util.*;
+import org.junit.Test;
+
 public class RawRfbTest {
- static final class Wire implements RawRfb.Wire {final ByteArrayInputStream input;final ByteArrayOutputStream output=new ByteArrayOutputStream();Wire(byte[] bytes){input=new ByteArrayInputStream(bytes);}public int read(ByteBuffer b){int n=Math.min(b.remaining(),3);byte[] v=new byte[n];n=input.read(v,0,n);if(n>0)b.put(v,0,n);return n;}public void send(byte[] b){output.writeBytes(b);}}
- static byte[] input(int width,int height,byte[] extra)throws Exception{ByteArrayOutputStream o=new ByteArrayOutputStream();DataOutputStream d=new DataOutputStream(o);d.writeBytes("RFB 003.008\n");d.write(new byte[]{1,1});d.writeInt(0);d.writeShort(width);d.writeShort(height);d.write(new byte[16]);d.writeInt(0);d.write(extra);return o.toByteArray();}
- static RawRfb.Sink sink(){return new RawRfb.Sink(){public void size(int w,int h){}public void frame(ByteBuffer b,List<RawRfb.Rect> damage){}};}
- @Test public void fragmentedHandshakeAndRawPixelIntegrity()throws Exception{ByteArrayOutputStream o=new ByteArrayOutputStream();DataOutputStream d=new DataOutputStream(o);d.write(new byte[]{0,0});d.writeShort(1);d.writeShort(1);d.writeShort(0);d.writeShort(1);d.writeShort(2);d.writeInt(0);d.write(new byte[]{1,2,3,0,4,5,6,0});Wire wire=new Wire(input(2,2,o.toByteArray()));int[] calls={0};RawRfb r=new RawRfb(wire,new RawRfb.Sink(){public void size(int w,int h){assertEquals(2,w);assertEquals(2,h);}public void frame(ByteBuffer b,List<RawRfb.Rect> damage){calls[0]++;assertEquals(1,damage.size());assertEquals(1,b.get(4));assertEquals(4,b.get(12));}});r.handshake();r.update();assertEquals(1,calls[0]);assertTrue(new String(wire.output.toByteArray(),0,12).startsWith("RFB 003.008"));}
- @Test public void oversizeFrameRejected()throws Exception{for(int[] size:new int[][]{{0,1},{4097,1},{1,65535}}){RawRfb r=new RawRfb(new Wire(input(size[0],size[1],new byte[0])),sink());assertThrows(IOException.class,r::handshake);}}
- @Test public void unknownEncodingRejected()throws Exception{ByteBuffer b=ByteBuffer.allocate(16);b.put((byte)0).put((byte)0).putShort((short)1).putShort((short)0).putShort((short)0).putShort((short)1).putShort((short)1).putInt(7);RawRfb r=new RawRfb(new Wire(input(2,2,b.array())),sink());r.handshake();assertThrows(IOException.class,r::update);}
- @Test public void outsideRectangleRejected()throws Exception{ByteBuffer b=ByteBuffer.allocate(16);b.put((byte)0).put((byte)0).putShort((short)1).putShort((short)2).putShort((short)0).putShort((short)1).putShort((short)1).putInt(0);RawRfb r=new RawRfb(new Wire(input(2,2,b.array())),sink());r.handshake();assertThrows(IOException.class,r::update);}
- @Test public void truncatedPixelsRejected()throws Exception{ByteBuffer b=ByteBuffer.allocate(18);b.put((byte)0).put((byte)0).putShort((short)1).putShort((short)0).putShort((short)0).putShort((short)1).putShort((short)1).putInt(0).putShort((short)0);RawRfb r=new RawRfb(new Wire(input(2,2,b.array())),sink());r.handshake();assertThrows(IOException.class,r::update);}
- @Test public void selectableResolutionsWithinMemoryBudget()throws Exception{for(int[] size:new int[][]{{960,540},{1024,768},{1280,720},{1280,800},{1600,900},{1920,1080},{2560,1440},{720,1280},{1080,1920}})assertEquals(size[0]*size[1]*4,RawRfb.imageBytes(size[0],size[1]));assertThrows(IOException.class,()->RawRfb.imageBytes(3840,2160));}
- @Test public void keyboardAndPointerUseRfbWireFormat()throws Exception{Wire wire=new Wire(input(720,1280,new byte[0]));RawRfb r=new RawRfb(wire,sink());r.handshake();wire.output.reset();r.pointer(900,-20,4);r.key(0xff0d,true);r.key(0xff0d,false);assertArrayEquals(new byte[]{5,4,2,(byte)207,0,0,4,1,0,0,0,0,(byte)255,13,4,0,0,0,0,0,(byte)255,13},wire.output.toByteArray());}
- @Test public void authRequiredRejected(){RawRfb r=new RawRfb(new Wire("RFB 003.008\n\u0001\u0002".getBytes()),sink());assertThrows(IOException.class,r::handshake);}
- static byte[] desktop(int reason,int result,int w,int h,int screens)throws Exception{ByteArrayOutputStream out=new ByteArrayOutputStream();DataOutputStream d=new DataOutputStream(out);d.writeByte(0);d.writeByte(0);d.writeShort(1);d.writeShort(reason);d.writeShort(result);d.writeShort(w);d.writeShort(h);d.writeInt(-308);d.writeByte(screens);d.write(new byte[3]);for(int n=0;n<screens;n++){d.writeInt(42+n);d.writeShort(0);d.writeShort(0);d.writeShort(w);d.writeShort(h);d.writeInt(7);}return out.toByteArray();}
- @Test public void resizeUsesNegotiatedScreenIdAndFlags()throws Exception{Wire wire=new Wire(input(2,3,desktop(0,0,2,3,1)));RawRfb r=new RawRfb(wire,sink());r.handshake();assertFalse(r.resizeDesktop(3,2));r.update();wire.output.reset();assertTrue(r.resizeDesktop(3,2));ByteBuffer b=ByteBuffer.wrap(wire.output.toByteArray());assertEquals(24,b.remaining());assertEquals(251,b.get()&255);b.get();assertEquals(3,b.getShort());assertEquals(2,b.getShort());assertEquals(1,b.get());b.get();assertEquals(42,b.getInt());assertEquals(0,b.getShort());assertEquals(0,b.getShort());assertEquals(3,b.getShort());assertEquals(2,b.getShort());assertEquals(7,b.getInt());}
- @Test public void resizeFailureKeepsThePreviousFramebuffer()throws Exception{int[] state={0};Wire wire=new Wire(input(2,3,desktop(1,1,0,0,0)));RawRfb r=new RawRfb(wire,new RawRfb.Sink(){public void size(int w,int h){assertEquals(2,w);assertEquals(3,h);}public void frame(ByteBuffer b,List<RawRfb.Rect> damage){}public void desktopResizeRejected(){state[0]++;}});r.handshake();r.update();assertEquals(1,state[0]);}
- @Test public void transposedResolutionsKeepTheirMemoryBound()throws Exception{for(int n=0;n<9;n++){int[] a=DisplaySizing.dimensions(n,true),b=DisplaySizing.dimensions(n,false);assertEquals(a[0],b[1]);assertEquals(a[1],b[0]);assertEquals(RawRfb.imageBytes(a[0],a[1]),RawRfb.imageBytes(b[0],b[1]));}}
- @Test public void unknownScreenLayoutIsRejected()throws Exception{RawRfb r=new RawRfb(new Wire(input(2,3,desktop(0,0,2,3,0))),sink());r.handshake();assertThrows(IOException.class,r::update);}
+  static final class Wire implements RawRfb.Wire {
+    final ByteArrayInputStream input;
+    final ByteArrayOutputStream output = new ByteArrayOutputStream();
+
+    Wire(byte[] bytes) {
+      input = new ByteArrayInputStream(bytes);
+    }
+
+    public int read(ByteBuffer b) {
+      int n = Math.min(b.remaining(), 3);
+      byte[] v = new byte[n];
+      n = input.read(v, 0, n);
+      if (n > 0) b.put(v, 0, n);
+      return n;
+    }
+
+    public void send(byte[] b) {
+      output.writeBytes(b);
+    }
+  }
+
+  static byte[] input(int width, int height, byte[] extra) throws Exception {
+    ByteArrayOutputStream o = new ByteArrayOutputStream();
+    DataOutputStream d = new DataOutputStream(o);
+    d.writeBytes("RFB 003.008\n");
+    d.write(new byte[] {1, 1});
+    d.writeInt(0);
+    d.writeShort(width);
+    d.writeShort(height);
+    d.write(new byte[16]);
+    d.writeInt(0);
+    d.write(extra);
+    return o.toByteArray();
+  }
+
+  static RawRfb.Sink sink() {
+    return new RawRfb.Sink() {
+      public void size(int w, int h) {}
+
+      public void frame(ByteBuffer b, List<RawRfb.Rect> damage) {}
+    };
+  }
+
+  @Test
+  public void fragmentedHandshakeAndRawPixelIntegrity() throws Exception {
+    ByteArrayOutputStream o = new ByteArrayOutputStream();
+    DataOutputStream d = new DataOutputStream(o);
+    d.write(new byte[] {0, 0});
+    d.writeShort(1);
+    d.writeShort(1);
+    d.writeShort(0);
+    d.writeShort(1);
+    d.writeShort(2);
+    d.writeInt(0);
+    d.write(new byte[] {1, 2, 3, 0, 4, 5, 6, 0});
+    Wire wire = new Wire(input(2, 2, o.toByteArray()));
+    int[] calls = {0};
+    RawRfb r =
+        new RawRfb(
+            wire,
+            new RawRfb.Sink() {
+              public void size(int w, int h) {
+                assertEquals(2, w);
+                assertEquals(2, h);
+              }
+
+              public void frame(ByteBuffer b, List<RawRfb.Rect> damage) {
+                calls[0]++;
+                assertEquals(1, damage.size());
+                assertEquals(1, b.get(4));
+                assertEquals(4, b.get(12));
+              }
+            });
+    r.handshake();
+    r.update();
+    assertEquals(1, calls[0]);
+    assertTrue(new String(wire.output.toByteArray(), 0, 12).startsWith("RFB 003.008"));
+  }
+
+  @Test
+  public void oversizeFrameRejected() throws Exception {
+    for (int[] size : new int[][] {{0, 1}, {4097, 1}, {1, 65535}}) {
+      RawRfb r = new RawRfb(new Wire(input(size[0], size[1], new byte[0])), sink());
+      assertThrows(IOException.class, r::handshake);
+    }
+  }
+
+  @Test
+  public void unknownEncodingRejected() throws Exception {
+    ByteBuffer b = ByteBuffer.allocate(16);
+    b.put((byte) 0)
+        .put((byte) 0)
+        .putShort((short) 1)
+        .putShort((short) 0)
+        .putShort((short) 0)
+        .putShort((short) 1)
+        .putShort((short) 1)
+        .putInt(7);
+    RawRfb r = new RawRfb(new Wire(input(2, 2, b.array())), sink());
+    r.handshake();
+    assertThrows(IOException.class, r::update);
+  }
+
+  @Test
+  public void outsideRectangleRejected() throws Exception {
+    ByteBuffer b = ByteBuffer.allocate(16);
+    b.put((byte) 0)
+        .put((byte) 0)
+        .putShort((short) 1)
+        .putShort((short) 2)
+        .putShort((short) 0)
+        .putShort((short) 1)
+        .putShort((short) 1)
+        .putInt(0);
+    RawRfb r = new RawRfb(new Wire(input(2, 2, b.array())), sink());
+    r.handshake();
+    assertThrows(IOException.class, r::update);
+  }
+
+  @Test
+  public void truncatedPixelsRejected() throws Exception {
+    ByteBuffer b = ByteBuffer.allocate(18);
+    b.put((byte) 0)
+        .put((byte) 0)
+        .putShort((short) 1)
+        .putShort((short) 0)
+        .putShort((short) 0)
+        .putShort((short) 1)
+        .putShort((short) 1)
+        .putInt(0)
+        .putShort((short) 0);
+    RawRfb r = new RawRfb(new Wire(input(2, 2, b.array())), sink());
+    r.handshake();
+    assertThrows(IOException.class, r::update);
+  }
+
+  @Test
+  public void selectableResolutionsWithinMemoryBudget() throws Exception {
+    for (int[] size :
+        new int[][] {
+          {960, 540},
+          {1024, 768},
+          {1280, 720},
+          {1280, 800},
+          {1600, 900},
+          {1920, 1080},
+          {2560, 1440},
+          {720, 1280},
+          {1080, 1920}
+        }) assertEquals(size[0] * size[1] * 4, RawRfb.imageBytes(size[0], size[1]));
+    assertThrows(IOException.class, () -> RawRfb.imageBytes(3840, 2160));
+  }
+
+  @Test
+  public void keyboardAndPointerUseRfbWireFormat() throws Exception {
+    Wire wire = new Wire(input(720, 1280, new byte[0]));
+    RawRfb r = new RawRfb(wire, sink());
+    r.handshake();
+    wire.output.reset();
+    r.pointer(900, -20, 4);
+    r.key(0xff0d, true);
+    r.key(0xff0d, false);
+    assertArrayEquals(
+        new byte[] {
+          5,
+          4,
+          2,
+          (byte) 207,
+          0,
+          0,
+          4,
+          1,
+          0,
+          0,
+          0,
+          0,
+          (byte) 255,
+          13,
+          4,
+          0,
+          0,
+          0,
+          0,
+          0,
+          (byte) 255,
+          13
+        },
+        wire.output.toByteArray());
+  }
+
+  @Test
+  public void authRequiredRejected() {
+    RawRfb r = new RawRfb(new Wire("RFB 003.008\n\u0001\u0002".getBytes()), sink());
+    assertThrows(IOException.class, r::handshake);
+  }
+
+  static byte[] desktop(int reason, int result, int w, int h, int screens) throws Exception {
+    ByteArrayOutputStream out = new ByteArrayOutputStream();
+    DataOutputStream d = new DataOutputStream(out);
+    d.writeByte(0);
+    d.writeByte(0);
+    d.writeShort(1);
+    d.writeShort(reason);
+    d.writeShort(result);
+    d.writeShort(w);
+    d.writeShort(h);
+    d.writeInt(-308);
+    d.writeByte(screens);
+    d.write(new byte[3]);
+    for (int n = 0; n < screens; n++) {
+      d.writeInt(42 + n);
+      d.writeShort(0);
+      d.writeShort(0);
+      d.writeShort(w);
+      d.writeShort(h);
+      d.writeInt(7);
+    }
+    return out.toByteArray();
+  }
+
+  @Test
+  public void resizeUsesNegotiatedScreenIdAndFlags() throws Exception {
+    Wire wire = new Wire(input(2, 3, desktop(0, 0, 2, 3, 1)));
+    RawRfb r = new RawRfb(wire, sink());
+    r.handshake();
+    assertFalse(r.resizeDesktop(3, 2));
+    r.update();
+    wire.output.reset();
+    assertTrue(r.resizeDesktop(3, 2));
+    ByteBuffer b = ByteBuffer.wrap(wire.output.toByteArray());
+    assertEquals(24, b.remaining());
+    assertEquals(251, b.get() & 255);
+    b.get();
+    assertEquals(3, b.getShort());
+    assertEquals(2, b.getShort());
+    assertEquals(1, b.get());
+    b.get();
+    assertEquals(42, b.getInt());
+    assertEquals(0, b.getShort());
+    assertEquals(0, b.getShort());
+    assertEquals(3, b.getShort());
+    assertEquals(2, b.getShort());
+    assertEquals(7, b.getInt());
+  }
+
+  @Test
+  public void resizeFailureKeepsThePreviousFramebuffer() throws Exception {
+    int[] state = {0};
+    Wire wire = new Wire(input(2, 3, desktop(1, 1, 0, 0, 0)));
+    RawRfb r =
+        new RawRfb(
+            wire,
+            new RawRfb.Sink() {
+              public void size(int w, int h) {
+                assertEquals(2, w);
+                assertEquals(3, h);
+              }
+
+              public void frame(ByteBuffer b, List<RawRfb.Rect> damage) {}
+
+              public void desktopResizeRejected() {
+                state[0]++;
+              }
+            });
+    r.handshake();
+    r.update();
+    assertEquals(1, state[0]);
+  }
+
+  @Test
+  public void transposedResolutionsKeepTheirMemoryBound() throws Exception {
+    for (int n = 0; n < 9; n++) {
+      int[] a = DisplaySizing.dimensions(n, true), b = DisplaySizing.dimensions(n, false);
+      assertEquals(a[0], b[1]);
+      assertEquals(a[1], b[0]);
+      assertEquals(RawRfb.imageBytes(a[0], a[1]), RawRfb.imageBytes(b[0], b[1]));
+    }
+  }
+
+  @Test
+  public void unknownScreenLayoutIsRejected() throws Exception {
+    RawRfb r = new RawRfb(new Wire(input(2, 3, desktop(0, 0, 2, 3, 0))), sink());
+    r.handshake();
+    assertThrows(IOException.class, r::update);
+  }
 }
