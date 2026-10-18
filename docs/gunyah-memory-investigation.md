@@ -2,6 +2,13 @@
 
 ## Status, 2026-10-19
 
+The [DroidVM HugePage comparison](droidvm-hugepage-comparison.md) now traces the
+app, modified VMM and reserve-module paths separately. It includes a read-only
+Galaxy prerequisite audit and distinguishes smaller-folio policies from PMD-sized
+collapse. No DroidVM module or host-wide preparation routine was run. The user
+accepts normal Android reclamation of other apps while targeting 4 GiB; the
+existing hypervisor mapping failure still needs independent resolution.
+
 The previously observed heavy-GUI failure is **not fixed**. A bounded, diskless memory workload now reproduces it without GPU, GUI, network, vsock or persistent disks. It also reproduces with the preinstalled Microdroid guest kernel. This narrows the investigation beyond desktop rendering and the custom Linux kernel.
 
 The tests used the explicitly selected Galaxy SM-S948Q, Android 16 / One UI 80500, host kernel 6.12.30 and the installed protected crosvm/Gunyah path. Only one owned VM ran at a time. The host boot ID remained unchanged and SELinux remained Enforcing. The unrelated trusted VM was left alone. No host kernel/module, partition, policy, sysctl, global memory-compaction, global cache-drop or reboot operation was used. Later small-allocation trials requested collapse only on their own mappings and released cache only for this app's immutable Android artifacts, as detailed below. See [the immutable boundary](host-boundary.md).

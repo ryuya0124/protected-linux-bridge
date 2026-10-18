@@ -4,6 +4,14 @@ Status: proposal only. **No writes to these settings have been made.** The
 released APK does not include this policy change. The user's host-kernel boundary
 must be clarified before any execution; it is not part of the current authorization.
 
+Update, 2026-10-19: **suspended under the user's explicit instruction to keep
+host settings unchanged during the DroidVM comparison.** RAM usage and ordinary
+Android reclamation are permitted; that does not approve either sysfs write.
+The proposed 16 KiB setting below is for anonymous mappings. The Galaxy also
+exposes a separate per-size `shmem_enabled` policy, currently `never`; changing
+anonymous policy would not enable small shared-memory folios for normal crosvm
+memfd backing. See [the source comparison](droidvm-hugepage-comparison.md).
+
 ## Concrete trial
 
 | Host runtime setting | Observed current value | Proposed temporary value |
