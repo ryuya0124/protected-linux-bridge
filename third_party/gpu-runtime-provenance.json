@@ -1,0 +1,9 @@
+{
+  "name": "Termux virglrenderer-android",
+  "version": "1.3.0-1",
+  "binary_url": "https://packages.termux.dev/apt/termux-main/pool/main/v/virglrenderer-android/virglrenderer-android_1.3.0-1_aarch64.deb",
+  "sha256": "f1a7297bc0edf701b2955fcc9ba679707e092e1b78d9f1d620ba9e4567aa0c5b",
+  "source": "https://github.com/termux/termux-packages/tree/5952664fae176ea6929f354bf1b1af70c4a1cffb/packages/virglrenderer-android",
+  "changes": "Unmodified executable and libraries. Runs as nobody, never as root. VTest v0 stream translation is separate guest-side code.",
+  "mirror": "https://github.com/ryuya0124/protected-linux-bridge/releases/download/v0.2.0-preview.1/virglrenderer-android_1.3.0-1_aarch64.deb"
+}

@@ -24,7 +24,9 @@
 struct sockaddr_vm {sa_family_t svm_family;unsigned short reserved;unsigned int svm_port,svm_cid;unsigned char zero[4];};
 static volatile sig_atomic_t quitting;
 static void stop_guest(int signum){(void)signum;quitting=1;}
-static int vsock_connect(unsigned port){int fd=socket(AF_VSOCK,SOCK_STREAM|SOCK_CLOEXEC,0);if(fd<0)return -1;struct sockaddr_vm a={.svm_family=AF_VSOCK,.svm_port=port,.svm_cid=2};if(connect(fd,(struct sockaddr*)&a,sizeof(a))){close(fd);return -1;}return fd;}
+static int vsock_connect(unsigned port){int fd=socket(AF_VSOCK,SOCK_STREAM|SOCK_CLOEXEC,0);if(fd<0)return -1;struct sockaddr_vm a={.svm_family=AF_VSOCK,.svm_port=port,.svm_cid=2};int flags=fcntl(fd,F_GETFL);if(flags<0||fcntl(fd,F_SETFL,flags|O_NONBLOCK)<0){close(fd);return -1;}int result=connect(fd,(struct sockaddr*)&a,sizeof(a));if(result&&errno==EINPROGRESS){struct pollfd p={fd,POLLOUT,0};int error=1;socklen_t size=sizeof(error);if(poll(&p,1,5000)>0&&!getsockopt(fd,SOL_SOCKET,SO_ERROR,&error,&size)&&!error)result=0;}if(result||fcntl(fd,F_SETFL,flags)<0){close(fd);return -1;}return fd;}
+#include "guest_network.h"
+#include "gpu_guest.h"
 static int local_connect(unsigned port){int fd=socket(AF_INET,SOCK_STREAM|SOCK_CLOEXEC,0);if(fd<0)return -1;struct sockaddr_in a={.sin_family=AF_INET,.sin_port=htons((unsigned short)port),.sin_addr={htonl(INADDR_LOOPBACK)}};if(connect(fd,(struct sockaddr*)&a,sizeof(a))){close(fd);return -1;}return fd;}
 static int local_listener(unsigned port){int fd=socket(AF_INET,SOCK_STREAM|SOCK_CLOEXEC,0);if(fd<0)return -1;int one=1;setsockopt(fd,SOL_SOCKET,SO_REUSEADDR,&one,sizeof(one));struct sockaddr_in a={.sin_family=AF_INET,.sin_port=htons((unsigned short)port),.sin_addr={htonl(INADDR_LOOPBACK)}};if(bind(fd,(struct sockaddr*)&a,sizeof(a))||listen(fd,16)){close(fd);return -1;}return fd;}
 static void loopback_up(void){int fd=socket(AF_INET,SOCK_DGRAM,0);struct ifreq iface={0};strcpy(iface.ifr_name,"lo");if(fd>=0){if(!ioctl(fd,SIOCGIFFLAGS,&iface)){iface.ifr_flags|=IFF_UP;ioctl(fd,SIOCSIFFLAGS,&iface);}close(fd);}}
@@ -36,7 +38,8 @@ static void proxy_forwarder(void){
  }
 }
 static void configure_environment(void){
- setenv("PATH","/run/plb:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",1);setenv("TERM","xterm-256color",1);setenv("HOME","/root",1);setenv("LANG","C.UTF-8",1);setenv("COLUMNS","80",1);setenv("LINES","24",1);setenv("DISPLAY",":1",1);setenv("XDG_RUNTIME_DIR","/run/user/0",1);setenv("LIBGL_ALWAYS_SOFTWARE","1",1);
+ setenv("PATH","/run/plb:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",1);setenv("TERM","xterm-256color",1);setenv("SHELL","/bin/bash",1);setenv("HOME","/root",1);setenv("LANG","C.UTF-8",1);setenv("COLUMNS","80",1);setenv("LINES","24",1);setenv("DISPLAY",":1",1);setenv("XDG_RUNTIME_DIR","/run/user/0",1);setenv("LIBGL_ALWAYS_SOFTWARE","1",1);
+ if(!access("/root/.config/protected-linux/gpu-enabled",F_OK)){setenv("GALLIUM_DRIVER","virpipe",1);setenv("VTEST_SOCKET_NAME",PLB_GUEST_GPU_SOCKET,1);}
  for(int i=0;i<3;i++)setenv((const char*[]){"http_proxy","https_proxy","ALL_PROXY"}[i],"http://127.0.0.1:3128",1);
  setenv("no_proxy","localhost,127.0.0.1,::1",1);setenv("PS1","\\u@\\h:\\w\\$ ",1);
 }
@@ -54,13 +57,14 @@ static int start_gui(void){
  if(server<0)return -1;
  for(int i=0;i<80;i++){test=local_connect(5901);if(test>=0)break;usleep(100000);}
  if(test<0){kill(server,SIGTERM);return -1;}
- if(fork()==0){configure_environment();execl("/bin/sh","sh","-c","openbox >/tmp/plb-openbox.log 2>&1 & xterm & terminal=$!; sleep 0.5; if command -v xsetroot >/dev/null 2>&1; then xsetroot -solid '#1d1b20'; fi; wait \"$terminal\"",(char*)NULL);_exit(47);}return test;
+ if(fork()==0){configure_environment();execl("/bin/sh","sh","-c","if test -f /root/.config/protected-linux/gpu-enabled && test -f /root/.config/protected-linux/desktop-gpu && command -v weston >/dev/null 2>&1; then weston --backend=x11 --renderer=gl --width=1280 --height=720 --socket=wayland-plb --idle-time=0 --no-config --xwayland --log=/tmp/plb-weston.log & compositor=$!; for i in $(seq 1 50); do test -S /run/user/0/wayland-plb && break; kill -0 \"$compositor\" 2>/dev/null || break; sleep .1; done; if test -S /run/user/0/wayland-plb; then WAYLAND_DISPLAY=wayland-plb weston-terminal >/tmp/plb-wayland-terminal.log 2>&1 & wait \"$compositor\"; fi; fi; openbox >/tmp/plb-openbox.log 2>&1 & xterm & terminal=$!; sleep 0.5; if command -v xsetroot >/dev/null 2>&1; then xsetroot -solid '#1d1b20'; fi; wait \"$terminal\"",(char*)NULL);_exit(47);}return test;
 }
-int main(void){
- if(getpid()!=1){fputs("Guest agent must run as guest PID 1\n",stderr);return 48;}
+int main(int argc,char **argv){
+ if(getpid()!=1){int gpu=gpu_command(argc,argv);return gpu>=0?gpu:plb_network_command(argc,argv);}
  signal(SIGPIPE,SIG_IGN);signal(SIGTERM,stop_guest);signal(SIGINT,stop_guest);loopback_up();
  mkdir("/run/user",0755);mkdir("/run/user/0",0700);configure_environment();
  if(fork()==0){proxy_forwarder();_exit(0);}
+ if(fork()==0){gpu_forwarder();_exit(0);}
  int listener=socket(AF_VSOCK,SOCK_STREAM|SOCK_CLOEXEC,0);struct sockaddr_vm a={.svm_family=AF_VSOCK,.svm_port=AGENT_PORT,.svm_cid=0xffffffff};
  if(listener<0||bind(listener,(struct sockaddr*)&a,sizeof(a))||listen(listener,16)){perror("guest agent vsock");quitting=1;}
  if(!quitting){puts("PLB_GUEST_AGENT_READY");fflush(stdout);}int active=0;

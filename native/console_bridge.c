@@ -46,6 +46,7 @@ static void log_child(const char *name){
  fd=open("/dev/null",O_RDONLY|O_CLOEXEC);if(fd>=0){dup2(fd,STDIN_FILENO);close(fd);}
 }
 
+#include "gpu_host.h"
 static int same_file(const struct stat *a,const struct stat *b){return a->st_dev==b->st_dev&&a->st_ino==b->st_ino&&a->st_size==b->st_size&&a->st_mtim.tv_sec==b->st_mtim.tv_sec&&a->st_mtim.tv_nsec==b->st_mtim.tv_nsec;}
 static int cache_base(uid_t terminal_uid){
  struct stat cached;if(lstat(BACKING,&cached)==0)return S_ISREG(cached.st_mode)&&cached.st_uid==0&&cached.st_size>=128*1024*1024?0:6;
@@ -119,16 +120,32 @@ int main(int argc,char **argv){
  umask(077);signal(SIGTERM,stop);signal(SIGINT,stop);signal(SIGHUP,stop);signal(SIGPIPE,SIG_IGN);
  struct stat device;if(stat("/dev/gunyah",&device)||!S_ISCHR(device.st_mode)||access("/apex/com.android.virt/etc/fs/microdroid_kernel",R_OK)||access("/apex/com.android.virt/bin/crosvm",X_OK))return 25;
  if(chdir(BASE))return 23;int control=local_socket(1);if(control<0){perror("bind control");return 24;}
+ int gpu_ready=gpu_prepare((uid_t)module_uid)==0;
  printf("BRIDGE_WAITING uid=%ld\n",terminal_uid);fflush(stdout);
+ int gpu_socket=-1;pid_t gpu_renderer=-1,gpu_server=-1,gpu_workers[PLB_GPU_CLIENTS]={0};
  pid_t vm=-1,proxy=-1,sessions[MAX_SESSIONS]={0};double idle=plb_now()+1800,vm_deadline=0;
  while(!stopped&&plb_now()<idle){
   int active=0;for(int i=0;i<MAX_SESSIONS;i++)if(sessions[i]>0){if(waitpid(sessions[i],NULL,WNOHANG)!=0)sessions[i]=0;else active++;}
+  for(int i=0;i<PLB_GPU_CLIENTS;i++)if(gpu_workers[i]>0&&waitpid(gpu_workers[i],NULL,WNOHANG)!=0)gpu_workers[i]=0;
   int vm_ended=vm>0&&waitpid(vm,NULL,WNOHANG)!=0;
   if(vm>0&&(!active||vm_ended||plb_now()>vm_deadline)){
    for(int i=0;i<MAX_SESSIONS;i++)if(sessions[i]>0){kill(sessions[i],SIGTERM);wait_or_kill(sessions[i],500);sessions[i]=0;}
-   shutdown_vm(vm_ended?-1:vm,proxy);vm=proxy=-1;idle=plb_now()+1800;
+   gpu_stop(&gpu_socket,&gpu_renderer,gpu_workers);shutdown_vm(vm_ended?-1:vm,proxy);vm=proxy=-1;idle=plb_now()+1800;
   }
-  struct pollfd p={control,POLLIN,0};if(poll(&p,1,100)<=0)continue;
+  struct pollfd p[2]={{control,POLLIN,0},{gpu_socket,POLLIN,0}};if(poll(p,2,100)<=0)continue;
+  if(p[1].revents&POLLIN){
+   struct sockaddr_vm peer;socklen_t length=sizeof(peer);int fd=accept4(gpu_socket,(struct sockaddr*)&peer,&length,SOCK_CLOEXEC);
+   if(fd>=0){
+    int slot=-1;for(int i=0;i<PLB_GPU_CLIENTS;i++)if(!gpu_workers[i]){slot=i;break;}
+    if(peer.svm_cid!=CID||slot<0){send_status(fd,4);close(fd);}else{
+     if(gpu_renderer<0)gpu_renderer=gpu_start(&gpu_server);
+     pid_t parent=getpid(),worker=gpu_renderer>0?fork():-1;
+     if(worker==0){signal(SIGTERM,SIG_DFL);prctl(PR_SET_PDEATHSIG,SIGKILL);if(getppid()!=parent)_exit(95);close(control);close(gpu_socket);int renderer=gpu_connect(gpu_server);send_status(fd,renderer<0?3:0);if(renderer>=0){plb_relay(fd,renderer,1800,0);close(renderer);}close(fd);_exit(0);}
+     if(worker>0)gpu_workers[slot]=worker;else send_status(fd,3);close(fd);
+    }
+   }
+  }
+  if(!(p[0].revents&POLLIN))continue;
   int client=accept4(control,NULL,NULL,SOCK_CLOEXEC);if(client<0)continue;int uid=peer_uid(client);
   if(uid!=terminal_uid&&uid!=module_uid&&uid!=0){close(client);continue;}
   struct timeval timeout={2,0};setsockopt(client,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));setsockopt(client,SOL_SOCKET,SO_SNDTIMEO,&timeout,sizeof(timeout));char request=0;ssize_t received=read(client,&request,1);
@@ -140,10 +157,10 @@ int main(int argc,char **argv){
    if(vm<0){
     int error=memory_ready()?prepare_overlay((uid_t)terminal_uid):8;if(error){send_status(client,(unsigned char)error);close(client);continue;}
     proxy=plb_start_proxy((uid_t)terminal_uid,control,client);if(proxy<0){send_status(client,9);close(client);continue;}
-    vm=start_vm();if(vm<0){shutdown_vm(-1,proxy);proxy=-1;send_status(client,3);close(client);continue;}vm_deadline=plb_now()+1800;idle=vm_deadline+5;
+    vm=start_vm();if(vm<0){shutdown_vm(-1,proxy);proxy=-1;send_status(client,3);close(client);continue;}gpu_socket=gpu_ready?gpu_listener():-1;vm_deadline=plb_now()+1800;idle=vm_deadline+5;
    }
    pid_t parent=getpid(),worker=fork();if(worker==0){
-    signal(SIGTERM,SIG_DFL);signal(SIGINT,SIG_DFL);prctl(PR_SET_PDEATHSIG,SIGKILL);if(getppid()!=parent)_exit(85);close(control);
+    signal(SIGTERM,SIG_DFL);signal(SIGINT,SIG_DFL);prctl(PR_SET_PDEATHSIG,SIGKILL);if(getppid()!=parent)_exit(85);close(control);if(gpu_socket>=0)close(gpu_socket);
     int guest=guest_connect(120);if(guest<0){send_status(client,5);close(client);_exit(86);}char mode=request=='V'?'G':'P';unsigned char status=3;
     if(plb_write_all(guest,&mode,1)||read(guest,&status,1)!=1)status=3;send_status(client,status);
     if(!status){timeout.tv_sec=0;setsockopt(client,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));setsockopt(guest,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));plb_relay(client,guest,1800,1);}
@@ -153,5 +170,5 @@ int main(int argc,char **argv){
   }
   close(client);
  }
- for(int i=0;i<MAX_SESSIONS;i++)if(sessions[i]>0){kill(sessions[i],SIGTERM);wait_or_kill(sessions[i],500);}shutdown_vm(vm,proxy);close(control);return 0;
+ for(int i=0;i<MAX_SESSIONS;i++)if(sessions[i]>0){kill(sessions[i],SIGTERM);wait_or_kill(sessions[i],500);}gpu_stop(&gpu_socket,&gpu_renderer,gpu_workers);shutdown_vm(vm,proxy);close(control);return 0;
 }

@@ -44,7 +44,7 @@ public final class MainActivity extends AppCompatActivity {
     button(R.string.stop_vm,page).setOnClickListener(v->new MaterialAlertDialogBuilder(this).setTitle(R.string.stop_vm).setMessage(R.string.stop_detail).setNegativeButton(android.R.string.cancel,null).setPositiveButton(android.R.string.ok,(d,w)->{runtime.show(-1,R.string.checking);worker.submit(()->{boolean ok=RuntimeSetup.stop(this);runOnUiThread(()->{if(!isDestroyed())runtime.show(ok?1:0,ok?R.string.runtime_stopped:R.string.stop_failed);});});}).show());
     toggle.setOnCheckedChangeListener((v,on)->{getSharedPreferences("config",0).edit().putBoolean("enabled",on).apply();app().publish();open.setEnabled(on);if(on)startRuntime();else runtime.show(1,R.string.runtime_disabled);});
     open.setEnabled(toggle.isChecked());
-    info(page,R.string.setup_title,R.string.setup);info(page,R.string.limits_title,R.string.limits);info(page,R.string.network_title,R.string.network_detail);info(page,R.string.safety_title,R.string.safety);
+    info(page,R.string.setup_title,R.string.setup);info(page,R.string.limits_title,R.string.limits);info(page,R.string.network_title,R.string.network_detail);info(page,R.string.tools_title,R.string.tools_detail);info(page,R.string.gpu_title,R.string.gpu_detail);info(page,R.string.safety_title,R.string.safety);
     button(R.string.licenses,page).setOnClickListener(v->licenses());
     startRuntime();
   }

@@ -43,8 +43,13 @@ androidx.vectordrawable:vectordrawable:1.1.0	Apache-2.0	Apache-2.0.txt	https://d
 androidx.versionedparcelable:versionedparcelable:1.1.1	Apache-2.0	Apache-2.0.txt	http://developer.android.com/tools/extras/support-library.html
 androidx.viewpager2:viewpager2:1.0.0	Apache-2.0	Apache-2.0.txt	https://developer.android.com/jetpack/androidx
 androidx.viewpager:viewpager:1.0.0	Apache-2.0	Apache-2.0.txt	http://developer.android.com/tools/extras/support-library.html
+androidx.webkit:webkit:1.17.1	Apache-2.0	Apache-2.0.txt	https://developer.android.com/jetpack/androidx/releases/webkit#1.17.1
 com.google.android.material:material:1.14.0	Apache-2.0	Apache-2.0.txt	https://github.com/material-components/material-components-android
 com.google.errorprone:error_prone_annotations:2.15.0	Apache-2.0	Apache-2.0.txt	https://github.com/google/error-prone
+com.google.guava:listenablefuture:1.0	Apache-2.0	Apache-2.0.txt	https://github.com/google/guava
+io.github.libxposed:api:102.0.0	Apache-2.0	Apache-2.0.txt	https://github.com/JingMatrix/libxposed-api
+io.github.libxposed:interface:102.0.0	Apache-2.0	Apache-2.0.txt	https://libxposed.github.io/service/
+io.github.libxposed:service:102.0.0	Apache-2.0	Apache-2.0.txt	https://libxposed.github.io/service/
 org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22	Apache-2.0	Apache-2.0.txt	https://kotlinlang.org/
 org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22	Apache-2.0	Apache-2.0.txt	https://kotlinlang.org/
 org.jetbrains.kotlin:kotlin-stdlib:2.2.10	Apache-2.0	Apache-2.0.txt	https://kotlinlang.org/
@@ -52,7 +57,3 @@ org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.4	Apache-2.0	Apache-2.0.txt
 org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.6.4	Apache-2.0	Apache-2.0.txt	https://github.com/Kotlin/kotlinx.coroutines
 org.jetbrains:annotations:13.0	Apache-2.0	Apache-2.0.txt	http://www.jetbrains.org
 org.jspecify:jspecify:1.0.0	Apache-2.0	Apache-2.0.txt	http://jspecify.org/
-io.github.libxposed:api:102.0.0	Apache-2.0	Apache-2.0.txt	https://github.com/JingMatrix/libxposed-api
-com.google.guava:listenablefuture:1.0	Apache-2.0	Apache-2.0.txt	https://github.com/google/guava
-io.github.libxposed:interface:102.0.0	Apache-2.0	Apache-2.0.txt	https://libxposed.github.io/service/
-io.github.libxposed:service:102.0.0	Apache-2.0	Apache-2.0.txt	https://libxposed.github.io/service/

@@ -24,7 +24,7 @@
 <string name="licenses">ライセンス</string>
 <string name="terminal_missing">標準ターミナルが無効か、インストールされていません。</string>
 <string name="limits_title">この検証版で使える機能</string>
-<string name="limits">専用の書き込み可能なDebianディスク · RAM 512 MiB · 1 vCPU\n独立した複数のシェルタブ · VMは1回最大30分\n対応ツール向けHTTP/HTTPSプロキシ。仮想NIC・UDP・pingは未対応です。GUIは plb-install-gui で追加します。標準イメージは変更せず、専用のベースコピー約3 GiBと保存データ分の容量を使用します。</string>
+<string name="limits">専用の書き込み可能なDebianディスク · RAM 512 MiB · 1 vCPU\n独立した複数のシェルタブ · VMは1回最大30分\nHTTP/HTTPSプロキシ、明示的なUDP転送、IPv4のpingに対応。仮想NICはありません。GUIは plb-install-gui、任意のOpenGL高速化は plb-install-gpu で追加します。標準イメージは変更せず、専用のベースコピー約3 GiBと保存データ分の容量を使用します。</string>
 <string name="safety_title">既存カーネルのみ使用</string>
 <string name="safety">カーネル更新、パーティション書き換え、再起動、SELinux設定変更は行いません。端末に元からあるMicrodroidカーネルを使います。rootとGunyahが必要です。pvmfwによる起動検証は省略するため、検証済みAVFゲストと同じ保証はありません。</string>
 <string name="setup_title">導入手順</string>
@@ -40,4 +40,9 @@
 <string name="unsupported_version">未検証のOSまたはターミナルです。互換性を確認できないため接続を停止しています。</string>
 <string name="network_title">ネットワークの動作</string>
 <string name="network_detail">標準ターミナルのUIDとINTERNET権限で通信し、Androidのアプリ別通信・VPN・省電力制限に従います。ホストのルート・DNS・ファイアウォール設定は変更しません。バックグラウンドやDozeの制限中は通信が止まる場合があります。</string>
+<string name="gpu_title">OpenGLのGPU描画</string>
+<string name="gpu_detail">Linux内で plb-install-gpu を実行して、VMを停止し開き直します。plb-gpu-info で virgl (Adreno) と表示されれば端末のGPUを利用しています。無効化は plb-gpu-mode off のあとVMを開き直します。端末の再起動は不要です。Westonでデスクトップの画面合成もGPUを使います。plb-desktop-mode classic で元のデスクトップへ戻せます。VNCの取得・符号化はCPUが残り、表示側は利用可能ならハードウェア合成を使います。VulkanのGPU化は未対応です。VenusにはVM境界を越える共有メモリー転送の追加実装が必要です。対応状況は端末によって異なります。</string>
+<string name="tools_title">ネットワーク用コマンド</string>
+<string name="tools_detail">ping -c 4 1.1.1.1 で実際のIPv4 echoを送信します。rawソケットは不要です。
+plb-udp-forward 5353 1.1.1.1 53 でゲストのlocalhost:5353を指定したUDP宛先へ転送します。利用するツールの接続先をこのローカルポートに設定してください。終了はCtrl+Cです。透過的なネットワークではなく、ホスト自身・link-local・multicastなどへの接続は拒否します。</string>
 </resources>

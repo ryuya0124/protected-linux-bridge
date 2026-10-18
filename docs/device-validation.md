@@ -31,12 +31,23 @@ These observations describe this build only. They are not a claim that all Snapd
 | Enable/installer buttons | Module enables package/activities and starts InstallerActivity; an already installed image is recognized and the stock app returns to Terminal |
 | Untrusted UID 2000 | Console request rejected before access (`VM_STATUS=255`) |
 | Proxy credentials | Actual child UID/GID is Terminal UID; supplementary inet only, CapEff=0, NoNewPrivs=1 |
-| Proxy policy probe | 27 authority/address rejection checks pass as UID 2000 |
-| Host relay regression tests | 3 tests pass: duplex binary/backpressure/half-close, final output flush, deadline |
-| Signed release and Lint | Build 27, version 0.1.0-preview.2 (code 3), signature verification succeeds; Lint has reflection/compatibility/style warnings, no errors |
+| Proxy policy probe | 43 authority/address, UDP hostname and ICMP validation checks pass as UID 2000 |
+| Host relay regression tests | 10 tests pass: relay integrity/backpressure/deadlines, datagram framing/limits, VTest negotiation/rejection |
+| Signed release and Lint | Version 0.2.0-preview.1 (code 4), signed release build and Lint pass; warnings remain, no errors |
+| Real IPv4 ICMP | Guest `ping -c 2 1.1.1.1`: 2/2 replies, 0% loss; Terminal-UID SOCK_DGRAM ping socket, no raw capability |
+| UDP DNS | Guest forwarder to 1.1.1.1:53 returns two example.com A answers; query transaction ID matched |
+| UDP boundaries and concurrency | Four simultaneous local clients, 20 exact echo round trips at sizes 0/1/16/1200/8000; no global host network changes |
+| GPU EGL | Production bridge reports virgl (Adreno (TM) 840), OpenGL 2.1 and GLES 3.2 |
+| Actual GPU readback | Guest EGL glClear/glReadPixels returns [64,128,191,255], exit 0; not only a driver-name check |
+| X11 / Xwayland GPU | glxinfo on both Xvnc :1 and Weston's Xwayland :0 reports Accelerated: yes and virgl Adreno 840; glxgears draws |
+| GPU desktop | Headless probe and shipped X11-backed Weston 14.0.2 log GL renderer Adreno 840; standard Terminal display shows Weston/Wayland Terminal |
+| Viewer | DISPLAY_COMPOSITOR hardware=true and DISPLAY_TRANSPORT binary; desktop renders through bounded ArrayBuffer delivery |
+| GPU worker credentials | Watcher, renderer parent and renderer child all UID/GID 9999, no supplementary groups, CapEff=0, NoNewPrivs=1 |
+| GPU mode save/recovery | Mode survives VM stop/restart; OFF gives llvmpipe again. Explicit stop leaves no owned GPU server descendants |
+| Vulkan negative check | Venus-only ICD with VN_DEBUG=vtest reports protocol version 0 too old; vulkaninfo exits 1. GPU Vulkan is not claimed |
 | Host boot and SELinux | Boot ID unchanged throughout; SELinux remains Enforcing |
 
-The original image SHA256 was `975d952a1027537490ae8466b2a957b3a99401e9bfb40e1d70ee68090d12fd2d` both before and after the guest writes/package installations. Device serials, full traces, boot IDs, APKs and downloaded OS images are private and excluded from this repository.
+The original image SHA256 was `975d952a1027537490ae8466b2a957b3a99401e9bfb40e1d70ee68090d12fd2d` both before and after the guest writes/package installations. Device serials, full traces, boot IDs, stock/vendor APKs and downloaded OS images are private and excluded from this repository.
 
 ## Findings and limits
 
@@ -47,7 +58,9 @@ The original image SHA256 was `975d952a1027537490ae8466b2a957b3a99401e9bfb40e1d7
 - The private guest filesystem is about 2.8 GiB. After GUI/debug package installation it had about 1.1 GiB free. The shipped APK does not include those Debian packages.
 - Main app text follows Japanese/English OS language. Some injected transport errors are currently Japanese.
 - This is `--protected-vm-without-firmware`, with no pvmfw verified boot or attestation. Passing functional tests is not proof of isolation against a malicious hypervisor or kernel.
-- Full UDP/ICMP networking, audio, GPU acceleration, arbitrary desktop environments, disk resizing, multiuser support and OS-update compatibility have not been established.
+- Networking is explicit UDP forwarding / IPv4 echo, not a full IP network. IPv6 ping, multicast/broadcast and incoming Internet connections are not provided. 65507-byte datagram framing passed socketpair regression tests; real external echo was tested through 8000 bytes, not 65507.
+- OpenGL and Weston composition use the host GPU; VNC capture, encoding, memory copies and application-specific CPU 2D drawing remain. No zero-copy transport, GPU Vulkan, audio, arbitrary desktop environments, disk resizing or multiuser support is established. There is no general performance/FPS guarantee.
+- This update's automated GUI text-input attempt through ADB/Simeji produced altered draft text. The existing draft/send mechanism remains; the new Weston/Simeji input combination needs a manual IME check. Do not count this failed injection as a successful new GUI text-input test.
 
 ## Reproduce without modifying the host OS
 
@@ -60,3 +73,13 @@ The original image SHA256 was `975d952a1027537490ae8466b2a957b3a99401e9bfb40e1d7
 7. Stop via the module's confirmed stop button. Check only the owned VM/helper stop; reopen via Prepare.
 8. Explicitly drop a diagnostic client to UID 2000 and confirm rejection. A root adbd is not an untrusted-user test.
 9. Compare the stock image hash and host boot ID, verify Enforcing, remove diagnostic binaries.
+
+
+## 0.2 preview GPU/network reproduction
+
+- Keep the selected Terminal foreground. Use `ping -c 2 1.1.1.1`. Run `plb-udp-forward 5353 1.1.1.1 53` in one tab; send a DNS query to guest 127.0.0.1:5353 from another.
+- Install GUI with `plb-install-gui`, then GPU packages with `plb-install-gpu`; stop and recreate only the VM. No Android restart.
+- `plb-gpu-info` and `glxinfo -B` identify the actual renderer. Run `tests/gpu_guest_probe.py` inside the guest to check the actual framebuffer result. Existing DRM-less guest kernel remains unchanged.
+- Open the display button and inspect private `/tmp/plb-weston.log` for GL renderer. `DISPLAY=:0 glxinfo -B` checks Xwayland. `DISPLAY=:1` checks the outer Xvnc display. Module logcat distinguishes the hardware-composition flag and binary transport.
+- `plb-gpu-mode off` + VM recreation restores CPU rendering; `plb-desktop-mode classic` keeps Openbox while optionally leaving individual OpenGL GPU programs available.
+- Stop the VM and check only the tracked owned GPU descendants disappear. Do not terminate unrelated trusted VMs. The renderer runtime directory contains only public code, libraries and an empty socket directory; diagnostic traces stay in private module data.

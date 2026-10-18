@@ -1,0 +1,11 @@
+#!/bin/sh
+# MIT. Optional packages inside the guest only. Never installs a kernel.
+set -eu
+export DEBIAN_FRONTEND=noninteractive
+export http_proxy=http://127.0.0.1:3128 https_proxy=http://127.0.0.1:3128
+apt-get -o Acquire::http::Proxy="$http_proxy" -o Acquire::https::Proxy="$https_proxy" update
+apt-get -o Acquire::http::Proxy="$http_proxy" -o Acquire::https::Proxy="$https_proxy" install -y --no-install-recommends mesa-utils libgl1-mesa-dri libglx-mesa0 weston xwayland
+mkdir -p /root/.config/protected-linux
+touch /root/.config/protected-linux/gpu-enabled /root/.config/protected-linux/desktop-gpu
+sync
+printf '\nGPU mode is enabled for OpenGL. Stop this VM and reopen Terminal to recreate the display. No Android reboot is needed.\nCheck with plb-gpu-info. Use plb-gpu-mode off for software rendering. Weston uses GPU desktop composition; VNC capture/encoding still uses the CPU. Use plb-desktop-mode classic to keep the original desktop.\n'

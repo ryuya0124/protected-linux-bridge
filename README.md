@@ -10,11 +10,13 @@ Android標準の「ターミナル」から、Snapdragon / Gunyahの保護VM上�
 - 複数タブで独立したシェルを使用
 - 専用ディスクにファイルや追加パッケージを保存
 - `curl`・`apt`など、プロキシ対応ツールでHTTP/HTTPS通信
-- ソフトウェア描画のGUI（TigerVNC / Openbox / xterm）を表示・操作
+- GUI（TigerVNC / Openbox / xterm）を表示・操作
+- 任意でOpenGLとWestonの画面合成を端末のAdreno GPUへ転送（VirGL / VTest）
+- 指定した宛先へのUDP転送と、実際のIPv4 ICMP/ping
 - アプリのボタンで標準ターミナルを有効化し、Linuxインストール画面を起動
 - root要求、Vectorの状態表示、接続のオン／オフ、VMと起動支援の停止
 
-Android上のchrootではなく、別のカーネルで動くVMです。ただし、この経路は **pvmfwによる検証済み起動・アテステーションを提供しません**。通常の検証済みAVFゲストと同じ保証はありません。
+Android上のchrootやPRootではなく、独立したカーネルの実行インスタンスを持つVMです。Android本体のカーネルは変更せず、端末に元からあるAVF用Microdroidカーネルファイルをゲストとして起動します。新しいカーネルの取得・追加・交換も行いません。ただし、この経路は **pvmfwによる検証済み起動・アテステーションを提供しません**。通常の検証済みAVFゲストと同じ保証はありません。
 
 ## 対応条件
 
@@ -43,6 +45,40 @@ plb-install-gui
 
 完了後、ターミナル右上の画面表示ボタンを押します。ゲストのxtermをタップしてから、下の入力欄に文字を入れて「送信」、または「Enter」で送信・実行できます。戻る操作でシェルへ戻ります。GUIを使わなければ追加パッケージは不要です。
 
+## GPU描画
+
+GUI導入後、Linux内で実行します。
+
+```sh
+plb-install-gpu
+```
+
+アプリの「VMと起動支援を停止」→「VM起動支援を準備」でVMを作り直してから、ターミナルを開き直します。**Androidの再起動は不要です。** 以後のシェルとGUIにOpenGL用のGPU設定を渡し、表示ボタンからGPU合成のWestonデスクトップを開きます。
+
+```sh
+plb-gpu-info                 # 描画ドライバーの確認
+plb-gpu-run glxinfo -B        # 個別にGPUを指定して起動する例
+plb-gpu-mode off              # CPU描画へ戻す（VMを作り直して反映）
+plb-gpu-mode on               # 再びGPU描画を有効化
+plb-desktop-mode classic      # 元のOpenboxデスクトップへ戻す（VM再作成で反映）
+plb-desktop-mode gpu          # WestonのGPU合成へ切り替え（同上）
+```
+
+実機で `virgl (Adreno (TM) 840)`、OpenGL ES 3.2、OpenGL 2.1、GLXの `Accelerated: yes` と実描画を確認しています。Westonはウィンドウの画面合成にGPUを使います。アプリ自体の2D描画はアプリによって異なります。Android側は利用可能ならハードウェア合成とバイナリ転送を使いますが、**VNCの画面取得・符号化・VM境界のコピーにはCPU処理が残ります。** GPU VulkanやGPUパススルーには対応しません。Venusの共有メモリー経路には別途実装が必要です。重いアプリが快適になるとは限らず、対応するGLの機能にも制限があります。問題があればCPU描画へ戻せます。GPU描画は追加パッケージを導入するまで無効です。
+
+## UDPとping
+
+```sh
+ping -c 4 1.1.1.1
+plb-udp-forward 5353 1.1.1.1 53
+```
+
+`ping` はホスト側の非特権ICMPソケットを使って実際のIPv4 echoを送ります。表示するRTTにはVMとの転送時間も含みます。IPv6 pingやrawソケットは提供しません。Androidがping用ソケットを禁止している環境ではエラーになります。システム設定を変えて解除しません。
+
+`plb-udp-forward` はゲストの `127.0.0.1:5353` に届くUDPを `1.1.1.1:53` へ転送します。利用するツール側もこのローカルポートへ接続する設定が必要です。別シェルタブで実行し、Ctrl+Cで終了します。宛先のホスト名・ポートは変更できます。同時に最大16クライアント、無通信60秒で関連付けを破棄、1回最大30分です。
+
+仮想NICや透過的なIP接続ではありません。一般のLAN上の別ホストには接続できますが、ホスト自身・loopback・link-local・multicastなどは拒否します。UDPの外部からの着信待受は作りません。
+
 ## 保存・終了
 
 専用ディスクへの変更はVMを終了しても残ります。タブの `exit` はそのシェルを終了します。1つのタブを閉じても他のタブは継続し、最後の接続が閉じるとVMを停止します。ホームへ移動するだけでは終了しない場合があります。
@@ -58,10 +94,10 @@ plb-install-gui
 | VM | RAM 512 MiB、1 vCPU、1回最大30分 |
 | シェル | PTY 80×24、同時接続はGUIを含め最大12 |
 | 保存 | 約2.8 GiBのLinuxファイルシステム。容量変更UIは未対応 |
-| ネットワーク | プロキシ対応TCPツールのみ。仮想NIC、UDP、ICMP/pingは未対応 |
+| ネットワーク | HTTP/HTTPS、明示的UDP転送、IPv4 echo。仮想NIC・透過的なIP接続は未対応 |
 | ホストへの影響 | 通信・メモリ・ストレージは消費します。ルート・DNS・ファイアウォール設定は変更しません |
 | 通信制限 | 標準ターミナルのUIDで通信し、アプリ別VPN・省電力制限に従います。バックグラウンドやDozeでは通信が止まる場合があります |
-| GUI | 1280×720のソフトウェア描画。GPU加速・音声・完全なデスクトップ統合は未対応 |
+| GUI | 1280×720。OpenGLのGPU転送は任意。Westonの画面合成もGPU化可能。VNC取得・符号化はCPU。GPU Vulkan・音声は未対応 |
 | 動作維持 | 起動支援の待機は最大30分。プロセス終了やroot喪失後は準備し直す必要があります |
 
 標準のディスク設定はこの専用ディスクに適用できないため無効にしています。LinuxパッケージのインストールはVMの中だけで行われます。
@@ -78,6 +114,6 @@ plb-install-gui
 
 ## ライセンス
 
-本プロジェクトはMITです。libxposed、AndroidX、Material、xterm.js、musl、compiler-rt、noVNCなどの依存ライセンスをアプリ内と `third_party/` に収録しています。noVNCのMPL-2.0対象ソースは未改変で収録しています。
+本プロジェクトはMITです。libxposed、AndroidX、Material、xterm.js、musl、compiler-rt、noVNC、virglrenderer、libepoxyなどの依存ライセンスをアプリ内と `third_party/` に収録しています。noVNCのMPL-2.0対象ソースは未改変で収録しています。
 
-Androidのカーネル、crosvm、標準ターミナルAPK、Debianイメージは同梱しません。GUI用パッケージもAPKに含めず、ユーザーがVM内でDebianの配布元から取得します。
+Androidのカーネル、crosvm、標準ターミナルAPK、Debianイメージは同梱しません。ホスト用のユーザー空間GPUライブラリーはAPKに収録します。DebianのGUI・MesaパッケージはAPKに含めず、ユーザーがVM内でDebianの配布元から取得します。

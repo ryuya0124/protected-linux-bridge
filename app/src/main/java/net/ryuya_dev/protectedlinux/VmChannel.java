@@ -27,7 +27,7 @@ final class VmChannel {
         current.setSoTimeout(90000);current.getOutputStream().write(kind);int status=current.getInputStream().read();
         if(status!=0)throw new IOException(switch(status){case 2->"GUIが未導入です。ターミナルで plb-install-gui を実行してください。";case 4->"開けるセッション数の上限です。";case 6->"標準Linuxイメージが更新されました。既存データを保護するため停止しました。";case 7->"標準Linuxイメージがありません。アプリから標準インストーラーを開いてください。";case 8->"利用可能メモリが不足しています。";case 10->"専用Linuxディスクを準備する空き容量が不足しています。";case 9->"VM専用の通信ポートを準備できません。";default->"VMの準備が完了しませんでした。起動支援を確認してください。";});
         current.setSoTimeout(0);android.util.Log.i("ProtectedLinux","CHANNEL_CONNECTED "+kind);
-        byte[] buffer=new byte[16384];int n;
+        byte[] buffer=new byte[kind=='V'?65536:16384];int n;
         while(!closed&&(n=current.getInputStream().read(buffer))>=0)if(n>0)listener.bytes(Arrays.copyOf(buffer,n));
       }catch(InterruptedException interrupted){Thread.currentThread().interrupt();}
       catch(Exception failure){if(!closed){error=failure instanceof IOException?failure.getMessage():failure.getClass().getSimpleName();android.util.Log.w("ProtectedLinux","CHANNEL_FAILED "+failure.getClass().getSimpleName());}}

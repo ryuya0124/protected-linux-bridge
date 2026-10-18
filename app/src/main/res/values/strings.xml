@@ -24,7 +24,7 @@
 <string name="licenses">Licenses</string>
 <string name="terminal_missing">The stock Terminal is missing or disabled.</string>
 <string name="limits_title">Available in this preview</string>
-<string name="limits">Debian with a private writable disk · 512 MiB RAM · 1 vCPU\nMultiple independent shell tabs · 30-minute VM limit\nHTTP/HTTPS proxy for compatible tools; no virtual NIC, UDP or ping. GUI requires plb-install-gui. Stock images stay unchanged; private base copy uses up to about 3 GiB plus saved data.</string>
+<string name="limits">Debian with a private writable disk · 512 MiB RAM · 1 vCPU\nMultiple independent shell tabs · 30-minute VM limit\nHTTP/HTTPS proxy, explicit UDP forwarding and IPv4 ping. No virtual NIC. GUI requires plb-install-gui; OpenGL acceleration is optional with plb-install-gpu. Stock images stay unchanged; private base copy uses up to about 3 GiB plus saved data.</string>
 <string name="safety_title">Existing kernels only</string>
 <string name="safety">No kernel updates, partition writes, reboot, or SELinux changes. Uses the device’s existing Microdroid kernel. Root and Gunyah are required. This route omits pvmfw verified boot and is not equivalent to a verified AVF guest.</string>
 <string name="setup_title">Setup</string>
@@ -40,4 +40,9 @@
 <string name="unsupported_version">This OS or Terminal version is untested. The bridge is disabled for compatibility.</string>
 <string name="network_title">Network behavior</string>
 <string name="network_detail">The proxy uses Terminal’s UID and INTERNET permission. It follows Android’s app network, VPN and power restrictions. Host routes, DNS and firewall settings are not changed. Background or Doze restrictions may pause networking.</string>
+<string name="gpu_title">OpenGL acceleration</string>
+<string name="gpu_detail">Run plb-install-gpu inside Linux, then stop and reopen the VM. Use plb-gpu-info to check the renderer; virgl (Adreno) uses the phone’s GPU. To disable it, run plb-gpu-mode off and recreate the VM. No Android reboot is needed. Weston adds GPU desktop composition. plb-desktop-mode classic restores the original desktop. VNC capture/encoding still uses the CPU; the viewer uses hardware composition where available. GPU Vulkan is not supported; Venus needs shared-memory transport across the VM boundary. GPU support depends on the device.</string>
+<string name="tools_title">Network tools</string>
+<string name="tools_detail">ping -c 4 1.1.1.1 sends real IPv4 echo requests without raw sockets.
+plb-udp-forward 5353 1.1.1.1 53 forwards guest localhost:5353 to the specified UDP destination until interrupted. Configure your tool to use that local port. This is explicit forwarding, not transparent networking. Host-local, link-local and multicast destinations are blocked.</string>
 </resources>

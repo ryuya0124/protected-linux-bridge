@@ -18,7 +18,7 @@ final class RuntimeSetup {
       if (uid < 10000 || uid > 19999) return "primary_user_required";
       File runtime = new File(context.getFilesDir(),"runtime");
       if (!runtime.isDirectory() && !runtime.mkdirs()) return "runtime_directory_error";
-      for (String name : new String[]{"debian-bridge","debian-initramfs.cpio"}) {
+      for (String name : new String[]{"debian-bridge","debian-initramfs.cpio","gpu-server","gpu-libepoxy.so","gpu-libvirglrenderer.so"}) {
         File out = new File(runtime,name+".pending");
         try (InputStream input=context.getAssets().open("runtime/"+name)) {
           Files.copy(input,out.toPath(),StandardCopyOption.REPLACE_EXISTING);

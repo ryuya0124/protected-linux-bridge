@@ -28,14 +28,18 @@ void start(void){
  mount("proc","/newroot/proc","proc",0,0);mount("sysfs","/newroot/sys","sysfs",0,0);mount("tmpfs","/newroot/tmp","tmpfs",2,"mode=1777,size=128m");mount("tmpfs","/newroot/run","tmpfs",2,"mode=755,size=16m");
  sc(161,(long)"ryuya-linux",11,0,0,0,0);
  mkdir("/newroot/run/plb");
- long script_in=open("/plb-install-gui",0);if(script_in<0)fail("guest script input");
- long script_out=sc(56,-100,(long)"/newroot/run/plb/plb-install-gui",577,0700,0,0);if(script_out<0)fail("guest script output");
- char script[2048];long script_n;while((script_n=sc(63,script_in,(long)script,sizeof(script),0,0,0))>0){if(sc(64,script_out,(long)script,script_n,0,0,0)!=script_n)fail("guest script copy");}
- sc(57,script_in,0,0,0,0,0);sc(57,script_out,0,0,0,0,0);
+ for(int si=0;si<2;si++){
+ const char *sources[]={"/plb-install-gui","/plb-install-gpu"},*targets[]={"/newroot/run/plb/plb-install-gui","/newroot/run/plb/plb-install-gpu"};
+ long script_in=open(sources[si],0);if(script_in<0)fail("guest script input");
+ long script_out=sc(56,-100,(long)targets[si],577,0755,0,0);if(script_out<0)fail("guest script output");
+ char script[2048];long script_n;while((script_n=sc(63,script_in,(long)script,sizeof(script),0,0,0))>0){long done=0;while(done<script_n){long part=sc(64,script_out,(long)script+done,script_n-done,0,0,0);if(part<=0)fail("guest script copy");done+=part;}}
+ if(script_n<0)fail("guest script read");sc(57,script_in,0,0,0,0,0);sc(57,script_out,0,0,0,0,0);
+ }
  long input=open("/plb-agent",0);if(input<0)fail("agent input");
- long output=sc(56,-100,(long)"/newroot/run/plb-agent",577,0700,0,0);if(output<0)fail("agent output");
+ long output=sc(56,-100,(long)"/newroot/run/plb-agent",577,0755,0,0);if(output<0)fail("agent output");
  char data[4096];long n;while((n=sc(63,input,(long)data,sizeof(data),0,0,0))>0){long done=0;while(done<n){long w=sc(64,output,(long)data+done,n-done,0,0,0);if(w<=0)fail("agent copy");done+=w;}}
  sc(57,input,0,0,0,0,0);sc(57,output,0,0,0,0,0);
+ for(int i=0;i<7;i++){const char *names[]={"/newroot/run/plb/ping","/newroot/run/plb/plb-ping","/newroot/run/plb/plb-udp-forward","/newroot/run/plb/plb-gpu-run","/newroot/run/plb/plb-gpu-info","/newroot/run/plb/plb-gpu-mode","/newroot/run/plb/plb-desktop-mode"};if(sc(36,(long)"../plb-agent",-100,(long)names[i],0,0,0)<0)fail("network command link");}
  if(sc(51,(long)"/newroot",0,0,0,0,0)<0||sc(49,(long)"/",0,0,0,0,0)<0)fail("agent chroot");
  char *args[]={"/run/plb-agent",0};char *env[]={"PATH=/usr/sbin:/usr/bin:/sbin:/bin",0};
  sc(221,(long)args[0],(long)args,(long)env,0,0,0);fail("agent exec");

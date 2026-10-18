@@ -1,3 +1,4 @@
 # Preserve the bundled upstream source/license bytes.
 app/src/main/assets/novnc/** -whitespace
 third_party/novnc/** -whitespace
+third_party/gpu/** -whitespace
