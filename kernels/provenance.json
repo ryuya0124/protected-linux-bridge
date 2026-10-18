@@ -1,0 +1,11 @@
+{
+  "version": "6.18.57-plb1",
+  "source_url": "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.18.57.tar.xz",
+  "source_sha256": "5bd9acdc82ec5efc3790ae840e5aaa40dfde7efff261cf6dde902dc570acf98c",
+  "source_developer_signer": "647F28654894E3BD457199BE38DBBDC86092693E",
+  "aosp_base_tag": "android-15.0.0_r0.81",
+  "aosp_config_sha256": "450d4be5d747b77dbf16a3d6640dc449a6975da6912f17c24afb18f75fada77f",
+  "image_sha256": "95fe64403ffd031ce1ba8965098eed3073ae6db38be017801d1d77117f966dbc",
+  "config_sha256": "cbbe2668ee711b29e70b1b95c0664180ecb6f45865037d8fee1d176d5bd73a03",
+  "host_kernel_modified": false
+}

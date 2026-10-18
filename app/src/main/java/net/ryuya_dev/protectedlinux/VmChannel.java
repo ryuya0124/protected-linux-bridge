@@ -24,8 +24,8 @@ final class VmChannel {
         current.connect(new LocalSocketAddress("net.ryuya_dev.protectedlinux.console",LocalSocketAddress.Namespace.ABSTRACT));
         if(current.getPeerCredentials().getUid()!=0)throw new IOException("起動支援の接続先を確認できません。");
         socket=current;if(closed)return;
-        current.setSoTimeout(90000);current.getOutputStream().write(kind);int status=current.getInputStream().read();
-        if(status!=0)throw new IOException(switch(status){case 2->"GUIが未導入です。ターミナルで plb-install-gui を実行してください。";case 4->"開けるセッション数の上限です。";case 6->"標準Linuxイメージが更新されました。既存データを保護するため停止しました。";case 7->"標準Linuxイメージがありません。アプリから標準インストーラーを開いてください。";case 8->"利用可能メモリが不足しています。";case 10->"専用Linuxディスクを準備する空き容量が不足しています。";case 9->"VM専用の通信ポートを準備できません。";default->"VMの準備が完了しませんでした。起動支援を確認してください。";});
+        current.setSoTimeout(600000);current.getOutputStream().write(kind);int status=current.getInputStream().read();
+        if(status!=0)throw new IOException(switch(status){case 2->"GUIが未導入です。ターミナルで plb-install-gui を実行してください。";case 4->"開けるセッション数の上限です。";case 6->"標準Linuxイメージが更新されました。既存データを保護するため停止しました。";case 7->"標準Linuxイメージがありません。アプリから標準インストーラーを開いてください。";case 8->"利用可能メモリが不足しています。";case 11->"ディスクの移行または検証に失敗しました。元のディスクを保護して停止しました。容量設定と移行ログを確認してください。";case 12->"ディスクを移行中です。完了後に開き直してください。";case 10->"専用Linuxディスクを準備する空き容量が不足しています。";case 9->"VM専用の通信ポートを準備できません。";default->"VMの準備が完了しませんでした。起動支援を確認してください。";});
         current.setSoTimeout(0);android.util.Log.i("ProtectedLinux","CHANNEL_CONNECTED "+kind);
         byte[] buffer=new byte[kind=='V'?65536:16384];int n;
         while(!closed&&(n=current.getInputStream().read(buffer))>=0)if(n>0)listener.bytes(Arrays.copyOf(buffer,n));

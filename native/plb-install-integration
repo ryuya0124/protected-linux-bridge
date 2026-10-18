@@ -1,0 +1,16 @@
+#!/bin/sh
+# Guest user-space integration only. No kernel/firmware/boot packages.
+set -eu
+test "$(dpkg --print-architecture)" = arm64 || { printf 'This integration requires Debian arm64.\n' >&2; exit 1; }
+export DEBIAN_FRONTEND=noninteractive
+export http_proxy=http://127.0.0.1:3128
+export https_proxy=http://127.0.0.1:3128
+mkdir -p /etc/apt/preferences.d
+cat > /etc/apt/preferences.d/protected-linux-no-kernel <<'PIN'
+Package: linux-image* linux-modules* linux-firmware* firmware-* flash-kernel grub-* initramfs-tools* systemd-boot*
+Pin: version *
+Pin-Priority: -1
+PIN
+apt-get -o Acquire::http::Proxy="$http_proxy" -o Acquire::https::Proxy="$https_proxy" update
+apt-get -o Acquire::http::Proxy="$http_proxy" -o Acquire::https::Proxy="$https_proxy" install -y --no-install-recommends pulseaudio pulseaudio-utils libasound2-plugins xclip wl-clipboard python3 libxfixes3
+printf '\nAudio and clipboard user-space packages are ready. Reopen the Bridge GUI.\n'

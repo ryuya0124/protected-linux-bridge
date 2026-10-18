@@ -27,15 +27,17 @@ final class GpuDisplayController {
   private final ExecutorService reader=Executors.newSingleThreadExecutor();
   private final ExecutorService writer=new ThreadPoolExecutor(1,1,0,TimeUnit.MILLISECONDS,new ArrayBlockingQueue<>(32));
   private final AtomicReference<Upload> pending=new AtomicReference<>();
+  private final java.util.concurrent.atomic.AtomicBoolean failedState=new java.util.concurrent.atomic.AtomicBoolean();
   private volatile boolean paused;private boolean standalone;
   private volatile LocalSocket socket;private volatile RawRfb protocol;private volatile boolean closed;
   private Dialog dialog;private GLSurfaceView view;private TextView status;private Activity activity;
   private volatile int fbWidth,fbHeight;private boolean ja;private Context themed;
-  private final Map<Long,Integer> heldKeys=new HashMap<>();private int deadAccent,lastX,lastY;private int targetFps=30;
+  private final Map<Long,Integer> heldKeys=new HashMap<>();private int deadAccent,lastX,lastY;private int targetFps=30;private volatile int rotationWidth,rotationHeight;
   private record Upload(ByteBuffer pixels,List<RawRfb.Rect> damage,int width,int height,CountDownLatch done){}
   static void open(Activity a,String apk){if(active.containsKey(a))return;GpuDisplayController c=new GpuDisplayController();active.put(a,c);try{c.show(a,apk);}catch(RuntimeException e){active.remove(a);c.shutdown();android.util.Log.w("ProtectedLinux","RAW_GPU_SETUP_FAILED",e);DisplayController.openLegacy(a,apk);}}
   static void openStandalone(Activity a,String apk){if(active.containsKey(a))return;GpuDisplayController c=new GpuDisplayController();c.standalone=true;active.put(a,c);try{c.show(a,apk);}catch(RuntimeException error){active.remove(a);c.shutdown();DisplayController.openStandaloneLegacy(a,apk);android.util.Log.w("ProtectedLinux","FULLSCREEN_GPU_FAILED",error);}}
   static void close(Activity a){GpuDisplayController c=active.remove(a);if(c!=null){c.shutdown();if(c.dialog!=null)c.dialog.dismiss();}}
+  static void settingsChanged(Activity activity){GpuDisplayController c=active.get(activity);if(c!=null)c.requestRotation();}
   private String tr(String en,String jp){return ja?jp:en;}
   private void show(Activity a,String apk){
     activity=a;targetFps=RuntimePreferences.displayFps();ja=a.getResources().getConfiguration().getLocales().get(0).getLanguage().equals("ja");
@@ -72,12 +74,13 @@ final class GpuDisplayController {
     TextInputLayout input=new TextInputLayout(themed);input.setHint(tr("Type text, then send","入力して送信"));EditText draft=new TextInputEditText(input.getContext());draft.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS|InputType.TYPE_TEXT_FLAG_MULTI_LINE);draft.setMaxLines(3);input.addView(draft,new LinearLayout.LayoutParams(-1,-2));body.addView(input);
     LinearLayout controls=new LinearLayout(themed);body.addView(controls);
     button(controls,tr("Send","送信"),()->text(draft,false));button(controls,"Enter",()->text(draft,true));button(controls,"Tab",()->key(0xff09));button(controls,"Esc",()->key(0xff1b));
+    LinearLayout clips=new LinearLayout(themed);body.addView(clips);button(clips,"Android → Linux",()->ClipboardBridge.transfer(a,true,status::setText));button(clips,"Linux → Android",()->ClipboardBridge.transfer(a,false,status::setText));
     MaterialButton fallback=new MaterialButton(themed);fallback.setAllCaps(false);fallback.setText(tr("Compatibility display","互換表示で開き直す"));body.addView(fallback);fallback.setOnClickListener(v->{close(a);if(standalone)DisplayController.openStandaloneLegacy(a,apk);else DisplayController.openLegacy(a,apk);});
     if(standalone){
       body.removeView(view);FrameLayout fullscreen=new FrameLayout(themed);fullscreen.addView(view,new FrameLayout.LayoutParams(-1,-1));
       // Controls are an overlay; collapsing them leaves the full surface for the desktop.
       LinearLayout panel=new LinearLayout(themed);panel.setOrientation(LinearLayout.VERTICAL);panel.setPadding(dp(12),dp(6),dp(12),dp(6));panel.setBackgroundColor(MaterialColors.getColor(themed,com.google.android.material.R.attr.colorSurface,0xff1c1b1f));
-      body.removeView(input);body.removeView(controls);body.removeView(fallback);panel.addView(input);panel.addView(controls);panel.addView(fallback);panel.setVisibility(View.GONE);
+      body.removeView(input);body.removeView(controls);body.removeView(clips);body.removeView(fallback);panel.addView(input);panel.addView(controls);panel.addView(clips);panel.addView(fallback);panel.setVisibility(View.GONE);
       FrameLayout.LayoutParams dock=new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM);dock.bottomMargin=dp(64);fullscreen.addView(panel,dock);
       MaterialButton keyboard=new MaterialButton(themed);keyboard.setText(tr("Input / controls","入力・操作"));keyboard.setAllCaps(false);FrameLayout.LayoutParams toggle=new FrameLayout.LayoutParams(-2,-2,Gravity.BOTTOM|Gravity.END);toggle.setMargins(dp(12),0,dp(12),dp(8));fullscreen.addView(keyboard,toggle);
       keyboard.setOnClickListener(v->{boolean show=panel.getVisibility()!=View.VISIBLE;panel.setVisibility(show?View.VISIBLE:View.GONE);if(show)draft.requestFocus();else{activity.getSystemService(android.view.inputmethod.InputMethodManager.class).hideSoftInputFromWindow(draft.getWindowToken(),0);view.requestFocus();}});
@@ -106,28 +109,29 @@ final class GpuDisplayController {
   }
   private void releaseInputs(){if(protocol==null)return;List<Integer> keys=new ArrayList<>(heldKeys.values());heldKeys.clear();deadAccent=0;int x=lastX,y=lastY;send(()->{for(int symbol:keys)if(symbol!=0)protocol.key(symbol,false);protocol.pointer(x,y,0);});}
   private interface Input {void run()throws IOException;}
-  private void send(Input action){if(closed||protocol==null)return;try{writer.submit(()->{if(!closed)try{action.run();}catch(IOException error){failed(error);}});}catch(RejectedExecutionException full){failed(new IOException("Input queue full"));}}
+  private void send(Input action){if(closed||failedState.get()||protocol==null)return;try{writer.submit(()->{if(!closed)try{action.run();}catch(IOException error){failed(error);}});}catch(RejectedExecutionException full){failed(new IOException("Input queue full"));}}
   private void key(int symbol){send(()->{RawRfb p=protocol;p.key(symbol,true);p.key(symbol,false);});}
   private void text(EditText draft,boolean enter){String text=draft.getText().toString();if(text.length()>8192){status.setText(tr("Input is too long","入力が長すぎます"));return;}draft.setText("");send(()->{RawRfb p=protocol;for(int offset=0;offset<text.length();){int cp=text.codePointAt(offset);offset+=Character.charCount(cp);int symbol=cp==10?0xff0d:cp>255?0x01000000|cp:cp;p.key(symbol,true);p.key(symbol,false);}if(enter){p.key(0xff0d,true);p.key(0xff0d,false);}});}
   private void connect(){
     try{
       if(!RuntimePreferences.configReady())throw new IOException("Vector configuration unavailable");LocalSocket current=new LocalSocket();socket=current;
       current.connect(new LocalSocketAddress("net.ryuya_dev.protectedlinux.console",LocalSocketAddress.Namespace.ABSTRACT));if(current.getPeerCredentials().getUid()!=0)throw new IOException("Untrusted VM launcher");
-      current.setSoTimeout(90000);current.getOutputStream().write('V');int result=current.getInputStream().read();if(result!=0)throw new IOException(result==2?"Run plb-install-gui inside Linux first":"VM display unavailable ("+result+")");current.setSoTimeout(0);
+      current.setSoTimeout(600000);current.getOutputStream().write('V');int result=current.getInputStream().read();if(result!=0)throw new IOException(result==2?"Run plb-install-gui inside Linux first":"VM display unavailable ("+result+")");current.setSoTimeout(0);
       RawRfb.Wire wire=new RawRfb.Wire(){public int read(ByteBuffer data)throws IOException{for(;;)try{return Os.read(current.getFileDescriptor(),data);}catch(ErrnoException error){if(error.errno!=OsConstants.EINTR)throw new IOException(error);}}
         public synchronized void send(byte[] bytes)throws IOException{current.getOutputStream().write(bytes);}};
-      RawRfb p=new RawRfb(wire,new RawRfb.Sink(){public void size(int w,int h){fbWidth=w;fbHeight=h;}public void frame(ByteBuffer pixels,List<RawRfb.Rect> damage)throws IOException{
+      RawRfb p=new RawRfb(wire,new RawRfb.Sink(){public void size(int w,int h){fbWidth=w;fbHeight=h;}public void desktopResizeAvailable(){requestRotation();}public void desktopResizeRejected(){activity.runOnUiThread(()->{if(!closed)status.setText(tr("Resolution change was rejected; keeping the current size.","解像度変更が拒否されたため、現在のサイズを維持します。"));});}public void frame(ByteBuffer pixels,List<RawRfb.Rect> damage)throws IOException{
         long started=System.nanoTime();Upload u=new Upload(pixels,damage,fbWidth,fbHeight,new CountDownLatch(1));if(closed)throw new IOException("Display closed");pending.set(u);view.requestRender();
         try{if(!awaitUpload(u)||closed)throw new IOException("GPU display did not consume the frame");long remaining=1_000_000_000L/targetFps-(System.nanoTime()-started);if(remaining>0)TimeUnit.NANOSECONDS.sleep(remaining);}catch(InterruptedException interrupted){Thread.currentThread().interrupt();throw new IOException("Display interrupted");}
-      }});p.handshake();protocol=p;android.util.Log.i("ProtectedLinux","DISPLAY_TRANSPORT raw-gles");while(!closed){p.update();if(!closed)SystemClock.sleep(1);}
+      }});p.handshake();protocol=p;if(activity instanceof DesktopActivity desktop)desktop.displayReady();android.util.Log.i("ProtectedLinux","DISPLAY_TRANSPORT raw-gles");while(!closed){p.update();if(!closed)SystemClock.sleep(1);}
     }catch(Exception error){if(!closed)failed(error);}
   }
+  private void requestRotation(){if(closed||!RuntimePreferences.followRotation()||protocol==null)return;boolean landscape=activity.getResources().getConfiguration().orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE;int[] size=DisplaySizing.dimensions(RuntimePreferences.resolution(),landscape);if(rotationWidth==size[0]&&rotationHeight==size[1])return;send(()->{if(protocol.resizeDesktop(size[0],size[1])){rotationWidth=size[0];rotationHeight=size[1];android.util.Log.i("ProtectedLinux","DISPLAY_RESIZE_REQUEST "+size[0]+"x"+size[1]);}});}
   private boolean awaitUpload(Upload upload)throws InterruptedException{
     long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(10);
     while(!upload.done.await(1,TimeUnit.SECONDS)){if(closed)return false;if(paused)deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(10);else if(System.nanoTime()>deadline)return false;}
     return true;
   }
-  private void failed(Exception error){android.util.Log.w("ProtectedLinux","RAW_GPU_FAILED "+error.getClass().getSimpleName());LocalSocket current=socket;if(current!=null)try{current.shutdownInput();current.shutdownOutput();current.close();}catch(IOException ignored){}
+  private void failed(Exception error){if(closed||!failedState.compareAndSet(false,true))return;reader.shutdownNow();writer.shutdownNow();Upload waiting=pending.getAndSet(null);if(waiting!=null)waiting.done.countDown();android.util.Log.w("ProtectedLinux","RAW_GPU_FAILED "+error.getClass().getSimpleName());LocalSocket current=socket;if(current!=null)try{current.shutdownInput();current.shutdownOutput();current.close();}catch(IOException ignored){}
     activity.runOnUiThread(()->{if(!closed)status.setText(tr("Display stopped. Use compatibility display. ","画面が停止しました。互換表示をお試しください。 ")+error.getMessage());});}
   private void shutdown(){closed=true;Upload u=pending.getAndSet(null);if(u!=null)u.done.countDown();LocalSocket current=socket;if(current!=null){try{current.shutdownInput();current.shutdownOutput();current.close();}catch(IOException ignored){}}reader.shutdownNow();writer.shutdownNow();if(view!=null)view.onPause();}
   private final class Renderer implements GLSurfaceView.Renderer {
@@ -140,8 +144,8 @@ final class GpuDisplayController {
       int[] array=new int[1],buffer=new int[1];GLES30.glGenVertexArrays(1,array,0);vao=array[0];GLES30.glBindVertexArray(vao);GLES30.glGenBuffers(1,buffer,0);GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER,buffer[0]);vertices.position(0);GLES30.glBufferData(GLES30.GL_ARRAY_BUFFER,64,vertices,GLES30.GL_STATIC_DRAW);GLES30.glVertexAttribPointer(0,2,GLES30.GL_FLOAT,false,16,0);GLES30.glEnableVertexAttribArray(0);GLES30.glVertexAttribPointer(1,2,GLES30.GL_FLOAT,false,16,8);GLES30.glEnableVertexAttribArray(1);
       android.util.Log.i("ProtectedLinux","RAW_GPU_READY renderer="+GLES30.glGetString(GLES30.GL_RENDERER));if(protocol!=null)send(()->protocol.request(false));
     }catch(RuntimeException error){failed(error);}}
-    public void onSurfaceChanged(GL10 unused,int w,int h){sw=w;sh=h;}
-    public void onDrawFrame(GL10 unused){Upload u=pending.getAndSet(null);try{
+    public void onSurfaceChanged(GL10 unused,int w,int h){sw=w;sh=h;requestRotation();}
+    public void onDrawFrame(GL10 unused){if(failedState.get())return;Upload u=pending.getAndSet(null);try{
       GLES30.glViewport(0,0,sw,sh);GLES30.glClearColor(.06f,.05f,.07f,1);GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT);GLES30.glBindTexture(GLES30.GL_TEXTURE_2D,texture);
       if(u!=null){ByteBuffer data=u.pixels.duplicate();data.position(0);GLES30.glPixelStorei(GLES30.GL_UNPACK_ALIGNMENT,4);
         if(fresh||tw!=u.width||th!=u.height){tw=u.width;th=u.height;GLES30.glPixelStorei(GLES30.GL_UNPACK_ROW_LENGTH,0);GLES30.glTexImage2D(GLES30.GL_TEXTURE_2D,0,GLES30.GL_RGBA,tw,th,0,GLES30.GL_RGBA,GLES30.GL_UNSIGNED_BYTE,data);fresh=false;}

@@ -16,12 +16,13 @@ static void gpu_forwarder(void){
    close(listener);int host=vsock_connect(50444);if(host<0){fputs("GPU relay unavailable\n",stderr);close(client);_exit(52);}
    struct timeval timeout={10,0};setsockopt(host,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));setsockopt(host,SOL_SOCKET,SO_SNDTIMEO,&timeout,sizeof(timeout));setsockopt(client,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));setsockopt(client,SOL_SOCKET,SO_SNDTIMEO,&timeout,sizeof(timeout));unsigned char status=3;
    if(plb_read_exact(host,&status,1)||status||gpu_negotiate(client,host)){fputs("GPU negotiation failed or renderer is busy\n",stderr);close(host);close(client);_exit(53);}
-   timeout.tv_sec=0;setsockopt(host,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));setsockopt(host,SOL_SOCKET,SO_SNDTIMEO,&timeout,sizeof(timeout));setsockopt(client,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));setsockopt(client,SOL_SOCKET,SO_SNDTIMEO,&timeout,sizeof(timeout));plb_relay(client,host,1800,0);close(host);close(client);_exit(0);
+   timeout.tv_sec=0;setsockopt(host,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));setsockopt(host,SOL_SOCKET,SO_SNDTIMEO,&timeout,sizeof(timeout));setsockopt(client,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));setsockopt(client,SOL_SOCKET,SO_SNDTIMEO,&timeout,sizeof(timeout));plb_relay(client,host,guest_lifetime,0);close(host);close(client);_exit(0);
   }if(child>0)active++;close(client);
  }
 }
 static int gpu_boot_settings(void){
  int fd=open("/proc/cmdline",O_RDONLY|O_CLOEXEC);if(fd<0)return -1;char line[2048]={0};ssize_t n=read(fd,line,sizeof(line)-1);close(fd);if(n<=0)return -1;
+ char *life=strstr(line," plb.lifetime=");if(life){long v=strtol(life+14,NULL,10);if(v>=900&&v<=2147483647)guest_lifetime=(int)v;}
  char *display=strstr(line," plb.display=");if(display){int id,fps;char tail=0;int fields=sscanf(display+strlen(" plb.display="),"%d:%d%c",&id,&fps,&tail);if(fields<2||(fields==3&&tail!=' '&&tail!='\n')||!plb_display_valid(id,fps))return -1;desktop_width=plb_display_modes[id].width;desktop_height=plb_display_modes[id].height;desktop_fps=fps;}
  char *mode=strstr(line," plb.graphics=");if(!mode)return 0;mode+=strlen(" plb.graphics=");
  if((mode[0]!='0'&&mode[0]!='1'&&mode[0]!='3')||(mode[1]&&mode[1]!=' '&&mode[1]!='\n'))return -1;

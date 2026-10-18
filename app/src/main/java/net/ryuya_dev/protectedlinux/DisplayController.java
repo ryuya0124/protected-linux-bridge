@@ -17,7 +17,7 @@ import java.util.concurrent.Semaphore;
 final class DisplayController {
   private static final Map<Activity,DisplayController> active=new WeakHashMap<>();
   private final Semaphore frames=new Semaphore(8);
-  private Dialog dialog;private WebView web;private VmChannel channel;
+  private Dialog dialog;private WebView web;private VmChannel channel;private Activity owner;
   private volatile boolean closed;private boolean standalone;
   private volatile JavaScriptReplyProxy binaryReply;
   private final AtomicInteger binaryPending=new AtomicInteger();
@@ -26,7 +26,9 @@ final class DisplayController {
   static void openStandalone(Activity activity,String apk){if(RuntimePreferences.gpuDisplay()){GpuDisplayController.openStandalone(activity,apk);return;}openStandaloneLegacy(activity,apk);}
   static void openStandaloneLegacy(Activity activity,String apk){if(active.containsKey(activity))return;DisplayController controller=new DisplayController();controller.standalone=true;active.put(activity,controller);try{controller.show(activity,apk);}catch(Exception error){active.remove(activity);controller.shutdown();activity.finish();android.util.Log.w("ProtectedLinux","FULLSCREEN_COMPAT_FAILED");}}
   static void close(Activity activity){GpuDisplayController.close(activity);DisplayController controller=active.remove(activity);if(controller!=null){controller.shutdown();if(controller.dialog!=null)controller.dialog.dismiss();}}
+  static void settingsChanged(Activity activity){GpuDisplayController.settingsChanged(activity);DisplayController c=active.get(activity);if(c!=null&&c.web!=null)c.web.evaluateJavascript("window.applyOrientationResize?.()",null);}
   private void show(Activity activity,String apk)throws IOException{
+    owner=activity;
     if(!standalone){dialog=new Dialog(activity);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);}web=new WebView(activity);if(standalone)activity.setContentView(web);else dialog.setContentView(web);
     web.getSettings().setJavaScriptEnabled(true);web.getSettings().setAllowFileAccess(false);web.getSettings().setAllowContentAccess(false);web.getSettings().setBlockNetworkLoads(true);
     web.addJavascriptInterface(new DisplayApi(),"ProtectedDisplay");
@@ -55,6 +57,8 @@ final class DisplayController {
     web.loadDataWithBaseURL("https://protected-linux.invalid/",new String(Controller.asset(apk,"web/display.html"),StandardCharsets.UTF_8),"text/html","UTF-8",null);
   }
   public final class DisplayApi {
+    @JavascriptInterface public String orientationTarget(){if(!RuntimePreferences.followRotation())return "";int[] size=DisplaySizing.dimensions(RuntimePreferences.resolution(),owner.getResources().getConfiguration().orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE);return size[0]+"x"+size[1];}
+    @JavascriptInterface public void clipboard(boolean toLinux){owner.runOnUiThread(()->{if(!closed)ClipboardBridge.transfer(owner,toLinux,message->{if(web!=null&&!closed)web.evaluateJavascript("showClipboardStatus("+org.json.JSONObject.quote(message)+")",null);});});}
     @JavascriptInterface public void ready(){if(binaryReply==null){android.util.Log.i("ProtectedLinux","DISPLAY_TRANSPORT base64");connectDisplay();}}
     @JavascriptInterface public void ack(){for(;;){int pending=binaryPending.get();if(pending<=0)return;if(binaryPending.compareAndSet(pending,pending-1)){frames.release();return;}}}
     @JavascriptInterface public void write(String encoded){if(encoded==null||encoded.length()>90000||closed)return;try{byte[] data=Base64.decode(encoded,Base64.NO_WRAP);VmChannel current=channel;if(current!=null)current.write(data);}catch(IllegalArgumentException ignored){}}
@@ -63,7 +67,7 @@ final class DisplayController {
   private synchronized void connectDisplay(){
     if(closed||channel!=null)return;
     channel=new VmChannel(new VmChannel.Listener(){
-      public void bytes(byte[] data)throws InterruptedException{emit("feedVnc",data);}
+      public void bytes(byte[] data)throws InterruptedException{if(owner instanceof DesktopActivity desktop)desktop.displayReady();emit("feedVnc",data);}
       public void ended(String error){try{emit("displayEnded",(error==null?"画面の接続が終了しました。":error).getBytes(StandardCharsets.UTF_8));}catch(InterruptedException interrupted){Thread.currentThread().interrupt();}}
     });channel.open('V');
   }

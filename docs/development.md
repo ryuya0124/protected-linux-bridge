@@ -2,7 +2,7 @@
 
 ## Device invariants
 
-Temporary root and a locked bootloader are the intended environment. No kernel update, replacement, patching or flashing; no partition writes, SELinux changes, global virtualization/network properties, reboot or root-method changes. Only the device's existing `/apex/com.android.virt/etc/fs/microdroid_kernel` is used. The C init and musl agent are guest user-space programs.
+Temporary root and a locked bootloader are the intended environment. No host kernel/module/boot or partition changes, SELinux changes, global virtualization/network properties, reboot or root-method changes. Guest-only kernels are permitted under the updated policy; stock `/apex/com.android.virt/etc/fs/microdroid_kernel` remains the default and is never overwritten. See `guest-kernel-plan.md`. The C init and musl agent are guest user-space programs.
 
 ## Stock app contract
 
@@ -28,7 +28,7 @@ The abstract Unix socket `net.ryuya_dev.protectedlinux.console` authenticates pe
 
 Private files live under `/data/user/0/net.ryuya_dev.protectedlinux/files/vm`, with root-owned mode 0700 storage. The stock Terminal's `files/linux/root_part` is read only during initial sparse copying. Owned qcow2 data uses that private immutable copy as backing. Cached base identity is validated; mismatches stop instead of rebuilding over user data.
 
-Existing crosvm uses Gunyah `--protected-vm-without-firmware`, 512 MiB, one vCPU, no balloon, private qcow2 and the owned raw initramfs. This omits pvmfw verified boot and attestation. The guest PID1 agent exposes only host-CID vsock PTY/GUI/shutdown operations. `/dev`, `/run` and `/tmp` are guest tmpfs.
+Existing crosvm uses Gunyah `--protected-vm-without-firmware`, configurable memory/CPU (defaults512 MiB/one vCPU), no balloon, private qcow2 and the owned raw initramfs. This omits pvmfw verified boot and attestation. The guest agent (PID1 or a systemd service) exposes only host-CID vsock PTY/GUI/shutdown operations. `/dev`, `/run` and `/tmp` are guest tmpfs.
 
 The manager caps sessions at 12 and VM life at 30 minutes. Last disconnect requests guest sync/poweroff, then bounded fallback terminates only tracked owned processes. Idle helper expiry is 30 minutes. Child parent-death signals are restored after credential drops. The unprivileged proxy closes inherited manager/client Unix descriptors before entering its network loop. Helper identity includes a native/build-script fingerprint; stale helpers are stopped before new launch. Extraction uses atomic rename to avoid overwriting running executables.
 
@@ -43,7 +43,7 @@ python3 -m unittest discover -s tests -v
 ./gradlew :app:assembleRelease :app:testDebugUnitTest :app:lintRelease
 ```
 
-`tools/build_native.py` compiles Android manager/proxy, freestanding guest init and a static musl guest agent. First build downloads the pinned musl 1.2.5 source and the pinned Termux Android GPU user-space package, verifies their SHA256 values and builds only libc/user-space. The GPU package is extracted selectively; it never installs or updates Termux or a kernel. NDK compiler-rt builtins are linked. No kernel is downloaded or built. Raw cpio is used because this existing guest kernel has no gzip-initramfs support.
+`tools/build_native.py` compiles Android manager/proxy, freestanding guest init and a static musl guest agent. First build downloads the pinned musl 1.2.5 source and the pinned Termux Android GPU user-space package, verifies their SHA256 values and builds only libc/user-space. The GPU package is extracted selectively; it never installs or updates Termux or a kernel. NDK compiler-rt builtins are linked. The ordinary APK build does not download/build a kernel; the separate `kernels/` recipe does. Raw cpio is used because this existing guest kernel has no gzip-initramfs support.
 
 Set `PROTECTED_LINUX_SIGNING_PROPERTIES` to a private properties file with `storeFile`, `storePassword`, `keyAlias`, `keyPassword` for a signed release. Never commit the file/key. Without it, the release APK is unsigned. The output is `app/build/outputs/apk/release/app-release.apk`.
 
@@ -82,7 +82,7 @@ Disable in Vector and close Terminal to remove hooks. A missing root environment
 ## Primary references
 
 - [AOSP VirtualMachineConfig](https://android.googlesource.com/platform/packages/modules/Virtualization/+/main/libs/framework-virtualization/src/android/system/virtualmachine/VirtualMachineConfig.java)
-- [Gunyah on Snapdragon guide](https://github.com/polygraphene/gunyah-on-sd-guide) — its kernel/SELinux modification steps are outside this project's constraints.
+- [Gunyah on Snapdragon guide](https://github.com/polygraphene/gunyah-on-sd-guide) — host kernel/SELinux modifications are outside this project's constraints; guest-only kernel builds are now allowed.
 - [libxposed API](https://jingmatrix.github.io/libxposed-api/io/github/libxposed/api/XposedInterface.html)
 - [libxposed service](https://libxposed.github.io/service/)
 - [noVNC v1.6.0](https://github.com/novnc/noVNC/tree/v1.6.0)
@@ -98,7 +98,7 @@ The display transport uses AndroidX WebKit 1.17.1 ArrayBuffer messages only when
 
 ## 0.3 display and configuration
 
-`RawRfb` is an Android-free RFB 3.8 parser with raw RGBX/desktop-resize support only. Handshake authentication is None inside the existing authenticated VM channel; this is not a network listener. The socket peer must be UID 0, and the manager authenticates the caller UID. A framebuffer is bounded to 4,194,304 pixels, maximum width4096/height2160 (16 MiB). Rectangles, clipboard/name sizes and update payloads have independent bounds. Unknown encodings/protocols fail closed; compatibility mode is explicitly selectable.
+`RawRfb` is an Android-free RFB 3.8 parser with raw RGBX/desktop-resize support only. Handshake authentication is None inside the existing authenticated VM channel; this is not a network listener. The socket peer must be UID 0, and the manager authenticates the caller UID. A framebuffer is bounded to 4,194,304 pixels, maximum width4096/height4096 (16 MiB). Rectangles, clipboard/name sizes and update payloads have independent bounds. Unknown encodings/protocols fail closed; compatibility mode is explicitly selectable.
 
 `GpuDisplayController` reads native socket bytes into direct ByteBuffers through `Os.read`, waits for the GL thread to upload the damage, then requests another incremental frame. One mutable framebuffer and one pending upload limit memory/latency. GLES3 handles RGBX alpha, damaged subrectangles, scaling and letterboxing. Context recreation requests a full refresh; hidden surfaces pause the upload deadline. Physical input is translated into RFB keys/pointers, with focus-loss release and bounded output queue. Android system keys remain local. This is a CPU-copy transport with GPU viewer composition, not DMA-BUF/zero-copy or hardware encoding.
 
@@ -109,3 +109,21 @@ Android JVM tests cover fragmented raw frames, invalid/auth/oversize/truncated m
 References: [RFB protocol](https://www.rfc-editor.org/rfc/rfc6143), [Os.read(ByteBuffer)](https://developer.android.com/reference/android/system/Os#read(java.io.FileDescriptor,%20java.nio.ByteBuffer)), [GLES30](https://developer.android.com/reference/android/opengl/GLES30), [Surface frame-rate hints](https://developer.android.com/media/optimize/performance/frame-rate). See [security limits](security.md) before changing VMM privileges.
 
 Viewer preferences are isolated in `RuntimePreferences` (Android SharedPreferences only); an ordinary Bridge activity must never resolve compile-only `HookEntry`/XposedModule. Terminal's UI uses an independent ResourcesLoader for the module APK because package visibility may reject createPackageContext; its theme does not inherit colliding host resource IDs. The compatibility page disables its unused WebCodecs VideoDecoder before noVNC import to avoid an optional top-level feature probe blocking initialization; upstream library files remain unmodified.
+
+## 0.4 profiles and integrations
+
+`debian-bridge` retains `files/vm`; `debian-mainline-bridge` is the same manager built with a fixed experimental profile, `files/vm-mainline` and a pinned private guest-image path. One authenticated abstract socket and one root-private ownership lock ensure only one profile/clone owns writable disks at a time. READY includes both build and profile identifiers. Stop/query remain usable even when a guest image fails validation. No caller-supplied executable, image path or shell expression is accepted by the native profile API.
+
+Kernel import uses Android's document picker and a bounded stream into private staging. Java checks the known image size/SHA256; the root installer repeats SHA256 via the installed fixed sha256sum utility, checks type/owner, copies/readback-verifies into a no-follow private directory, fsyncs and renames a readonly image. Unknown builds are rejected. This is a fixed experimental profile, not a generic unverified-kernel importer.
+
+Offline profile initialization refuses a running manager or ambiguous existing destination. It copies/readback-verifies the original qcow2 through readonly input, retains only a hardlink to the root-owned readonly immutable base, and records completion after promotion/fsync. New profile resources default to512 MiB/1CPU/30min/keepalive/systemd, CPU graphics1280x720/30fps. Its writable disk is independent. A failed switch leaves the original available; Java attempts to return to its previous profile when preparation fails. Closing/reopening Terminal may be needed after changing profiles.
+
+`resource_settings.h`, `disk_migration*.h`, `guest_migration.h` implement whitelisted settings and larger-disk migration. Migration boots an isolated offline VM, source block readonly/new block writable, copying then verifying bytes before promotion. Confirmation requires the guest ext4 superblock size to match the requested target. Guest stop acknowledges sync before the host's bounded shutdown. Never reuse the old short forced-stop grace period; it previously lost dirty guest writes in testing.
+
+PulseAudio pipes provide48kHz PCM. AudioTrack/AudioRecord belong to the ordinary module UID, not root/Terminal. A/M IPC is module-only. Background microphone uses an explicitly opted-in microphone foreground service, permission checks, OS indicator and Stop action. AudioDevices uses per-stream preferred routes; the actual route/removal is monitored and mismatches stop the bridge. It does not force global SCO/audio mode. Only connected routes are shown; missing or ambiguous selection fails rather than falling back.
+
+Clipboard C/W requests are bounded64KiB. The optional root-launched helper immediately drops to shell UID2000, uses its existing background permission, fixes only its own Context attribution and fails if that exact context cannot be validated. Only the tracked helper PID may use C/W as shell; arbitrary shell processes are rejected. The public helper directory contains readonly code only. XFixes/inotify drives Xvnc/Xwayland changes, a bounded queue/digests suppress echo; sensitive Android clips are skipped and no content/history is logged.
+
+The UI uses real Material3 BottomNavigationView. Rotation uses negotiated RFB ExtendedDesktopSize with bounded dimensions/screen IDs; no global Android display settings. Both raw GLES and compatibility viewers retain CPU-copy boundaries. A display failure stops I/O rather than repeatedly logging input errors.
+
+Automated checks currently include24 JVM tests and29 native tests, plus release Lint. Physical USB/Bluetooth hardware, Android guests and hardware video are unverified/unimplemented. See the device record for actual sample limits, including Gunyah PAGE_FAULT under heavy experimental-kernel workloads.

@@ -29,6 +29,8 @@ static int forbidden_address(const struct sockaddr *address){
  }
  freeifaddrs(interfaces);return forbidden;
 }
+static int plb_network_lifetime=1800;
+#define PLB_NETWORK_LIFETIME plb_network_lifetime
 #include "datagram_broker.h"
 static int tcp_connect(const char *host,const char *port){
  struct addrinfo hints={.ai_family=AF_UNSPEC,.ai_socktype=SOCK_STREAM},*addresses=NULL;int resolved=getaddrinfo(host,port,&hints,&addresses);if(resolved){fprintf(stderr,"PROXY_DNS error=%d uid=%d\n",resolved,getuid());return -1;}int fd=-1;
@@ -77,9 +79,10 @@ static void http_proxy(int client){
   }
   if(plb_write_all(remote,"\r\n",2)){close(remote);return;}
  }
- alarm(0);plb_relay(client,remote,1800,0);close(remote);
+ alarm(0);plb_relay(client,remote,plb_network_lifetime,0);close(remote);
 }
-pid_t plb_start_proxy(uid_t network_uid,int manager_listener,int startup_client){
+pid_t plb_start_proxy(uid_t network_uid,int manager_listener,int startup_client,int lifetime){
+ plb_network_lifetime=lifetime;
  int listener=socket(AF_VSOCK,SOCK_STREAM|SOCK_CLOEXEC,0);if(listener<0)return -1;struct sockaddr_vm a={.svm_family=AF_VSOCK,.svm_port=PLB_PROXY_PORT,.svm_cid=VMADDR_CID_ANY};if(bind(listener,(struct sockaddr*)&a,sizeof(a))||listen(listener,16)){close(listener);return -1;}
  pid_t parent=getpid(),pid=fork();if(pid!=0){close(listener);return pid;}
  // The unprivileged proxy must never retain the root manager's control listener.
@@ -100,5 +103,5 @@ pid_t plb_start_proxy(uid_t network_uid,int manager_listener,int startup_client)
  }
 }
 #ifdef PLB_PROXY_STANDALONE
-int main(int argc,char **argv){if(getuid()!=0||argc!=2)return 1;pid_t child=plb_start_proxy((uid_t)atoi(argv[1]),-1,-1);if(child<0){perror("proxy start");return 2;}printf("PROXY_PID=%d\n",child);fflush(stdout);int status;waitpid(child,&status,0);return WIFEXITED(status)?WEXITSTATUS(status):128;}
+int main(int argc,char **argv){if(getuid()!=0||argc!=2)return 1;pid_t child=plb_start_proxy((uid_t)atoi(argv[1]),-1,-1,1800);if(child<0){perror("proxy start");return 2;}printf("PROXY_PID=%d\n",child);fflush(stdout);int status;waitpid(child,&status,0);return WIFEXITED(status)?WEXITSTATUS(status):128;}
 #endif

@@ -4,7 +4,7 @@ val signing = Properties().apply { providers.environmentVariable("PROTECTED_LINU
 android {
  namespace = "net.ryuya_dev.protectedlinux"
  compileSdk = 37
- defaultConfig { applicationId = "net.ryuya_dev.protectedlinux"; minSdk = 36; targetSdk = 36; versionCode = 5; versionName = "0.3.0-preview.1" }
+ defaultConfig { applicationId = "net.ryuya_dev.protectedlinux"; minSdk = 36; targetSdk = 36; versionCode = 6; versionName = "0.4.0-preview.1" }
  signingConfigs { if (!signing.isEmpty) create("distribution") { storeFile = file(signing.getProperty("storeFile")); storePassword = signing.getProperty("storePassword"); keyAlias = signing.getProperty("keyAlias"); keyPassword = signing.getProperty("keyPassword") } }
  buildTypes { release { isDebuggable = false; isMinifyEnabled = false; signingConfig = signingConfigs.findByName("distribution") } }
  compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
@@ -20,7 +20,8 @@ val buildNative=tasks.register("buildNativeAssets") {
  doLast {
   val local=Properties().apply { val p=rootProject.file("local.properties"); if(p.exists())p.inputStream().use {load(it)} }
   val sdk=local.getProperty("sdk.dir") ?: System.getenv("ANDROID_HOME") ?: System.getenv("ANDROID_SDK_ROOT") ?: error("Set Android SDK path")
-  val process=ProcessBuilder("python3",rootProject.file("tools/build_native.py").absolutePath,"--sdk",sdk).inheritIO().start()
+  val process=ProcessBuilder("python3",rootProject.file("tools/build_native.py").absolutePath,"--sdk",sdk).redirectErrorStream(true).start()
+  process.inputStream.bufferedReader().useLines { lines -> lines.forEach { logger.lifecycle(it) } }
   check(process.waitFor()==0) { "Native build failed" }
  }
 }
@@ -58,7 +59,7 @@ val dependencyLicenses = tasks.register("generateDependencyLicenses") {
                 append(rootProject.file("third_party/$name").readText())
             }
         }
-        out.resolve("THIRD_PARTY_NOTICES.txt").writeText(notices + "\n@xterm/xterm 5.5.0\n" + rootProject.file("third_party/xterm-LICENSE.txt").readText()+"\nGuest musl user-space runtime\n"+rootProject.file("third_party/musl-COPYRIGHT.txt").readText()+"\nCompiler runtime (Apache-2.0 WITH LLVM-exception)\n"+rootProject.file("third_party/compiler-rt-LICENSE.txt").readText()+"\nMusl component notices\n"+rootProject.file("third_party/musl-source-notices.txt").readText()+"\nnoVNC 1.6.0 (unmodified MPL-2.0 source modules)\n"+rootProject.file("third_party/novnc").walkTopDown().filter { it.isFile }.sortedBy { it.path }.joinToString("\n\n") {it.relativeTo(rootProject.file("third_party/novnc")).path+"\n"+it.readText()}+"\nGPU runtime (virglrenderer / libepoxy / texture decoder notices)\n"+rootProject.file("third_party/gpu").walkTopDown().filter { it.isFile }.sortedBy { it.path }.joinToString("\n\n") {it.name+"\n"+it.readText()})
+        out.resolve("THIRD_PARTY_NOTICES.txt").writeText(notices + "\n@xterm/xterm 5.5.0\n" + rootProject.file("third_party/xterm-LICENSE.txt").readText()+"\nGuest musl user-space runtime\n"+rootProject.file("third_party/musl-COPYRIGHT.txt").readText()+"\nCompiler runtime (Apache-2.0 WITH LLVM-exception)\n"+rootProject.file("third_party/compiler-rt-LICENSE.txt").readText()+"\nMusl component notices\n"+rootProject.file("third_party/musl-source-notices.txt").readText()+"\nnoVNC 1.6.0 (unmodified MPL-2.0 source modules)\n"+rootProject.file("third_party/novnc").walkTopDown().filter { it.isFile }.sortedBy { it.path }.joinToString("\n\n") {it.relativeTo(rootProject.file("third_party/novnc")).path+"\n"+it.readText()}+"\nGPU runtime (virglrenderer / libepoxy / texture decoder notices)\n"+rootProject.file("third_party/gpu").walkTopDown().filter { it.isFile }.sortedBy { it.path }.joinToString("\n\n") {it.name+"\n"+it.readText()}+"\nOptional Linux guest kernel (separately imported)\nCorresponding source: https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.18.57.tar.xz\nConfiguration/build: https://github.com/ryuya0124/protected-linux-bridge/tree/main/kernels\n"+rootProject.file("third_party/linux").walkTopDown().filter { it.isFile }.sortedBy { it.path }.joinToString("\n\n") {it.name+"\n"+it.readText()})
     }
 }
 tasks.named("preBuild").configure { dependsOn(dependencyLicenses) }

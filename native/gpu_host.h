@@ -33,7 +33,7 @@ static int gpu_listener(void){
 }
 static volatile sig_atomic_t gpu_parent_gone;
 static void gpu_parent_exit(int signal_number){(void)signal_number;gpu_parent_gone=1;}
-static pid_t gpu_start(pid_t *expected_server){
+static pid_t gpu_start(pid_t *expected_server,int lifetime){
  int report[2];if(pipe2(report,O_CLOEXEC))return -1;
  pid_t parent=getpid(),child=fork();
  if(child<0){close(report[0]);close(report[1]);return -1;}
@@ -58,7 +58,7 @@ static pid_t gpu_start(pid_t *expected_server){
   execl(PLB_GPU_DIR "/gpu-server","plb-gpu-server","--socket-path",PLB_GPU_SOCKET,(char*)NULL);_exit(94);
  }
  if(server<0||plb_write_all(report[1],&server,sizeof(server)))gpu_parent_gone=1;close(report[1]);
- double deadline=plb_now()+1800;
+ double deadline=plb_now()+lifetime;
  while(!gpu_parent_gone&&plb_now()<deadline){if(waitpid(server,NULL,WNOHANG)!=0)break;usleep(100000);}
  kill(-getpid(),SIGKILL);_exit(95);
 }

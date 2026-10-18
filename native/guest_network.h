@@ -60,7 +60,7 @@ static int plb_udp_forward(int argc,char **argv){
  if(bind(local,(struct sockaddr*)&bind_address,sizeof(bind_address))){perror("UDP localhost bind");close(local);return 2;}
  struct plb_udp_client clients[PLB_UDP_CLIENTS];for(int i=0;i<PLB_UDP_CLIENTS;i++)clients[i].fd=-1;
  printf("UDP 127.0.0.1:%u -> %s:%u via Android host relay\nUp to 16 local clients; associations expire after 60 seconds idle. Ctrl+C stops.\n",local_port,argv[2],remote_port);fflush(stdout);
- unsigned char data[PLB_DGRAM_MAX];double deadline=plb_now()+1800;
+ unsigned char data[PLB_DGRAM_MAX];double deadline=plb_now()+guest_lifetime;
  while(plb_now()<deadline){
   struct pollfd p[1+PLB_UDP_CLIENTS];p[0]=(struct pollfd){local,POLLIN,0};
   for(int i=0;i<PLB_UDP_CLIENTS;i++){if(clients[i].fd>=0&&plb_now()-clients[i].used>60){close(clients[i].fd);clients[i].fd=-1;}p[i+1]=(struct pollfd){clients[i].fd,POLLIN,0};}

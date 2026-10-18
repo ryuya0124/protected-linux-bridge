@@ -107,3 +107,33 @@ USB/Bluetooth mice/keyboards, arbitrary IMEs, all offered combinations, all GPU 
 Issues caught before release: module package visibility prevented createPackageContext in Terminal, so GLES controls use isolated APK ResourcesLoader/theme; ordinary app processes cannot load compile-only XposedModule, so viewer preferences moved out of HookEntry. noVNC's optional WebCodecs H264 top-level feature probe stalled in the standalone WebView; the custom page removes VideoDecoder before importing unmodified noVNC (Xvnc sends no H264). Both standalone transports then connected. No upstream noVNC files were changed.
 
 The no-disk sandbox experiment and host root-VMM risks are documented in [security.md](security.md). It did not change production crosvm flags. This is not evidence of standard AVF verified-boot security.
+
+## 0.4 preview: integrations and separate guest kernel
+
+The following uses the same Galaxy baseline. The device owner changed the policy to permit **guest-only** kernels on October18. Android host kernel/boot partitions/modules, AVB, SELinux and Gunyah protections remain untouched; no Android reboot/recovery or host network/display configuration change was performed.
+
+| Check | Result / limit |
+|---|---|
+| ARM64 Debian | uname aarch64, dpkg/apt arm64 only; bash/libc/systemd/PulseAudio/Mesa arm64 packages |
+| Real systemd | PID1 systemd, plb-bridge active, initial zero failed units; custom service start/enable/autostart worked |
+| Shutdown durability | Earlier short forced-stop lost dirty writes; sync acknowledgement and a longer bounded graceful shutdown fixed the tested persistence case |
+| Disk growth | 3085959168-byte source to4294967296-byte new qcow2; ext4 total4148396032 bytes. Synthetic binary hash and sparse-file tail survived; service autostart survived |
+| Cancel growth | Explicit cancel preserved the original qcow2's full SHA256. New disk is not committed before copy/readback and guest size confirmation |
+| Clipboard | Synthetic Android text reached Linux and Linux text reached Android. Original Android ClipData retained only in probe memory and restored; no user clipboard content logged |
+| Microphone | Explicitly permitted short tests: Android AudioRecord active/not silenced, guest PCM received; GUI hide stopped GUI-only capture. Background mode survived Home; service then stopped. No recording file saved; mic left off |
+| Per-stream audio | Built-in preferred routing accepted; selection policy rejects missing/ambiguous external routes. No physical wired/USB/Bluetooth headset available, so real headset playback/mic is unverified |
+| IPC authorization | Untracked UID2000 rejected for ?,R,V,X,C,W,A,M,L. Clipboard automation only permits its specifically tracked shell worker PID |
+| UI | Material3 bottom navigation, Home/Display/Integration/Settings, tested in portrait and landscape |
+| Rotation | Raw RFB negotiated desktop resize changed Xvnc and nested Weston/Xwayland from portrait to landscape without Android global rotation changes. Repeated combinations/compatibility transport remain a limited test matrix |
+| Custom guest boot | Downloaded6.17.11 sample and own6.18.57-plb1 both booted diskless initramfs and powered off with crosvm exit0 |
+| Guest source integrity | kernel.org source checksum + developer PGP signature checked against pinned Greg Kroah-Hartman fingerprint; config/provenance/build recipe retained |
+| Independent profile | Original and offline copy had identical full qcow2 SHA256 before first boot. Original SHA stayed unchanged while the copied profile ran and crashed |
+| Mainline Debian | New kernel boots the copy, systemd active, initial zero failed units; guest TUN exists; guest-only binderfs create/version ioctl reports protocol8 |
+| Mainline heavy graphics | Failed: Gunyah exit3, host log memory-map/provide-folio failure. VM-local hugepage/mlock flags did not eliminate it and were removed. No host-wide memory compaction/cache drop was used |
+| Mainline conservative mode | 512MiB/1CPU/CPU Openbox1280x720/30fps rendered; 64MiB guest allocation/write/read passed in the observed sample. Not evidence of long-term or heavy-workload stability |
+| Mac storage | Kernel build guarded at20GiB minimum free /6GiB cache cap; expanded source/object trees and this task's builder image removed after saving outputs. About46GiB free after cleanup; source archive/signature/Image cache about190MiB |
+| Automated checks | 24 JVM tests,29 native tests (including exclusive profile lock), signed release build and Lint |
+
+Direct USB assignment, physical USB/Bluetooth audio/input, transparent arbitrary-application networking, hardware video, Vulkan and Android15/16 guest boot remain unverified/unimplemented. Kernel config alone does not establish these features. See [guest-kernel-plan.md](guest-kernel-plan.md).
+
+Final recovery checks: the app switched back to stock Microdroid, reopened the original4GiB Debian disk, and systemd remained active. Host boot identity stayed unchanged and SELinux remained Enforcing. A missing experimental Image was rejected while the Stop command still worked; a valid import passed, a deliberately corrupted staging Image was rejected, and the installed Image retained its known hash.

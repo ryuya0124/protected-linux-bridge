@@ -1,6 +1,9 @@
 /* MIT. UDP and IPv4 echo only. Runs after UID/capability drop; no raw socket. */
 #ifndef PLB_DATAGRAM_BROKER_H
 #define PLB_DATAGRAM_BROKER_H
+#ifndef PLB_NETWORK_LIFETIME
+#define PLB_NETWORK_LIFETIME 1800
+#endif
 #include <netinet/ip_icmp.h>
 #include "datagram_protocol.h"
 static int plb_echo_request_valid(const unsigned char *data,size_t size){return size>=8&&size<=1400&&data[0]==ICMP_ECHO&&data[1]==0&&!plb_icmp_checksum(data,size);}
@@ -24,7 +27,7 @@ static void plb_datagram_broker(int client){
  freeaddrinfo(addresses);struct timeval timeout={2,0};setsockopt(client,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));setsockopt(client,SOL_SOCKET,SO_SNDTIMEO,&timeout,sizeof(timeout));
  if(plb_write_all(client,ready,sizeof(ready))||remote<0){if(remote>=0)close(remote);return;}
  fprintf(stderr,"DGRAM_ACCEPTED mode=%c uid=%d\n",head[2],getuid());alarm(0);
- unsigned char data[PLB_DGRAM_MAX];double deadline=plb_now()+1800,idle=plb_now()+60,last_echo=0;unsigned budget=64;
+ unsigned char data[PLB_DGRAM_MAX];double deadline=plb_now()+PLB_NETWORK_LIFETIME,idle=plb_now()+60,last_echo=0;unsigned budget=64;
  while(plb_now()<deadline&&plb_now()<idle){
   struct pollfd p[2]={{client,POLLIN,0},{remote,POLLIN,0}};int result=poll(p,2,1000);if(result<0){if(errno==EINTR)continue;break;}
   if(p[0].revents&(POLLIN|POLLHUP|POLLERR)){

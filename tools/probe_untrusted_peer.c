@@ -11,7 +11,7 @@ int main(void){
  if(getuid()==0){fputs("Refusing root: this tests an untrusted UID\n",stderr);return 2;}
  const char name[]="net.ryuya_dev.protectedlinux.console";
  struct sockaddr_un a={.sun_family=AF_UNIX};memcpy(a.sun_path+1,name,sizeof(name)-1);
- const char requests[]={'?','R','V','X'};
+ const char requests[]={'?','R','V','X','C','W','A','M','L'};
  for(unsigned i=0;i<sizeof(requests);i++){
   int fd=socket(AF_UNIX,SOCK_STREAM,0);if(fd<0)return 3;
   if(connect(fd,(struct sockaddr*)&a,offsetof(struct sockaddr_un,sun_path)+sizeof(name))){perror("connect");close(fd);return 4;}

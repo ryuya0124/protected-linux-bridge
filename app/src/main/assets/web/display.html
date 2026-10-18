@@ -2,10 +2,12 @@
 <html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'"><title>Protected Linux Display</title><style>
 html,body{margin:0;height:100%;background:#101014;color:#eee;font:16px sans-serif}body{display:flex;flex-direction:column}#screen{flex:1;min-height:0;overflow:hidden}#status{padding:16px;white-space:pre-wrap}#keys{margin:8px;padding:12px;border-radius:16px;border:1px solid #777;background:#25252e;color:#fff;font:16px sans-serif;resize:none;box-sizing:border-box}#controls{display:flex;gap:8px;padding:0 8px 8px}button{border:0;border-radius:24px;padding:10px 16px;background:#d0bcff;color:#381e72;font:14px sans-serif}
 </style></head><body><div id="status"></div><div id="screen"></div><textarea id="keys" rows="1" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea><div id="controls"><button id="send"></button><button id="enter">Enter</button><button id="tab">Tab</button><button id="escape">Esc</button><button id="interrupt">Ctrl+C</button></div>
+<div id="controls"><button onclick="ProtectedDisplay.clipboard(true)">Android → Linux</button><button onclick="ProtectedDisplay.clipboard(false)">Linux → Android</button></div>
 <script>
 // Xvnc supplies no H.264 tiles. Avoid noVNC's optional top-level WebCodecs
 // decoder probe, which can stall on Android before the transport is ready.
 Reflect.deleteProperty(window, 'VideoDecoder');
+window.showClipboardStatus=text=>{const box=document.getElementById('status');box.textContent=text;box.style.display='block';};
 window.addEventListener('error',()=>{document.getElementById('status').textContent=navigator.language.startsWith('ja')?'互換表示を初期化できませんでした。GPU直接表示をお試しください。':'Compatibility display could not initialize. Try direct GPU display.';});
 </script>
 <script type="module">
@@ -20,9 +22,12 @@ function feedBytes(bytes){if(raw.onmessage)raw.onmessage({data:bytes.buffer});el
 window.displayEnded=encoded=>{status.textContent=new TextDecoder().decode(Uint8Array.from(atob(encoded),c=>c.charCodeAt(0)));status.style.display='block';raw.readyState=3;raw.onclose?.({wasClean:true,code:1000});};
 window.feedVnc=encoded=>feedBytes(Uint8Array.from(atob(encoded),c=>c.charCodeAt(0)));
 const rfb=new RFB(document.getElementById('screen'),raw,{shared:true});rfb.scaleViewport=true;rfb.resizeSession=false;rfb.showDotCursor=true;
+let lastOrientationTarget='';
+window.applyOrientationResize=()=>{const target=ProtectedDisplay.orientationTarget();if(!target||target===lastOrientationTarget||!rfb._supportsSetDesktopSize)return;const parts=target.split('x').map(Number);if(parts.length!==2||parts.some(v=>!Number.isInteger(v)||v<1||v>4096)||parts[0]*parts[1]>4194304)return;RFB.messages.setDesktopSize(rfb._sock,parts[0],parts[1],rfb._screenID,rfb._screenFlags);lastOrientationTarget=target;};
+let rotationTimer;window.addEventListener('resize',()=>{clearTimeout(rotationTimer);rotationTimer=setTimeout(window.applyOrientationResize,150);});
 function refresh(){const canvas=document.querySelector('#screen canvas');if(raw.readyState!==1||!canvas)return;const w=canvas.width,h=canvas.height;raw.send(new Uint8Array([3,0,0,0,0,0,w>>8,w&255,h>>8,h&255]));}
 // A single full-frame request covers the desktop mapping after the RFB handshake; no polling.
-rfb.addEventListener('connect',()=>{status.style.display='none';for(const bytes of pending.splice(0))raw.onmessage?.({data:bytes.buffer});setTimeout(()=>{const c=document.querySelector('#screen canvas');if(raw.readyState!==1||!c)return;const x=c.width>>1,y=c.height>>1;raw.send(new Uint8Array([5,0,x>>8,x&255,y>>8,y&255]));refresh();},1000);});
+rfb.addEventListener('connect',()=>{setTimeout(window.applyOrientationResize,1200);status.style.display='none';for(const bytes of pending.splice(0))raw.onmessage?.({data:bytes.buffer});setTimeout(()=>{const c=document.querySelector('#screen canvas');if(raw.readyState!==1||!c)return;const x=c.width>>1,y=c.height>>1;raw.send(new Uint8Array([5,0,x>>8,x&255,y>>8,y&255]));refresh();},1000);});
 rfb.addEventListener('securityfailure',()=>{status.textContent=ja?'画面の認証に失敗しました。':'Display authentication failed.';status.style.display='block';});
 const keys=document.getElementById('keys');keys.placeholder=ja?'入力して送信':'Type text, then send';document.getElementById('send').textContent=ja?'送信':'Send';
 // Keep the IME draft intact, including spaces and composition. Send only on an explicit tap.
