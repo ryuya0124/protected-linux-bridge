@@ -69,7 +69,7 @@ static pid_t poll_child(pid_t child, int *status) {
     return result;
 }
 int main(int argc, char **argv) {
-    if (getuid() != 0 || (argc != 5 && argc != 6))
+    if (getuid() != 0 || (argc != 5 && argc != 6 && argc != 7))
         return 20;
     const char *kernel = !strcmp(argv[1], "linux618")    ? FILES "/kernels/linux-6.18.57-plb1/Image"
                          : !strcmp(argv[1], "sdk37-16k") ? FILES "/kernels/android37-sdk16k/Image"
@@ -78,9 +78,11 @@ int main(int argc, char **argv) {
                              ? "/apex/com.android.virt/etc/fs/microdroid_kernel"
                              : NULL;
     int mem = number(argv[2]), touch = number(argv[3]), huge = number(argv[4]);
-    int anonymous = argc == 6 ? number(argv[5]) : 0;
+    int anonymous = argc >= 6 ? number(argv[5]) : 0;
+    int dump_fdt = argc == 7 ? number(argv[6]) : 0;
     if (!kernel || (mem != 512 && mem != 768 && mem != 1024) || touch < 64 || touch > mem - 64 ||
-        huge < 0 || huge > 1 || anonymous < 0 || anonymous > 2)
+        huge < 0 || huge > 1 || anonymous < 0 || anonymous > 2 || dump_fdt < 0 || dump_fdt > 1 ||
+        (dump_fdt && anonymous))
         return 21;
     if (anonymous) {
         struct stat library, copy;
@@ -97,6 +99,8 @@ int main(int argc, char **argv) {
         return 28;
     umask(077);
     if (safe_log(FILES "/kernel-probes/memory-live.log"))
+        return 22;
+    if (dump_fdt && safe_log(FILES "/kernel-probes/memory-last.dtb"))
         return 22;
     signal(SIGTERM, stop);
     signal(SIGINT, stop);
@@ -139,11 +143,18 @@ int main(int argc, char **argv) {
                               FILES "/kernel-probes/memory-probe.cpio",
                               kernel,
                               NULL,
+                              NULL,
+                              NULL,
                               NULL};
+        int at = 20;
         if (huge) {
-            args[20] = "--hugepages";
-            args[21] = NULL;
+            args[at++] = "--hugepages";
         }
+        if (dump_fdt) {
+            args[at++] = "--dump-device-tree-blob";
+            args[at++] = FILES "/kernel-probes/memory-last.dtb";
+        }
+        args[at] = NULL;
         execv(anonymous ? FILES "/kernel-probes/crosvm-copy" : "/apex/com.android.virt/bin/crosvm",
               (char *const *)args);
         _exit(24);

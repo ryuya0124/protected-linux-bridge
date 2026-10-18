@@ -8,6 +8,10 @@ that does not authorize global THP changes or kernel modifications. The released
 APK remains unchanged. The earlier [runtime-policy proposal](memory-policy-proposal.md)
 is suspended under the current instructions, not approved for execution.
 
+The [subsequent measurements](memory-provisioning-followup.md) include a successful
+4 GiB host allocation, resident-target collapse counters, file-seal checks and an
+actual generated guest DTB. This page records the preceding source comparison.
+
 ## Conclusion
 
 DroidVM's approach is relevant: actually supplying larger backing folios can

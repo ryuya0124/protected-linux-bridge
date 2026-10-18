@@ -60,6 +60,9 @@ int main(void) {
         puts("PLB_MEMORY_TARGET_REJECTED");
         finish();
     }
+    printf("PLB_MEMORY_LAYOUT total_kib=%llu free_kib=%llu\n",
+           (unsigned long long)((uint64_t)info.totalram * info.mem_unit / 1024),
+           (unsigned long long)((uint64_t)info.freeram * info.mem_unit / 1024));
     size_t bytes = (size_t)mib * 1048576;
     volatile unsigned char *memory =
         mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);

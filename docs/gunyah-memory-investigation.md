@@ -2,6 +2,12 @@
 
 ## Status, 2026-10-19
 
+The [measured follow-up](memory-provisioning-followup.md) now separates a successful
+4 GiB Android-process allocation from failed 2 MiB folio allocation, verifies the
+short-collapse no-op, tests local tmpfs sealing compatibility, and captures the
+installed crosvm's actual 1 GiB RAM / 30 GiB Gunyah address-layout configuration.
+It does not establish a working 4 GiB protected VM or fix the historical map failure.
+
 The [DroidVM HugePage comparison](droidvm-hugepage-comparison.md) now traces the
 app, modified VMM and reserve-module paths separately. It includes a read-only
 Galaxy prerequisite audit and distinguishes smaller-folio policies from PMD-sized

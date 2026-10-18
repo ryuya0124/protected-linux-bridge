@@ -3,6 +3,10 @@
 import importlib.util
 from pathlib import Path
 import unittest
+import shutil
+import struct
+import subprocess
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("memory_probe", ROOT / "tools/run_memory_probe.py")
@@ -50,6 +54,37 @@ class MemoryProbeResult(unittest.TestCase):
     def test_completion_before_readback_is_failure(self):
         guest = "PLB_MEMORY_COMPLETE\nPLB_MEMORY_TOUCHED mib=256\nPLB_MEMORY_READBACK errors=0\n"
         self.assertFalse(PROBE.assess_probe(0, guest, "", 256)["complete"])
+
+
+class CapturedFdtTest(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("dtc"), "Requires the independent device-tree compiler")
+    def test_real_dtc_output_and_damaged_captures(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "layout.dtb"
+            subprocess.run(
+                [
+                    "dtc",
+                    "-I",
+                    "dts",
+                    "-O",
+                    "dtb",
+                    "-o",
+                    str(target),
+                    str(ROOT / "tests/fixtures/memory-layout.dts"),
+                ],
+                check=True,
+            )
+            data = target.read_bytes()
+        self.assertTrue(PROBE.valid_fdt_dump(data))
+        self.assertFalse(PROBE.valid_fdt_dump(data[:-1]))
+        self.assertFalse(PROBE.valid_fdt_dump(data + b"unexpected transport output"))
+        damaged = bytearray(data)
+        struct.pack_into(">I", damaged, 8, len(data) + 1024)
+        self.assertFalse(PROBE.valid_fdt_dump(damaged))
+        damaged = bytearray(data)
+        struct.pack_into(">I", damaged, 36, len(data))
+        self.assertFalse(PROBE.valid_fdt_dump(damaged))
+        self.assertFalse(PROBE.valid_fdt_dump(b"root request denied"))
 
 
 if __name__ == "__main__":
