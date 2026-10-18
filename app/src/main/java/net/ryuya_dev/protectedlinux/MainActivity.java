@@ -16,6 +16,8 @@ import com.google.android.material.materialswitch.MaterialSwitch;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.progressindicator.CircularProgressIndicator;
 import com.google.android.material.appbar.MaterialToolbar;
+import com.google.android.material.textfield.TextInputLayout;
+import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.*;
@@ -25,6 +27,9 @@ public final class MainActivity extends AppCompatActivity {
   private StatusCard runtime,framework;
   private MaterialButton prepare,open;
   private boolean preparing;
+  private int resolutionId=2,displayFps=30;private MaterialAutoCompleteTextView resolutionMenu,fpsMenu;
+  private static final int[] FPS={15,24,30,60,90,120};
+  private MaterialSwitch gpuLinux,gpuDesktop,gpuTransfer;private TextView graphicsStatus;private MaterialButton graphicsSave,graphicsRestart;
   private BridgeApplication app(){return (BridgeApplication)getApplication();}
   @Override public void onCreate(Bundle saved) {
     DynamicColors.applyToActivityIfAvailable(this);super.onCreate(saved);EdgeToEdge.enable(this);
@@ -36,15 +41,17 @@ public final class MainActivity extends AppCompatActivity {
     runtime=new StatusCard(page,R.string.root_title);framework=new StatusCard(page,R.string.framework_title);
     MaterialCardView toggleCard=card(page);LinearLayout toggleBody=column();toggleBody.setPadding(dp(16),dp(8),dp(16),dp(8));toggleCard.addView(toggleBody);
     MaterialSwitch toggle=new MaterialSwitch(this);toggle.setText(R.string.enabled);toggle.setChecked(getSharedPreferences("config",0).getBoolean("enabled",true));toggleBody.addView(toggle);toggleBody.addView(text(getString(R.string.enabled_detail),13));
+    graphicsCard(page);
     button(R.string.enable_terminal,page).setOnClickListener(v->setupTerminal(false));
     button(R.string.install_linux,page).setOnClickListener(v->setupTerminal(true));
+    button(R.string.open_fullscreen,page).setOnClickListener(v->openDesktop());
     open=button(R.string.open_terminal,page);
     open.setOnClickListener(v->{try{startActivity(new Intent().setComponent(new ComponentName(RuntimeSetup.HOST,RuntimeSetup.HOST+".MainActivity")));}catch(Exception error){runtime.show(0,R.string.terminal_missing);}});
     prepare=button(R.string.prepare,page);prepare.setOnClickListener(v->startRuntime());
     button(R.string.stop_vm,page).setOnClickListener(v->new MaterialAlertDialogBuilder(this).setTitle(R.string.stop_vm).setMessage(R.string.stop_detail).setNegativeButton(android.R.string.cancel,null).setPositiveButton(android.R.string.ok,(d,w)->{runtime.show(-1,R.string.checking);worker.submit(()->{boolean ok=RuntimeSetup.stop(this);runOnUiThread(()->{if(!isDestroyed())runtime.show(ok?1:0,ok?R.string.runtime_stopped:R.string.stop_failed);});});}).show());
     toggle.setOnCheckedChangeListener((v,on)->{getSharedPreferences("config",0).edit().putBoolean("enabled",on).apply();app().publish();open.setEnabled(on);if(on)startRuntime();else runtime.show(1,R.string.runtime_disabled);});
     open.setEnabled(toggle.isChecked());
-    info(page,R.string.setup_title,R.string.setup);info(page,R.string.limits_title,R.string.limits);info(page,R.string.network_title,R.string.network_detail);info(page,R.string.tools_title,R.string.tools_detail);info(page,R.string.gpu_title,R.string.gpu_detail);info(page,R.string.safety_title,R.string.safety);
+    info(page,R.string.setup_title,R.string.setup);info(page,R.string.limits_title,R.string.limits);info(page,R.string.network_title,R.string.network_detail);info(page,R.string.tools_title,R.string.tools_detail);info(page,R.string.gpu_title,R.string.gpu_detail);info(page,R.string.safety_title,R.string.safety);info(page,R.string.protection_title,R.string.host_protection);
     button(R.string.licenses,page).setOnClickListener(v->licenses());
     startRuntime();
   }
@@ -57,10 +64,35 @@ public final class MainActivity extends AppCompatActivity {
   }
   private void startRuntime(){
     if(preparing)return;preparing=true;prepare.setEnabled(false);runtime.show(-1,R.string.requesting_root);
-    worker.submit(()->{String result=RuntimeSetup.start(this);runOnUiThread(()->{if(isDestroyed())return;preparing=false;prepare.setEnabled(true);runtime.show("ready".equals(result)?2:"disabled".equals(result)?1:0,"ready".equals(result)?R.string.runtime_ready:"disabled".equals(result)?R.string.runtime_disabled:"unsupported_version".equals(result)?R.string.unsupported_version:R.string.runtime_unavailable);refreshFramework();});});
+    worker.submit(()->{String result=RuntimeSetup.start(this);runOnUiThread(()->{if(isDestroyed())return;preparing=false;prepare.setEnabled(true);runtime.show("ready".equals(result)?2:"disabled".equals(result)?1:0,"ready".equals(result)?R.string.runtime_ready:"disabled".equals(result)?R.string.runtime_disabled:"unsupported_version".equals(result)?R.string.unsupported_version:R.string.runtime_unavailable);refreshFramework();if("ready".equals(result))loadGraphics();});});
   }
   private void setupTerminal(boolean installer){
     runtime.show(-1,R.string.setup_running);worker.submit(()->{boolean ok=TerminalSetup.run(installer);runOnUiThread(()->{if(!isDestroyed()){runtime.show(ok?2:0,ok?R.string.setup_done:R.string.setup_failed);if(ok&&!installer)startRuntime();}});});
+  }
+  private void openDesktop(){runtime.show(-1,R.string.checking);worker.submit(()->{String result=RuntimeSetup.start(this);runOnUiThread(()->{if(isDestroyed())return;if("ready".equals(result)){runtime.show(2,R.string.runtime_ready);startActivity(new Intent(this,DesktopActivity.class));}else runtime.show(0,R.string.runtime_unavailable);});});}
+  private void graphicsCard(LinearLayout page){
+    MaterialCardView c=card(page);LinearLayout body=column();body.setPadding(dp(18),dp(10),dp(18),dp(12));c.addView(body);body.addView(text(getString(R.string.graphics_controls),20));
+    gpuLinux=new MaterialSwitch(this);gpuLinux.setText(R.string.gpu_linux);body.addView(gpuLinux);
+    gpuDesktop=new MaterialSwitch(this);gpuDesktop.setText(R.string.gpu_desktop);body.addView(gpuDesktop);
+    gpuTransfer=new MaterialSwitch(this);gpuTransfer.setText(R.string.gpu_transfer);body.addView(gpuTransfer);
+    gpuTransfer.setChecked(getSharedPreferences("config",0).getBoolean("gpu_display",false));
+    gpuLinux.setOnCheckedChangeListener((v,on)->{if(!on)gpuDesktop.setChecked(false);});gpuDesktop.setOnCheckedChangeListener((v,on)->{if(on)gpuLinux.setChecked(true);});
+    resolutionMenu=selection(body,R.string.resolution_label,R.array.resolutions);resolutionMenu.setText(getResources().getStringArray(R.array.resolutions)[resolutionId],false);resolutionMenu.setOnItemClickListener((parent,selected,index,id)->resolutionId=index);
+    fpsMenu=selection(body,R.string.fps_label,R.array.frame_rates);fpsMenu.setText("30 fps",false);fpsMenu.setOnItemClickListener((parent,selected,index,id)->displayFps=FPS[index]);
+    body.addView(text(getString(R.string.graphics_hint),13));graphicsStatus=text(getString(R.string.checking),14);body.addView(graphicsStatus);
+    gpuTransfer.setOnCheckedChangeListener((v,on)->{getSharedPreferences("config",0).edit().putBoolean("gpu_display",on).apply();app().publish();graphicsStatus.setText(R.string.graphics_view_saved);});
+    graphicsSave=button(R.string.graphics_save,body);graphicsSave.setOnClickListener(v->saveGraphics(false));
+    graphicsRestart=button(R.string.graphics_restart,body);graphicsRestart.setOnClickListener(v->new MaterialAlertDialogBuilder(this).setTitle(R.string.graphics_restart).setMessage(R.string.graphics_restart_detail).setNegativeButton(android.R.string.cancel,null).setPositiveButton(android.R.string.ok,(d,w)->saveGraphics(true)).show());
+  }
+  private MaterialAutoCompleteTextView selection(LinearLayout body,int label,int items){TextInputLayout field=new TextInputLayout(this);field.setBoxBackgroundMode(TextInputLayout.BOX_BACKGROUND_OUTLINE);field.setEndIconMode(TextInputLayout.END_ICON_DROPDOWN_MENU);field.setHint(label);MaterialAutoCompleteTextView menu=new MaterialAutoCompleteTextView(field.getContext());menu.setInputType(0);menu.setOnClickListener(v->menu.showDropDown());menu.setSimpleItems(getResources().getStringArray(items));field.addView(menu,new LinearLayout.LayoutParams(-1,-2));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.setMargins(0,dp(8),0,dp(8));body.addView(field,p);return menu;}
+  private void loadGraphics(){worker.submit(()->{var state=RuntimeSetup.graphicsState(this);int mode=state.mode();runOnUiThread(()->{if(isDestroyed())return;if(mode>=0){gpuLinux.setChecked((mode&1)!=0);gpuDesktop.setChecked((mode&2)!=0);}resolutionId=state.resolution();displayFps=state.fps();resolutionMenu.setText(getResources().getStringArray(R.array.resolutions)[resolutionId],false);fpsMenu.setText(displayFps+" fps",false);graphicsStatus.setText(mode==-1?R.string.graphics_existing:mode==-2?R.string.graphics_failed:R.string.graphics_saved_state);});});}
+  private void saveGraphics(boolean restart){
+    int mode=gpuLinux.isChecked()?(gpuDesktop.isChecked()?3:1):0;int resolution=resolutionId,fps=displayFps;boolean transfer=gpuTransfer.isChecked();graphicsSave.setEnabled(false);graphicsRestart.setEnabled(false);graphicsStatus.setText(R.string.checking);
+    worker.submit(()->{boolean ok=RuntimeSetup.saveGraphics(this,mode,resolution,fps);
+      if(ok){getSharedPreferences("config",0).edit().putBoolean("gpu_display",transfer).putInt("display_fps",fps).apply();app().publish();}
+      if(ok&&restart)ok=RuntimeSetup.stop(this)&&"ready".equals(RuntimeSetup.start(this))&&RuntimeSetup.reopenTerminal();
+      boolean success=ok;runOnUiThread(()->{if(isDestroyed())return;graphicsSave.setEnabled(true);graphicsRestart.setEnabled(true);graphicsStatus.setText(success?(restart?R.string.graphics_applied:R.string.graphics_saved):R.string.graphics_failed);});
+    });
   }
   private int dp(int n){return Math.round(n*getResources().getDisplayMetrics().density);}
   private LinearLayout column(){LinearLayout v=new LinearLayout(this);v.setOrientation(LinearLayout.VERTICAL);return v;}

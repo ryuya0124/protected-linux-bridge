@@ -4,7 +4,7 @@ val signing = Properties().apply { providers.environmentVariable("PROTECTED_LINU
 android {
  namespace = "net.ryuya_dev.protectedlinux"
  compileSdk = 37
- defaultConfig { applicationId = "net.ryuya_dev.protectedlinux"; minSdk = 36; targetSdk = 36; versionCode = 4; versionName = "0.2.0-preview.1" }
+ defaultConfig { applicationId = "net.ryuya_dev.protectedlinux"; minSdk = 36; targetSdk = 36; versionCode = 5; versionName = "0.3.0-preview.1" }
  signingConfigs { if (!signing.isEmpty) create("distribution") { storeFile = file(signing.getProperty("storeFile")); storePassword = signing.getProperty("storePassword"); keyAlias = signing.getProperty("keyAlias"); keyPassword = signing.getProperty("keyPassword") } }
  buildTypes { release { isDebuggable = false; isMinifyEnabled = false; signingConfig = signingConfigs.findByName("distribution") } }
  compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }

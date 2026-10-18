@@ -41,8 +41,27 @@
 <string name="network_title">ネットワークの動作</string>
 <string name="network_detail">標準ターミナルのUIDとINTERNET権限で通信し、Androidのアプリ別通信・VPN・省電力制限に従います。ホストのルート・DNS・ファイアウォール設定は変更しません。バックグラウンドやDozeの制限中は通信が止まる場合があります。</string>
 <string name="gpu_title">OpenGLのGPU描画</string>
-<string name="gpu_detail">Linux内で plb-install-gpu を実行して、VMを停止し開き直します。plb-gpu-info で virgl (Adreno) と表示されれば端末のGPUを利用しています。無効化は plb-gpu-mode off のあとVMを開き直します。端末の再起動は不要です。Westonでデスクトップの画面合成もGPUを使います。plb-desktop-mode classic で元のデスクトップへ戻せます。VNCの取得・符号化はCPUが残り、表示側は利用可能ならハードウェア合成を使います。VulkanのGPU化は未対応です。VenusにはVM境界を越える共有メモリー転送の追加実装が必要です。対応状況は端末によって異なります。</string>
+<string name="gpu_detail">Linux内で plb-install-gpu を実行し、このアプリの描画設定を保存してVMを作り直します。Androidの再起動は不要です。plb-gpu-info の virgl (Adreno) は端末GPUでのOpenGL描画を示します。Westonの画面合成と、Android側の直接表示も個別に切り替えられます。画面取得とコピーにはCPU処理が残ります。ゼロコピーやVulkanのGPU化は未対応です。</string>
 <string name="tools_title">ネットワーク用コマンド</string>
 <string name="tools_detail">ping -c 4 1.1.1.1 で実際のIPv4 echoを送信します。rawソケットは不要です。
 plb-udp-forward 5353 1.1.1.1 53 でゲストのlocalhost:5353を指定したUDP宛先へ転送します。利用するツールの接続先をこのローカルポートに設定してください。終了はCtrl+Cです。透過的なネットワークではなく、ホスト自身・link-local・multicastなどへの接続は拒否します。</string>
+<string name="graphics_controls">描画と画面転送</string>
+<string name="gpu_linux">LinuxのOpenGLをGPUで描画</string>
+<string name="gpu_desktop">WestonでデスクトップをGPU合成</string>
+<string name="gpu_transfer">転送画面をOpenGLで直接表示</string>
+<string name="graphics_hint">解像度・更新上限・Linuxの描画設定は次回のVM起動に反映します。画面転送の切り替えは表示を開き直すと反映します。初回はLinux内で plb-install-gpu を実行してください。保存後はBridgeの設定がVM内のモード指定より優先されます。fpsは上限であり、実際の速度は端末・VM・アプリに依存します。</string>
+<string name="graphics_save">保存（次回のVM起動に反映）</string>
+<string name="graphics_restart">保存してVMだけ作り直す</string>
+<string name="graphics_restart_detail">Linuxの全セッションを閉じます。先に作業内容を保存してください。Androidは再起動しません。</string>
+<string name="graphics_existing">Bridgeでは未指定です。現在のLinux内の描画設定を維持しています。</string>
+<string name="graphics_failed">反映できませんでした。root権限とBridgeの有効設定を確認してください。</string>
+<string name="graphics_saved_state">保存済みの設定を読み込みました。実行中のVMには作り直したあとに反映します。</string>
+<string name="graphics_saved">保存しました。描画設定は次回VM起動、画面転送は表示を開き直すと反映します。</string>
+<string name="graphics_applied">設定を反映し、VMを作り直してターミナルを開きました。</string>
+<string name="graphics_view_saved">画面転送の設定を保存しました。表示を開き直すと反映します。VMの作り直しは不要です。</string>
+<string name="open_fullscreen">GUIを全画面で開く</string>
+<string name="host_protection">Linuxのroot・sudoはVM内の権限です。Androidのファイルは共有しません。GPUの処理は非rootですが、ホストVMMは現在rootで標準のプロセスサンドボックスなしで動作します。未知のコードからAndroidを完全に保護する環境ではなく、ホスト・ハイパーバイザー・GPUの不具合がAndroidへ影響する可能性は残ります。</string>
+<string name="protection_title">Android本体への保護と制限</string>
+<string name="resolution_label">GUIの解像度</string>
+<string name="fps_label">GUIの更新上限</string>
 </resources>

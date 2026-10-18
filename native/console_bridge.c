@@ -47,6 +47,7 @@ static void log_child(const char *name){
 }
 
 #include "gpu_host.h"
+#include "graphics_settings.h"
 static int same_file(const struct stat *a,const struct stat *b){return a->st_dev==b->st_dev&&a->st_ino==b->st_ino&&a->st_size==b->st_size&&a->st_mtim.tv_sec==b->st_mtim.tv_sec&&a->st_mtim.tv_nsec==b->st_mtim.tv_nsec;}
 static int cache_base(uid_t terminal_uid){
  struct stat cached;if(lstat(BACKING,&cached)==0)return S_ISREG(cached.st_mode)&&cached.st_uid==0&&cached.st_size>=128*1024*1024?0:6;
@@ -95,11 +96,13 @@ static int guest_connect(int retries){
 }
 static int memory_ready(void){FILE *file=fopen("/proc/meminfo","re");if(!file)return 0;char line[128];unsigned long long available=0;while(fgets(line,sizeof(line),file))if(sscanf(line,"MemAvailable: %llu kB",&available)==1)break;fclose(file);return available>=1536ULL*1024;}
 static pid_t start_vm(void){
+ struct graphics_settings settings;if(graphics_read(&settings))return -1;int graphics=settings.mode;
  pid_t parent=getpid(),child=fork();if(child!=0)return child;
  prctl(PR_SET_PDEATHSIG,SIGKILL);if(getppid()!=parent)_exit(83);log_child(BASE "/crosvm-bridge.log");
+ char params[256];snprintf(params,sizeof(params),"console=ttyS0 earlycon 8250.nr_uarts=1 rdinit=/init panic=0 quiet loglevel=3%s%d plb.display=%d:%d",graphics<0?" plb.preserve=":" plb.graphics=",graphics<0?1:graphics,settings.resolution,settings.fps);
  execl("/apex/com.android.virt/bin/crosvm","crosvm","--log-level","info","run","--name","protected-linux","--disable-sandbox","--no-balloon","--protected-vm-without-firmware","--swiotlb","32","--mem","size=512","--cpus","num-cores=1",
  "--serial","type=file,path=" BASE "/boot-console.log,console=true,earlycon=true",
- "--params","console=ttyS0 earlycon 8250.nr_uarts=1 rdinit=/init panic=0 quiet loglevel=3",
+ "--params",params,
  "--vsock","cid=39820","--block","path=" OVERLAY ",ro=false","--initrd",BASE "/debian-initramfs.cpio","/apex/com.android.virt/etc/fs/microdroid_kernel",(char*)NULL);_exit(84);
 }
 static void shutdown_vm(pid_t vm,pid_t proxy){
@@ -113,7 +116,11 @@ static int client_command(const char *command){
  if(ok&&*command=='X'){for(int i=0;i<120;i++){fd=local_socket(0);if(fd<0)return 0;close(fd);usleep(100000);}return 1;}return ok?0:1;
 }
 int main(int argc,char **argv){
- if(getuid()!=0)return 20;if(argc==2&&!strcmp(argv[1],"--check"))return client_command("?");if(argc==2&&!strcmp(argv[1],"--stop"))return client_command("X");
+ if(getuid()!=0)return 20;
+ if(argc==2&&!strcmp(argv[1],"--graphics-state")){struct graphics_settings value;int error=graphics_read(&value);printf("GRAPHICS %d %d %d\n",error?-2:value.mode,value.resolution,value.fps);return error?1:0;}
+ if(argc==5&&!strcmp(argv[1],"--settings"))return graphics_save(graphics_number(argv[2]),graphics_number(argv[3]),graphics_number(argv[4]));
+ if(argc==3&&!strcmp(argv[1],"--graphics")){struct graphics_settings value;if(graphics_read(&value))return 1;return graphics_save(graphics_number(argv[2]),value.resolution,value.fps);}
+ if(argc==2&&!strcmp(argv[1],"--check"))return client_command("?");if(argc==2&&!strcmp(argv[1],"--stop"))return client_command("X");
  char *end1=NULL,*end2=NULL;long terminal_uid=argc==3?strtol(argv[1],&end1,10):-1,module_uid=argc==3?strtol(argv[2],&end2,10):-1;
  if(argc!=3||*end1||*end2||terminal_uid<10000||terminal_uid>19999||module_uid<10000||module_uid>19999||terminal_uid==module_uid)return 21;
  struct rlimit limit={RLIM_INFINITY,RLIM_INFINITY};if(setrlimit(RLIMIT_MEMLOCK,&limit))return 22;
@@ -151,7 +158,7 @@ int main(int argc,char **argv){
   struct timeval timeout={2,0};setsockopt(client,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));setsockopt(client,SOL_SOCKET,SO_SNDTIMEO,&timeout,sizeof(timeout));char request=0;ssize_t received=read(client,&request,1);
   if(received==1&&request=='?')plb_write_all(client,READY,sizeof(READY)-1);
   else if(received==1&&request=='X'&&(uid==module_uid||uid==0))stopped=1;
-  else if(received==1&&(request=='R'||request=='V')&&uid==terminal_uid){
+  else if(received==1&&((request=='R'&&uid==terminal_uid)||(request=='V'&&(uid==terminal_uid||uid==module_uid)))){
    int slot=-1;for(int i=0;i<MAX_SESSIONS;i++)if(!sessions[i]){slot=i;break;}
    if(slot<0){send_status(client,4);close(client);continue;}
    if(vm<0){

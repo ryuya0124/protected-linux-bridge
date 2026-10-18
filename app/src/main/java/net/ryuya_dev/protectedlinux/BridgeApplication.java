@@ -7,6 +7,7 @@ import io.github.libxposed.service.XposedServiceHelper;
 
 /** Config is shared through the framework, not through target app package visibility. */
 public final class BridgeApplication extends Application {
+  static volatile BridgeApplication local;
   private volatile XposedService service;
   volatile Runnable observer;
   private void notifyState(){new android.os.Handler(getMainLooper()).post(()->{Runnable r=observer;if(r!=null)r.run();});}
@@ -19,7 +20,7 @@ public final class BridgeApplication extends Application {
     }catch(RuntimeException e){return 0;}
   }
   @Override public void onCreate() {
-    super.onCreate();
+    super.onCreate();local=this;
     XposedServiceHelper.registerListener(new XposedServiceHelper.OnServiceListener() {
       public void onServiceBind(XposedService value) { service=value; publish();notifyState(); }
       public void onServiceDied(XposedService value) { if(service==value)service=null;notifyState(); }
@@ -30,7 +31,7 @@ public final class BridgeApplication extends Application {
     if(current==null)return;
     try {
       boolean ok=current.getRemotePreferences("config").edit().putBoolean("enabled",
-        getSharedPreferences("config",0).getBoolean("enabled",true)).commit();
+        getSharedPreferences("config",0).getBoolean("enabled",true)).putBoolean("gpu_display",getSharedPreferences("config",0).getBoolean("gpu_display",false)).putInt("display_fps",getSharedPreferences("config",0).getInt("display_fps",30)).commit();
       Log.i("ProtectedLinux", "CONFIG_PUBLISHED="+ok);
     } catch(RuntimeException error) { Log.w("ProtectedLinux","CONFIG_PUBLISH_FAILED "+error.getClass().getSimpleName()); }
   }

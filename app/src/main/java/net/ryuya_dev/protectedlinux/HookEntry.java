@@ -6,8 +6,8 @@ import io.github.libxposed.api.*;
 import java.lang.reflect.*;
 
 public final class HookEntry extends XposedModule {
- private static volatile SharedPreferences remote;
- public void onModuleLoaded(XposedModuleInterface.ModuleLoadedParam p){ModernHook.attach(this);try{remote=getRemotePreferences("config");}catch(Throwable e){android.util.Log.w("ProtectedLinux","REMOTE_CONFIG_UNAVAILABLE");}}
+
+ public void onModuleLoaded(XposedModuleInterface.ModuleLoadedParam p){ModernHook.attach(this);try{RuntimePreferences.remote=getRemotePreferences("config");}catch(Throwable e){android.util.Log.w("ProtectedLinux","REMOTE_CONFIG_UNAVAILABLE");}}
  public void onPackageReady(XposedModuleInterface.PackageReadyParam p){
   if(!p.isFirstPackage()||!RuntimeSetup.HOST.equals(p.getPackageName()))return;
   String apk=getModuleApplicationInfo().sourceDir;
@@ -41,11 +41,10 @@ public final class HookEntry extends XposedModule {
    }
   });
  }
- static boolean configReady(){try{return remote!=null&&remote.contains("enabled");}catch(Exception e){return false;}}
  static boolean enabled(Context c){
   // An unavailable configuration must not fall into Samsung's unsupported non-protected launch.
   // The bridge instead displays a bounded setup error in the existing Terminal view.
-  try { if(remote!=null&&remote.contains("enabled"))return remote.getBoolean("enabled",false); }
+  try { if(RuntimePreferences.remote!=null&&RuntimePreferences.remote.contains("enabled"))return RuntimePreferences.remote.getBoolean("enabled",false); }
   catch(Exception e){android.util.Log.w("ProtectedLinux","REMOTE_CONFIG_READ_FAILED");}
   android.util.Log.w("ProtectedLinux","CONFIG_PENDING");return true;
  }

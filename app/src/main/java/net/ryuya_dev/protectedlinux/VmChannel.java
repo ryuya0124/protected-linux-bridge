@@ -20,7 +20,7 @@ final class VmChannel {
     reader.submit(()->{
       String error=null;LocalSocket current=new LocalSocket();
       try {
-        if(!HookEntry.configReady())throw new IOException("Vectorとの設定通信が未準備です。Protected Linux Bridgeを開いてください。");
+        if(!RuntimePreferences.configReady())throw new IOException("Vectorとの設定通信が未準備です。Protected Linux Bridgeを開いてください。");
         current.connect(new LocalSocketAddress("net.ryuya_dev.protectedlinux.console",LocalSocketAddress.Namespace.ABSTRACT));
         if(current.getPeerCredentials().getUid()!=0)throw new IOException("起動支援の接続先を確認できません。");
         socket=current;if(closed)return;

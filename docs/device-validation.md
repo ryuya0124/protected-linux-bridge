@@ -83,3 +83,27 @@ The original image SHA256 was `975d952a1027537490ae8466b2a957b3a99401e9bfb40e1d7
 - Open the display button and inspect private `/tmp/plb-weston.log` for GL renderer. `DISPLAY=:0 glxinfo -B` checks Xwayland. `DISPLAY=:1` checks the outer Xvnc display. Module logcat distinguishes the hardware-composition flag and binary transport.
 - `plb-gpu-mode off` + VM recreation restores CPU rendering; `plb-desktop-mode classic` keeps Openbox while optionally leaving individual OpenGL GPU programs available.
 - Stop the VM and check only the tracked owned GPU descendants disappear. Do not terminate unrelated trusted VMs. The renderer runtime directory contains only public code, libraries and an empty socket directory; diagnostic traces stay in private module data.
+
+
+## 0.3 preview: direct GPU display, fullscreen and display modes
+
+Same Galaxy/Android16/Terminal36 baseline, October18; all Android changes stayed in app/data paths. No Android/kernel/soft reboot, partition write, SELinux change or global display/network setting change. The host boot identity stayed unchanged and SELinux remained Enforcing.
+
+| Check | Result and bounds |
+|---|---|
+| Raw GLES viewer | Adreno840 renderer logged; initial1280×720 and actual1920×1080 /1080×1920 frames displayed. No JavaScript compression/decoding on this path. CPU capture/copy remains. |
+| Native key input | Android synthetic key events typed a guest `touch` command through the GLES surface; resulting guest file verified. No physical keyboard claim. |
+| App graphics controls | Save+recreate changed guest cmdline, mode files and driver environment. OFF produced empty GALLIUM_DRIVER and Openbox; ON selects virpipe/Weston. Viewer GPU is independently switchable. |
+| Resolution/fps propagation | UI selected1920×1080/60 and1080×1920/120. Actual Xvnc args contained matching geometry and FrameRate; raw viewer accepted these frames. This does not measure sustained60/120fps. |
+| Fullscreen GUI | Unexported Bridge activity opened the existing VM GUI, input panel expanded, Close returned to app. Terminal process and shell PID survived; guest uptime advanced rather than resetting. |
+| Compatibility fullscreen | Viewer OFF opened hardware-composited noVNC binary transport in Bridge, showing portrait Openbox/xterm. Back closed only GUI. No INTERNET permission was added. |
+| UID boundary | UID2000 rejected for query, R, V and X. Extending V to the module did not expose PTYs to unrelated callers. |
+| Invalid saved choices | Native helper rejected resolutionID9, fps121 and invalid graphics mode2 with exit1; saved valid settings unchanged. |
+| sudo | `/usr/bin/sudo` exists; `sudo -n id` returns guest UID0. Current shell is already guest root. Nonroot sudoers not tested. |
+| Tests | 13 JVM protocol/input tests, 10 native transport tests and release Lint pass. Bounds cover all nine menu resolutions and reject4K. |
+
+USB/Bluetooth mice/keyboards, arbitrary IMEs, all offered combinations, all GPU applications, extended background/Doze operation and sustained high refresh rates are unverified. CPU/GPU performance is workload dependent; no speedup or zero-copy guarantee.
+
+Issues caught before release: module package visibility prevented createPackageContext in Terminal, so GLES controls use isolated APK ResourcesLoader/theme; ordinary app processes cannot load compile-only XposedModule, so viewer preferences moved out of HookEntry. noVNC's optional WebCodecs H264 top-level feature probe stalled in the standalone WebView; the custom page removes VideoDecoder before importing unmodified noVNC (Xvnc sends no H264). Both standalone transports then connected. No upstream noVNC files were changed.
+
+The no-disk sandbox experiment and host root-VMM risks are documented in [security.md](security.md). It did not change production crosvm flags. This is not evidence of standard AVF verified-boot security.

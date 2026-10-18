@@ -38,6 +38,7 @@ static void proxy_forwarder(void){
  }
 }
 static void configure_environment(void){
+ char width[12],height[12];snprintf(width,sizeof(width),"%d",desktop_width);snprintf(height,sizeof(height),"%d",desktop_height);setenv("PLB_DISPLAY_WIDTH",width,1);setenv("PLB_DISPLAY_HEIGHT",height,1);
  setenv("PATH","/run/plb:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",1);setenv("TERM","xterm-256color",1);setenv("SHELL","/bin/bash",1);setenv("HOME","/root",1);setenv("LANG","C.UTF-8",1);setenv("COLUMNS","80",1);setenv("LINES","24",1);setenv("DISPLAY",":1",1);setenv("XDG_RUNTIME_DIR","/run/user/0",1);setenv("LIBGL_ALWAYS_SOFTWARE","1",1);
  if(!access("/root/.config/protected-linux/gpu-enabled",F_OK)){setenv("GALLIUM_DRIVER","virpipe",1);setenv("VTEST_SOCKET_NAME",PLB_GUEST_GPU_SOCKET,1);}
  for(int i=0;i<3;i++)setenv((const char*[]){"http_proxy","https_proxy","ALL_PROXY"}[i],"http://127.0.0.1:3128",1);
@@ -53,16 +54,16 @@ static void terminal_session(int client){
 static int start_gui(void){
  int test=local_connect(5901);if(test>=0)return test;
  if(access("/usr/bin/Xtigervnc",X_OK))return -2;
- pid_t server=fork();if(server==0){int log=open("/tmp/plb-vnc.log",O_WRONLY|O_CREAT|O_APPEND,0600);if(log>=0){dup2(log,1);dup2(log,2);close(log);}configure_environment();unsetenv("LD_PRELOAD");execl("/usr/bin/Xtigervnc","Xtigervnc",":1","-geometry","1280x720","-depth","24","-localhost","yes","-SecurityTypes","None","-s","0","-nolisten","tcp","-rfbport","5901",(char*)NULL);_exit(46);}
+ pid_t server=fork();if(server==0){int log=open("/tmp/plb-vnc.log",O_WRONLY|O_CREAT|O_APPEND,0600);if(log>=0){dup2(log,1);dup2(log,2);close(log);}configure_environment();char geometry[32],fps[12];snprintf(geometry,sizeof(geometry),"%dx%d",desktop_width,desktop_height);snprintf(fps,sizeof(fps),"%d",desktop_fps);unsetenv("LD_PRELOAD");execl("/usr/bin/Xtigervnc","Xtigervnc",":1","-geometry",geometry,"-FrameRate",fps,"-depth","24","-localhost","yes","-SecurityTypes","None","-s","0","-nolisten","tcp","-rfbport","5901",(char*)NULL);_exit(46);}
  if(server<0)return -1;
  for(int i=0;i<80;i++){test=local_connect(5901);if(test>=0)break;usleep(100000);}
  if(test<0){kill(server,SIGTERM);return -1;}
- if(fork()==0){configure_environment();execl("/bin/sh","sh","-c","if test -f /root/.config/protected-linux/gpu-enabled && test -f /root/.config/protected-linux/desktop-gpu && command -v weston >/dev/null 2>&1; then weston --backend=x11 --renderer=gl --width=1280 --height=720 --socket=wayland-plb --idle-time=0 --no-config --xwayland --log=/tmp/plb-weston.log & compositor=$!; for i in $(seq 1 50); do test -S /run/user/0/wayland-plb && break; kill -0 \"$compositor\" 2>/dev/null || break; sleep .1; done; if test -S /run/user/0/wayland-plb; then WAYLAND_DISPLAY=wayland-plb weston-terminal >/tmp/plb-wayland-terminal.log 2>&1 & wait \"$compositor\"; fi; fi; openbox >/tmp/plb-openbox.log 2>&1 & xterm & terminal=$!; sleep 0.5; if command -v xsetroot >/dev/null 2>&1; then xsetroot -solid '#1d1b20'; fi; wait \"$terminal\"",(char*)NULL);_exit(47);}return test;
+ if(fork()==0){configure_environment();execl("/bin/sh","sh","-c","if test -f /root/.config/protected-linux/gpu-enabled && test -f /root/.config/protected-linux/desktop-gpu && command -v weston >/dev/null 2>&1; then weston --backend=x11 --renderer=gl --width=\"$PLB_DISPLAY_WIDTH\" --height=\"$PLB_DISPLAY_HEIGHT\" --socket=wayland-plb --idle-time=0 --no-config --xwayland --log=/tmp/plb-weston.log & compositor=$!; for i in $(seq 1 50); do test -S /run/user/0/wayland-plb && break; kill -0 \"$compositor\" 2>/dev/null || break; sleep .1; done; if test -S /run/user/0/wayland-plb; then WAYLAND_DISPLAY=wayland-plb weston-terminal >/tmp/plb-wayland-terminal.log 2>&1 & wait \"$compositor\"; fi; fi; openbox >/tmp/plb-openbox.log 2>&1 & xterm & terminal=$!; sleep 0.5; if command -v xsetroot >/dev/null 2>&1; then xsetroot -solid '#1d1b20'; fi; wait \"$terminal\"",(char*)NULL);_exit(47);}return test;
 }
 int main(int argc,char **argv){
  if(getpid()!=1){int gpu=gpu_command(argc,argv);return gpu>=0?gpu:plb_network_command(argc,argv);}
  signal(SIGPIPE,SIG_IGN);signal(SIGTERM,stop_guest);signal(SIGINT,stop_guest);loopback_up();
- mkdir("/run/user",0755);mkdir("/run/user/0",0700);configure_environment();
+ mkdir("/run/user",0755);mkdir("/run/user/0",0700);if(gpu_boot_settings())fputs("GRAPHICS_SETTINGS_FAILED\n",stderr);configure_environment();
  if(fork()==0){proxy_forwarder();_exit(0);}
  if(fork()==0){gpu_forwarder();_exit(0);}
  int listener=socket(AF_VSOCK,SOCK_STREAM|SOCK_CLOEXEC,0);struct sockaddr_vm a={.svm_family=AF_VSOCK,.svm_port=AGENT_PORT,.svm_cid=0xffffffff};

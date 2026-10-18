@@ -18,13 +18,16 @@ final class DisplayController {
   private static final Map<Activity,DisplayController> active=new WeakHashMap<>();
   private final Semaphore frames=new Semaphore(8);
   private Dialog dialog;private WebView web;private VmChannel channel;
-  private volatile boolean closed;
+  private volatile boolean closed;private boolean standalone;
   private volatile JavaScriptReplyProxy binaryReply;
   private final AtomicInteger binaryPending=new AtomicInteger();
-  static void open(Activity activity,String apk){if(active.containsKey(activity))return;DisplayController controller=new DisplayController();active.put(activity,controller);try{controller.show(activity,apk);}catch(Exception error){active.remove(activity);controller.shutdown();android.util.Log.w("ProtectedLinux","DISPLAY_SETUP_FAILED "+error.getClass().getSimpleName());}}
-  static void close(Activity activity){DisplayController controller=active.remove(activity);if(controller!=null){controller.shutdown();if(controller.dialog!=null)controller.dialog.dismiss();}}
+  static void open(Activity activity,String apk){if(RuntimePreferences.gpuDisplay()){GpuDisplayController.open(activity,apk);return;}openLegacy(activity,apk);}
+  static void openLegacy(Activity activity,String apk){if(active.containsKey(activity))return;DisplayController controller=new DisplayController();active.put(activity,controller);try{controller.show(activity,apk);}catch(Exception error){active.remove(activity);controller.shutdown();android.util.Log.w("ProtectedLinux","DISPLAY_SETUP_FAILED "+error.getClass().getSimpleName());}}
+  static void openStandalone(Activity activity,String apk){if(RuntimePreferences.gpuDisplay()){GpuDisplayController.openStandalone(activity,apk);return;}openStandaloneLegacy(activity,apk);}
+  static void openStandaloneLegacy(Activity activity,String apk){if(active.containsKey(activity))return;DisplayController controller=new DisplayController();controller.standalone=true;active.put(activity,controller);try{controller.show(activity,apk);}catch(Exception error){active.remove(activity);controller.shutdown();activity.finish();android.util.Log.w("ProtectedLinux","FULLSCREEN_COMPAT_FAILED");}}
+  static void close(Activity activity){GpuDisplayController.close(activity);DisplayController controller=active.remove(activity);if(controller!=null){controller.shutdown();if(controller.dialog!=null)controller.dialog.dismiss();}}
   private void show(Activity activity,String apk)throws IOException{
-    dialog=new Dialog(activity);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);web=new WebView(activity);dialog.setContentView(web);
+    if(!standalone){dialog=new Dialog(activity);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);}web=new WebView(activity);if(standalone)activity.setContentView(web);else dialog.setContentView(web);
     web.getSettings().setJavaScriptEnabled(true);web.getSettings().setAllowFileAccess(false);web.getSettings().setAllowContentAccess(false);web.getSettings().setBlockNetworkLoads(true);
     web.addJavascriptInterface(new DisplayApi(),"ProtectedDisplay");
     if(WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)&&WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_ARRAY_BUFFER)){
@@ -34,6 +37,7 @@ final class DisplayController {
       });
     }
     web.setWebViewClient(new WebViewClient(){
+      public void onReceivedError(WebView v,WebResourceRequest r,WebResourceError e){android.util.Log.w("ProtectedLinux","DISPLAY_ASSET_ERROR "+e.getErrorCode());}
       public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest request){return true;}
       public WebResourceResponse shouldInterceptRequest(WebView view,WebResourceRequest request){
         var uri=request.getUrl();String path=uri.getPath();
@@ -45,8 +49,8 @@ final class DisplayController {
       public boolean onRenderProcessGone(WebView view,RenderProcessGoneDetail detail){activity.runOnUiThread(()->close(activity));return true;}
     });
     web.setWebChromeClient(new WebChromeClient(){public boolean onConsoleMessage(ConsoleMessage message){if(message.messageLevel()==ConsoleMessage.MessageLevel.ERROR)android.util.Log.w("ProtectedLinux","VNC_JS_ERROR line="+message.lineNumber()+" "+message.message().substring(0,Math.min(200,message.message().length())));return true;}});
-    dialog.getWindow().addFlags(WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED);
-    dialog.setOnDismissListener(ignored->{active.remove(activity);shutdown();});dialog.show();dialog.getWindow().setLayout(WindowManager.LayoutParams.MATCH_PARENT,WindowManager.LayoutParams.MATCH_PARENT);dialog.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+    if(!standalone){dialog.getWindow().addFlags(WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED);
+    dialog.setOnDismissListener(ignored->{active.remove(activity);shutdown();});dialog.show();dialog.getWindow().setLayout(WindowManager.LayoutParams.MATCH_PARENT,WindowManager.LayoutParams.MATCH_PARENT);dialog.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);}
     web.post(()->{if(web!=null&&!closed)android.util.Log.i("ProtectedLinux","DISPLAY_COMPOSITOR hardware="+web.isHardwareAccelerated());});
     web.loadDataWithBaseURL("https://protected-linux.invalid/",new String(Controller.asset(apk,"web/display.html"),StandardCharsets.UTF_8),"text/html","UTF-8",null);
   }

@@ -71,8 +71,17 @@ VTest v0の転送にはコピーが必要です。OpenGL呼び出しのGPU化で
 
 ### 2D合成とVulkanの制約
 
-GPUインストーラーはWestonとXwaylandもゲストに用意し、次回起動時にWeston X11バックエンドをGL rendererで1280×720のXvnc出力上へ表示します。デスクトップ内のウィンドウ合成はVirGL経由でAdrenoへ送り、Xvncは最終画面の取得とRFB転送に使います。Westonの起動に失敗した場合は従来のOpenbox/xtermへ進みます。`plb-desktop-mode classic|gpu` で次回VMのデスクトップを選択できます。GPUモードをオフにすると従来デスクトップを使います。モードファイルはsyncして保存します。
+GPUインストーラーはWestonとXwaylandもゲストに用意し、次回起動時にWeston X11バックエンドをGL rendererで選択した解像度（初期値1280×720）のXvnc出力上へ表示します。デスクトップ内のウィンドウ合成はVirGL経由でAdrenoへ送り、Xvncは最終画面の取得とRFB転送に使います。Westonの起動に失敗した場合は従来のOpenbox/xtermへ進みます。`plb-desktop-mode classic|gpu` で次回VMのデスクトップを選択できます。GPUモードをオフにすると従来デスクトップを使います。モードファイルはsyncして保存します。
 
 これはすべての2Dアプリの内部描画がGPUになるという意味ではありません。Waylandのwl_shmアプリはCPUで作った内容をGPUで合成し、VNC取得・符号化は引き続きCPUを使います。DMA-BUF、共有メモリーによるVM間ゼロコピーは提供していません。
 
 Mesa VenusのVTest実装は `SCM_RIGHTS` で受けたresource FDをmmapし、リング／共有メモリーとして使います。通常のvsockバイト転送ではホストとゲストのFDやページは共有できず、OpenGL用v0への交渉ではVulkanは動きません。既存ゲストにvirtio-gpu/DRMもありません。GPU VulkanにはMesa/Venus側の資源・同期・メモリー転送の追加実装が必要です。LavapipeはCPUであり、GPU Vulkan対応の証拠には使いません。カーネル交換で迂回することはありません。
+
+
+## 直接GPU表示とBridgeの全画面GUI（0.3）
+
+新しい表示経路はゲストのXvncからraw RGBXを読み、JavaScriptを通さずDirectByteBuffer→GLES3テクスチャ→Android Surfaceへ表示します。取得と境界コピーはCPUに残ります。RFBの圧縮／展開を省く代わりに帯域が増え、高解像度・高fpsは速くなる保証がありません。noVNC互換表示を保持しています。
+
+Bridgeの非公開DesktopActivityも同じ認証付きGUI接続を使います。既存のTerminal PTYを閉じず、GUI終了はその接続だけ閉じます。最後の接続終了時は通常通りVMを停止します。物理キーマウの入力マッピングとフォーカス喪失時の解放を実装し、機器による確認は未実施です。
+
+描画スイッチ、解像度ID、更新上限はホストのroot専用固定形式ファイルへ保存して、次回のVM起動時にゲストへ渡します。Androidのグローバル表示設定は変えません。画面転送方式は開き直しで反映します。詳しくは[実装記録](development.md#03-display-and-configuration)、[保護境界](security.md)を参照してください。

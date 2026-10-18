@@ -16,7 +16,7 @@ The tested stock app throws `UnsupportedOperationException` when it requests a n
 | `TerminalTabFragment.onDestroy()` | Close only that tab's transport |
 | `MainActivity.onDestroy()` | Close all activity transports and display |
 
-Verified callers are deoptimized as needed. Native tab controls are retained. Native disk settings are disabled because they do not control this private disk. The display button opens the local noVNC dialog. No system_server/SystemUI/Zygote hooks are installed.
+Verified callers are deoptimized as needed. Native tab controls are retained. Native disk settings are disabled because they do not control this private disk. The display button opens the GLES or compatibility noVNC viewer. A separate unexported DesktopActivity provides fullscreen viewing without closing Terminal PTYs. No system_server/SystemUI/Zygote hooks are installed.
 
 Configuration uses libxposed 102 remote preferences. Framework status means the module is loaded, not that the VM has booted. Unknown configuration shows a setup error rather than entering the known failing native startup; explicit OFF restores stock behavior.
 
@@ -24,7 +24,7 @@ Configuration uses libxposed 102 remote preferences. Framework status means the 
 
 The app requests `su -M` to start a bounded native manager. `-M` selects the existing global mount namespace for that child: Android app-data isolation otherwise hides the real installed image. It does not remount or change global policy. Primary-user UIDs come from PackageManager.
 
-The abstract Unix socket `net.ryuya_dev.protectedlinux.console` authenticates peers using `SO_PEERCRED`. Only the installed Terminal UID can request a PTY (`R`) or GUI (`V`). Module UID/root may query or stop the manager; Terminal cannot request its global stop. Java and native clients verify the server UID is root. No shell command strings are accepted by the host service. Console bytes go only to the guest.
+The abstract Unix socket `net.ryuya_dev.protectedlinux.console` authenticates peers using `SO_PEERCRED`. Only the installed Terminal UID can request a PTY (`R`). Terminal and module UIDs can request a GUI (`V`); the module needs no additional Xposed scope. Module UID/root may query or stop the manager; Terminal cannot request its global stop. Java and native clients verify the server UID is root. No shell command strings are accepted by the host service. Console bytes go only to the guest.
 
 Private files live under `/data/user/0/net.ryuya_dev.protectedlinux/files/vm`, with root-owned mode 0700 storage. The stock Terminal's `files/linux/root_part` is read only during initial sparse copying. Owned qcow2 data uses that private immutable copy as backing. Cached base identity is validated; mismatches stop instead of rebuilding over user data.
 
@@ -40,7 +40,7 @@ Requirements: JDK 21, Android SDK API 37, NDK `28.2.13676358`, Python 3; Gradle 
 
 ```sh
 python3 -m unittest discover -s tests -v
-./gradlew :app:assembleRelease :app:lintRelease
+./gradlew :app:assembleRelease :app:testDebugUnitTest :app:lintRelease
 ```
 
 `tools/build_native.py` compiles Android manager/proxy, freestanding guest init and a static musl guest agent. First build downloads the pinned musl 1.2.5 source and the pinned Termux Android GPU user-space package, verifies their SHA256 values and builds only libc/user-space. The GPU package is extracted selectively; it never installs or updates Termux or a kernel. NDK compiler-rt builtins are linked. No kernel is downloaded or built. Raw cpio is used because this existing guest kernel has no gzip-initramfs support.
@@ -95,3 +95,17 @@ GPU reference sources: [Mesa VirGL](https://docs.mesa3d.org/drivers/virgl.html),
 The display transport uses AndroidX WebKit 1.17.1 ArrayBuffer messages only when both WEB_MESSAGE_LISTENER and WEB_MESSAGE_ARRAY_BUFFER are supported. A fixed HTTPS origin and main-frame check guard the ready handshake; legacy string delivery remains the fallback. JavaScript consumption acknowledgements bound the native queue. GPU viewer composition is requested through the Dialog window flag and its actual isHardwareAccelerated state is logged. [AndroidX binary reply API](https://developer.android.com/reference/androidx/webkit/JavaScriptReplyProxy#postMessage(byte%5B%5D)).
 
 [Venus VTest source](https://android.googlesource.com/platform/external/mesa3d/+/refs/heads/android16-release/src/virtio/vulkan/vn_renderer_vtest.c) shows the minimum v3 protocol, resource FD receipt with SCM_RIGHTS and memory mapping. This bridge's fd-free OpenGL v0 transport cannot substitute for that shared-memory mechanism.
+
+## 0.3 display and configuration
+
+`RawRfb` is an Android-free RFB 3.8 parser with raw RGBX/desktop-resize support only. Handshake authentication is None inside the existing authenticated VM channel; this is not a network listener. The socket peer must be UID 0, and the manager authenticates the caller UID. A framebuffer is bounded to 4,194,304 pixels, maximum width4096/height2160 (16 MiB). Rectangles, clipboard/name sizes and update payloads have independent bounds. Unknown encodings/protocols fail closed; compatibility mode is explicitly selectable.
+
+`GpuDisplayController` reads native socket bytes into direct ByteBuffers through `Os.read`, waits for the GL thread to upload the damage, then requests another incremental frame. One mutable framebuffer and one pending upload limit memory/latency. GLES3 handles RGBX alpha, damaged subrectangles, scaling and letterboxing. Context recreation requests a full refresh; hidden surfaces pause the upload deadline. Physical input is translated into RFB keys/pointers, with focus-loss release and bounded output queue. Android system keys remain local. This is a CPU-copy transport with GPU viewer composition, not DMA-BUF/zero-copy or hardware encoding.
+
+Root-owned `graphics-mode` is fixed-schema `MODE RESOLUTION_ID FPS\n`, opened O_NOFOLLOW and validated for type/owner/mode. A former single-mode file migrates through default resolution/fps. `--settings MODE ID FPS` accepts whitelisted integers; arbitrary strings/paths/commands are not accepted. The shared C table in `native/display_modes.h` assigns stable IDs matching the Android menu. Settings reach the guest as command-line parameters of the existing kernel, not by mounting guest filesystems. Linux flags and Xvnc geometry/FrameRate take effect next VM; remote preferences carry viewer choice/fps. Explicit VM recreation has a data-loss confirmation, stops only this VM, then reopens Terminal.
+
+Android JVM tests cover fragmented raw frames, invalid/auth/oversize/truncated messages, every offered resolution, RFB key/pointer serialization and physical-input mappings. Run the full build command above. Logs `RAW_GPU_READY renderer=...`, `DISPLAY_TRANSPORT raw-gles`, `RAW_GPU_FRAME WxH`, or `RAW_GPU_FAILED` distinguish renderer/connect/frame/error state. The native authorization boundary is unchanged for PTYs.
+
+References: [RFB protocol](https://www.rfc-editor.org/rfc/rfc6143), [Os.read(ByteBuffer)](https://developer.android.com/reference/android/system/Os#read(java.io.FileDescriptor,%20java.nio.ByteBuffer)), [GLES30](https://developer.android.com/reference/android/opengl/GLES30), [Surface frame-rate hints](https://developer.android.com/media/optimize/performance/frame-rate). See [security limits](security.md) before changing VMM privileges.
+
+Viewer preferences are isolated in `RuntimePreferences` (Android SharedPreferences only); an ordinary Bridge activity must never resolve compile-only `HookEntry`/XposedModule. Terminal's UI uses an independent ResourcesLoader for the module APK because package visibility may reject createPackageContext; its theme does not inherit colliding host resource IDs. The compatibility page disables its unused WebCodecs VideoDecoder before noVNC import to avoid an optional top-level feature probe blocking initialization; upstream library files remain unmodified.

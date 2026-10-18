@@ -48,6 +48,26 @@ final class RuntimeSetup {
       return "root_or_runtime_unavailable";
     }
   }
+  static synchronized boolean saveGraphics(Context context,int mode,int resolution,int fps){
+    if((mode!=0&&mode!=1&&mode!=3)||resolution<0||resolution>8||!java.util.Set.of(15,24,30,60,90,120).contains(fps))return false;
+    try{
+      if(!"ready".equals(start(context)))return false;
+      String binary=new File(context.getFilesDir(),"runtime/debian-bridge").getAbsolutePath();
+      Process p=new ProcessBuilder("su","-M","-c",binary+" --settings "+mode+" "+resolution+" "+fps).redirectErrorStream(true).start();
+      boolean ok=p.waitFor(8,TimeUnit.SECONDS)&&p.exitValue()==0;if(p.isAlive())p.destroyForcibly();return ok;
+    }catch(Exception error){return false;}
+  }
+  record GraphicsState(int mode,int resolution,int fps){}
+  static synchronized GraphicsState graphicsState(Context context){
+    try{File binary=new File(context.getFilesDir(),"runtime/debian-bridge");if(!binary.isFile())return new GraphicsState(-1,2,30);
+      Process p=new ProcessBuilder("su","-M","-c",binary.getAbsolutePath()+" --graphics-state").redirectErrorStream(true).start();
+      if(!p.waitFor(8,TimeUnit.SECONDS)){p.destroyForcibly();return new GraphicsState(-2,2,30);}String output=new String(p.getInputStream().readAllBytes(),java.nio.charset.StandardCharsets.UTF_8).trim();
+      if(p.exitValue()!=0||!output.matches("GRAPHICS (-1|0|1|3) [0-8] (15|24|30|60|90|120)"))return new GraphicsState(-2,2,30);String[] parts=output.split(" ");return new GraphicsState(Integer.parseInt(parts[1]),Integer.parseInt(parts[2]),Integer.parseInt(parts[3]));
+    }catch(Exception error){return new GraphicsState(-2,2,30);}
+  }
+  static boolean reopenTerminal(){
+    try{Process p=new ProcessBuilder("su","-M","-c","am force-stop "+HOST+" && am start -n "+HOST+"/.MainActivity").redirectErrorStream(true).start();if(!p.waitFor(10,TimeUnit.SECONDS)){p.destroyForcibly();return false;}return p.exitValue()==0;}catch(Exception error){return false;}
+  }
   static synchronized boolean stop(Context context){
     try {
       File binary=new File(context.getFilesDir(),"runtime/debian-bridge");if(!binary.isFile())return false;
