@@ -1,0 +1,116 @@
+{
+  "build_id": "16373615",
+  "target": "aosp_cf_arm64_only_phone-userdebug",
+  "android_release": "17",
+  "build_fingerprint": "Android/generic_system/generic:17/CP2A.260605.016/16373615:userdebug/test-keys",
+  "archive_url": "https://ci.android.com/builds/submitted/16373615/aosp_cf_arm64_only_phone-userdebug/latest/raw/aosp_cf_arm64_only_phone-img-16373615.zip",
+  "archive_size": 1101175103,
+  "archive_md5": "46f44b3494d54d64c39af2df619f9df3",
+  "verification_note": "Official public CI HTTPS; selected ZIP members checked with CRC32 and pinned SHA256 where recorded. Whole-archive MD5 is metadata only and is not checked by selective downloads. No host installer or flashing tools are run.",
+  "members": [
+    {
+      "name": "android-info.txt",
+      "method": 8,
+      "crc": 3004537559,
+      "compressed": 70,
+      "size": 83,
+      "offset": 0,
+      "sha256": "9e65df4d6461e776a29250602980d7f9fbc3d4e12cf66af759dcc38df02b33ee"
+    },
+    {
+      "name": "boot.img",
+      "method": 8,
+      "crc": 3764726267,
+      "compressed": 18088092,
+      "size": 67108864,
+      "offset": 405,
+      "sha256": "a8fb0875277c99d40154e03416010c496c22395bb4dd6b399ddeef69f5a833ac"
+    },
+    {
+      "name": "init_boot.img",
+      "method": 8,
+      "crc": 2158002812,
+      "compressed": 2694641,
+      "size": 8388608,
+      "offset": 18090093,
+      "sha256": "df1a2fc8aa21b5df13a2dcea50cdf90ac2ad222f19fb5a70877a16130e374e54"
+    },
+    {
+      "name": "vendor_boot.img",
+      "method": 8,
+      "crc": 3148718575,
+      "compressed": 16673023,
+      "size": 67108864,
+      "offset": 20797559,
+      "sha256": "02b2af631eb4868ea2163b9de0773ab3b17bf1f5ddca5ab4e2a0258777f46f3f"
+    },
+    {
+      "name": "super.img",
+      "method": 8,
+      "crc": 2509079396,
+      "compressed": 1063703201,
+      "size": 1746554644,
+      "offset": 37470681,
+      "sha256": "54052b9f2d0f463e995c90b9eecc4b3a8aad29d110044aac9c2170108feb5a05"
+    },
+    {
+      "name": "vbmeta.img",
+      "method": 8,
+      "crc": 2090631574,
+      "compressed": 2453,
+      "size": 12288,
+      "offset": 20788391,
+      "sha256": "f2b8f369dd85659180b6bb10abf23845ac0d61de0cd6c17d883fc342e23867d8"
+    },
+    {
+      "name": "vbmeta_system.img",
+      "method": 8,
+      "crc": 177908684,
+      "compressed": 2281,
+      "size": 4096,
+      "offset": 20790938,
+      "sha256": "8cd7110a0a15dbde66c91789e227bfe6a67b8381466815185a9bb5a0b161173d"
+    },
+    {
+      "name": "vbmeta_system_dlkm.img",
+      "method": 8,
+      "crc": 203917855,
+      "compressed": 2011,
+      "size": 4096,
+      "offset": 20793320,
+      "sha256": "1c86b6c6b979860ee5e9f67387f0f152c4db39274520de812858ce3b6fec989a"
+    },
+    {
+      "name": "vbmeta_vendor_dlkm.img",
+      "method": 8,
+      "crc": 325943083,
+      "compressed": 2016,
+      "size": 4096,
+      "offset": 20795437,
+      "sha256": "beeda4df61c649a7c74a5a296d910b310b9abb26bd2d81ff9b634008148dbc11"
+    },
+    {
+      "name": "userdata.img",
+      "method": 8,
+      "crc": 2283344433,
+      "compressed": 3464,
+      "size": 2249012,
+      "offset": 20784831,
+      "sha256": "f61bf108a6681bfd40f43e288a68bc623f1218d6d0d1840be87cb278b6093034"
+    }
+  ],
+  "guest_vbmeta": {
+    "size": 22912,
+    "hash_alg": "sha256",
+    "digest": "0db3571720daf0bda012722eed14cfe195f4d986e8521c3c0ad2c49ee7351633",
+    "chain_order": [
+      "vbmeta.img",
+      "boot.img",
+      "init_boot.img",
+      "vbmeta_system.img",
+      "vbmeta_system_dlkm.img",
+      "vbmeta_vendor_dlkm.img"
+    ],
+    "note": "Computed from unchanged official guest images, including AVB footers in boot and init_boot. Does not assert hardware verified boot or attestation. Host Android AVB is untouched."
+  }
+}

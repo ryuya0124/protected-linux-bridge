@@ -20,6 +20,8 @@ Custom ARM64 guest kernels, guest modules, initramfs/DTB/rootfs may be built or 
 
 Android 15/16 support remains an investigation, not an implemented capability. A kernel alone does not supply Android boot/root images, fstab/partitions, Binder, vendor HALs, graphics/composer, input, SELinux policy or suitable virtual devices. Validate these separately before describing Android guests as supported.
 
+Follow-up now includes Android 17 Cuttlefish and a checked 4 KiB diskless boot. See [Android display investigation](android-guest-display.md). The heavy-GUI failure also reproduces without graphics and with the stock guest kernel; [the memory investigation](gunyah-memory-investigation.md) records the bounded matrix, false-success VMM exit and VM-local comparisons. Neither finding is advertised as a completed Android profile or a Gunyah fix.
+
 ## Current status
 
 The stock Microdroid mode boots Debian. Diskless custom-kernel boot and an isolated Debian-copy boot have been verified; workload stability remains limited (measurements below). Preview.2 adds optional guest TUN TCP/UDP/DNS and verifies lightweight VTest GPU activity. Direct USB remains disabled by the installed protected-VMM path. Read-only virtio-gpu probes reach EGL but not usable Vulkan; production flags remain unchanged. See [experimental I/O](experimental-io.md). Enabling CONFIG options alone is insufficient.

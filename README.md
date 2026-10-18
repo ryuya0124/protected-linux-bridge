@@ -123,6 +123,8 @@ systemdは実際のPID1で、`systemctl start/stop/enable`が使えます。Micr
 
 ゲスト変更でもホスト障害の危険はゼロではありません。ホストのカーネル、SELinux、Gunyah保護機構は変更しません。[調査結果・対応範囲](docs/guest-kernel-plan.md)と[ソース・ビルド条件](kernels/README.md)を参照してください。
 
+追加調査では、GPUなしのメモリ負荷や標準Microdroidカーネルでも同じ障害を確認しました。空きRAMがあるだけでは安定性を保証できず、現時点では未修正です。[Gunyah障害の調査記録](docs/gunyah-memory-investigation.md)と[Android 17の画面表示に向けた進捗](docs/android-guest-display.md)を公開しています。
+
 ## sudoとAndroid本体の保護
 
 現在のDebianシェルはVM内のrootです。`sudo`は導入済みで、`sudo -n id`の成功を確認しています。一般ユーザーのsudoers設定は別途必要です。VM内のrootはAndroidのrootではありません。
