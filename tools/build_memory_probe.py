@@ -9,6 +9,16 @@ from build_guest_runtime import build
 
 p = argparse.ArgumentParser()
 p.add_argument("--sdk", required=True)
+p.add_argument(
+    "--allocation-research",
+    action="store_true",
+    help="Compile small owned-allocation/cache probes; never execute them",
+)
+p.add_argument(
+    "--policy-proposal",
+    action="store_true",
+    help="Compile the unapproved policy proposal helper; --plan is read-only",
+)
 a = p.parse_args()
 root = Path(__file__).resolve().parents[1]
 sdk = Path(a.sdk)
@@ -107,6 +117,30 @@ inputs = [
     library,
     out / "memory-probe.cpio",
 ]
+extra_tools = []
+if a.allocation_research:
+    extra_tools += [
+        ("backing_allocation_probe.c", "backing-allocation-probe"),
+        ("owned_cache_probe.c", "owned-cache-probe"),
+    ]
+if a.policy_proposal:
+    extra_tools.append(("memory_policy_probe.c", "memory-policy-probe"))
+for source_name, output_name in extra_tools:
+    source, executable = root / "tools" / source_name, out / output_name
+    subprocess.run(
+        [
+            str(tc / "bin/aarch64-linux-android35-clang"),
+            "-O2",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            str(source),
+            "-o",
+            str(executable),
+        ],
+        check=True,
+    )
+    inputs += [source, executable]
 manifest = {
     str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest() for path in inputs
 }

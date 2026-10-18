@@ -80,7 +80,7 @@ int main(int argc, char **argv) {
     int mem = number(argv[2]), touch = number(argv[3]), huge = number(argv[4]);
     int anonymous = argc == 6 ? number(argv[5]) : 0;
     if (!kernel || (mem != 512 && mem != 768 && mem != 1024) || touch < 64 || touch > mem - 64 ||
-        huge < 0 || huge > 1 || anonymous < 0 || anonymous > 1)
+        huge < 0 || huge > 1 || anonymous < 0 || anonymous > 2)
         return 21;
     if (anonymous) {
         struct stat library, copy;
@@ -107,7 +107,8 @@ int main(int argc, char **argv) {
             _exit(23);
         if (anonymous &&
             (setenv("LD_PRELOAD", FILES "/kernel-probes/libmemory_backing_probe.so", 1) ||
-             setenv("PLB_DISKLESS_BACKING_PROBE", "anonymous", 1) ||
+             setenv("PLB_DISKLESS_BACKING_PROBE",
+                    anonymous == 2 ? "anonymous-prefault" : "anonymous", 1) ||
              setenv("LD_LIBRARY_PATH",
                     "/apex/com.android.virt/lib64:/system/lib64:/system_ext/lib64", 1)))
             _exit(27);

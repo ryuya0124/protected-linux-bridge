@@ -72,10 +72,16 @@ def main():
     parser.add_argument("--memory", type=int, choices=(512, 768, 1024), required=True)
     parser.add_argument("--touch", type=int, required=True, help="Guest MiB to allocate and touch")
     parser.add_argument("--hugepages", action="store_true", help="VMM-local huge-page advice only")
-    parser.add_argument(
+    backing = parser.add_mutually_exclusive_group()
+    backing.add_argument(
         "--anonymous-backing",
         action="store_true",
         help="Diskless research only: private anonymous guest RAM; no external backends",
+    )
+    backing.add_argument(
+        "--prefault-backing",
+        action="store_true",
+        help="Diskless research: populate private anonymous RAM before guest donation",
     )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
@@ -98,7 +104,7 @@ def main():
     )
     if available < (args.memory + 768) * 1024:
         parser.error("Insufficient host memory headroom; host policies will not be changed")
-    if args.anonymous_backing:
+    if args.anonymous_backing or args.prefault_backing:
         hashes = shell(
             "sha256sum /apex/com.android.virt/bin/crosvm " + FILES + "/kernel-probes/crosvm-copy"
         ).splitlines()
@@ -106,8 +112,8 @@ def main():
             parser.error("The private diagnostic crosvm copy must match the installed VMM exactly")
     args.output.mkdir(parents=True, exist_ok=True)
     label = f"{args.kernel}-{args.memory}-{args.touch}" + ("-huge" if args.hugepages else "")
-    if args.anonymous_backing:
-        label += "-anonymous"
+    if args.anonymous_backing or args.prefault_backing:
+        label += "-prefault" if args.prefault_backing else "-anonymous"
     output = args.output / (datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ-") + label)
     output.mkdir(mode=0o700)
     before = host_snapshot(shell)
@@ -120,7 +126,7 @@ def main():
         str(args.memory),
         str(args.touch),
         "1" if args.hugepages else "0",
-        "1" if args.anonymous_backing else "0",
+        "2" if args.prefault_backing else "1" if args.anonymous_backing else "0",
     ]
     with (output / "vmm.log").open("w") as out:
         result = subprocess.run(
@@ -136,12 +142,18 @@ def main():
         "touch": args.touch,
         "hugepages": args.hugepages,
         "anonymous_backing": args.anonymous_backing,
+        "prefault_backing": args.prefault_backing,
         "exit": result.returncode,
         **assess_probe(result.returncode, data, (output / "vmm.log").read_text(), args.touch),
     }
-    if args.anonymous_backing and "PLB_BACKING_REPLACED" not in (output / "vmm.log").read_text():
+    if (args.anonymous_backing or args.prefault_backing) and "PLB_BACKING_REPLACED" not in (
+        output / "vmm.log"
+    ).read_text():
         summary["complete"] = False
         summary["backing_not_applied"] = True
+    if args.prefault_backing and "PLB_BACKING_PREFAULTED" not in (output / "vmm.log").read_text():
+        summary["complete"] = False
+        summary["prefault_not_applied"] = True
     after = host_snapshot(shell)
     (output / "host-after.json").write_text(json.dumps(after, indent=2) + "\n")
     summary["host_boundary_unchanged"] = (

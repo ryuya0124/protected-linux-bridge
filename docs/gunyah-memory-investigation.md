@@ -4,7 +4,7 @@
 
 The previously observed heavy-GUI failure is **not fixed**. A bounded, diskless memory workload now reproduces it without GPU, GUI, network, vsock or persistent disks. It also reproduces with the preinstalled Microdroid guest kernel. This narrows the investigation beyond desktop rendering and the custom Linux kernel.
 
-The tests used the explicitly selected Galaxy SM-S948Q, Android 16 / One UI 80500, host kernel 6.12.30 and the installed protected crosvm/Gunyah path. Only one owned VM ran at a time. The host boot ID remained unchanged and SELinux remained Enforcing. The unrelated trusted VM was left alone. No host kernel/module, partition, policy, sysctl, memory-compaction, cache-drop or reboot operation was used. See [the immutable boundary](host-boundary.md).
+The tests used the explicitly selected Galaxy SM-S948Q, Android 16 / One UI 80500, host kernel 6.12.30 and the installed protected crosvm/Gunyah path. Only one owned VM ran at a time. The host boot ID remained unchanged and SELinux remained Enforcing. The unrelated trusted VM was left alone. No host kernel/module, partition, policy, sysctl, global memory-compaction, global cache-drop or reboot operation was used. Later small-allocation trials requested collapse only on their own mappings and released cache only for this app's immutable Android artifacts, as detailed below. See [the immutable boundary](host-boundary.md).
 
 ## Measured results
 
@@ -24,7 +24,7 @@ The guest writes one byte per 4 KiB across an anonymous mapping, reads every wri
 
 These are samples, not a universal 448/512 MiB limit. Last progress is rounded to 64 MiB; it is not the exact failing allocation size. VM boot memory and host backing layout differ. Passing a short memory probe does not establish long-term desktop stability.
 
-On failure the VMM reported `unknown gh exit reason: 3`, a vCPU error and `vcpu crashed`, then still logged success and returned zero. Published Gunyah UAPI names reason 3 `PAGE_FAULT`. Host diagnostics concurrently reported `Failed to map guest address ...: 10`, followed by `Failed to provide folio ...: -12`. Raw logs, physical/guest addresses and device identifiers stay in the ignored private artifacts directory.
+On failure the VMM reported `unknown gh exit reason: 3`, a vCPU error and `vcpu crashed`, then still logged success and returned zero. The running host's offline BTF metadata confirms reason 3 as `GUNYAH_VCPU_EXIT_PAGE_FAULT`. Host diagnostics concurrently reported `Failed to map guest address ...: 10`, followed by `Failed to provide folio ...: -12`. Raw logs, physical/guest addresses and device identifiers stay in the ignored private artifacts directory.
 
 ## What the source supports
 
@@ -42,7 +42,7 @@ After reconnecting over USB, the instrumented runner reproduced the failure with
 
 The original APEX executable refused an app-private preload library at the linker namespace boundary. No linker configuration was changed. The comparison instead ran a root-private, readonly **byte-identical copy** of the installed crosvm with process-local library paths; the Python driver checks the installed/copy SHA256 before each such run. Neither the original executable nor an Android system file was patched. The preload environment is not propagated through later exec calls.
 
-The low-load probe passed. The 1 GiB/768 MiB probe still produced the same vCPU/mapping failure. The replacement was positively logged, anonymous RSS increased, and `AnonHugePages` remained zero. Thus changing backing alone with huge-page advice did **not** solve it. This does not rule out all larger-folio strategies, nor does it justify automatic deployment to normal VMs. No forced collapse/global compaction, huge-page reservation, policy override or protection change was attempted.
+The low-load probe passed. The 1 GiB/768 MiB probe still produced the same vCPU/mapping failure. The replacement was positively logged, anonymous RSS increased, and `AnonHugePages` remained zero. Thus changing backing alone with huge-page advice did **not** solve it. This does not rule out all larger-folio strategies, nor does it justify automatic deployment to normal VMs. At this stage no forced collapse was attempted. Later trials below requested collapse only for tiny owned allocations; no global compaction, huge-page reservation, policy override or protection change was performed.
 
 ## Reproducible diagnostic tools
 
@@ -75,3 +75,79 @@ The 16 KiB Android SDK 37.2 kernel produced no serial output in a separate bound
 Until a cause and correction are verified, retain the conservative experimental preset and the existing stock profile. Do not expose a misleading “Gunyah fixed” or “high-load GPU supported” switch.
 
 The parallel Android 17 userspace probe also encountered guest Linux OOM in a 512 MiB VM after SurfaceFlinger/system_server startup. That message comes from the **guest** kernel and is distinct from host Gunyah address-map `NOMEM`. Its HAL/resource work must be tracked separately; it is not evidence that the larger-memory hypervisor failure was fixed.
+
+
+## Follow-up measurements: prefaulting and actual host types
+
+The same private anonymous mapping was populated before Gunyah received its pages,
+using the development-only `--prefault-backing` option. At 512 MiB VM RAM / 256 MiB
+readback it passed. At 1024 MiB / 768 MiB readback it failed with the same Gunyah
+mapping error; the last progress marker was 384 MiB. The owned VMM had about
+1.06 GiB RSS after prefaulting but zero `AnonHugePages`. Prefaulting is therefore
+**not a fix** and is not enabled in the APK. A final preinstalled-kernel baseline
+at 512 MiB / 256 MiB still completed with zero readback errors.
+
+`tools/inspect_gunyah_btf.py` parses bounded, offline kernel type metadata. The
+running host exposes `GUNYAH_ERROR_NOMEM = 10` and
+`GUNYAH_VCPU_EXIT_PAGE_FAULT = 3`. The similarly numbered resource-manager enum is
+a different type. This verifies the error names against the device, while BTF
+still supplies no executing instruction bodies or hypervisor allocator internals.
+The raw BTF and device logs remain private; only whitelisted type/member names
+are emitted. No BPF program or kernel module is loaded.
+
+## Small owned-allocation comparisons
+
+`tools/backing_allocation_probe.c` compares a private anonymous allocation, a
+shared memfd and a detached tmpfs object. Each trial uses 16 MiB, writes and reads
+back its own pages, and requests `MADV_COLLAPSE` on four owned 2 MiB ranges. The
+detached object uses a `huge=always` tmpfs configuration but is **never attached to
+any namespace or host mountpoint**. Closing its descriptors releases the object.
+
+All three had zero readback errors but no huge/compound pages; the collapse
+requests returned `ENOMEM`. Own-process `smaps` and aggregate page flags agreed.
+No physical addresses are published. A failed collapse does not establish which
+Gunyah-internal resource later runs out.
+
+`tools/owned_cache_probe.c` holds the shared VM ownership lock and issues
+`POSIX_FADV_DONTNEED` only for a fixed whitelist of this app's immutable new Android
+images. It uses readonly descriptors and does not touch the Debian disks, the
+Android working overlay, other apps' files or global cache-drop controls. About
+347 MiB of resident base-image pages were released in the measured sample.
+Higher-order free blocks remained absent, and the subsequent tiny allocation
+still failed to obtain compound pages. Cached image pages alone therefore did
+not explain the failed large-page allocation.
+
+Read-only host configuration checks found THP and compaction enabled, no
+`CONFIG_HUGETLBFS`, and all sub-PMD anonymous THP sizes set to `never`. The normal
+2 MiB order inherits the global policy, but direct defragmentation is `never`.
+This rules out an available hugetlb pool on this build and explains why an
+accepted per-VMA hint alone is insufficient evidence of large folios. CMA pools
+belonging to other subsystems are not a usable reservation for this project.
+
+The proposed smaller-folio trial is documented separately in
+[memory-policy-proposal.md](memory-policy-proposal.md). **It is unexecuted and
+requires an explicit exception for two host-wide runtime settings.** The released
+APK does not include it. A mock supervisor restored private regular files on
+normal completion and after its own controller was killed; that does not prove
+restoration after a host hang. Actual settings remained `never`, Android's boot
+ID did not change, SELinux remained Enforcing, and the unrelated trusted VM was
+not manipulated.
+
+Build these development helpers without installing or executing them:
+
+```sh
+python3 tools/build_memory_probe.py --sdk "$ANDROID_SDK_ROOT" --allocation-research
+```
+
+The independent `--policy-proposal` build option only compiles the unapproved
+supervisor; it does not authorize its application mode. The BTF parser can be
+used on an already acquired private metadata file:
+
+```sh
+python3 tools/inspect_gunyah_btf.py /private/path/to/vmlinux.btf
+```
+
+The current conclusion remains limited: larger guest workloads fail at Gunyah
+address mapping, and the tested process-local backing strategies did not fix it.
+Larger folios reducing mapping-resource demand remain a hypothesis. Neither a
+working large-memory VM nor the exact exhausted hypervisor resource is established.

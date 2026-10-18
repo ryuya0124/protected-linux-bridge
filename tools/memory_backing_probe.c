@@ -17,6 +17,7 @@
 #include <string.h>
 
 static int enabled;
+static int prefault;
 
 static int approved_arguments(void) {
     char args[8192];
@@ -64,13 +65,15 @@ __attribute__((constructor)) static void initialize(void) {
     struct stat actual, expected;
     if (!mode)
         return;
-    if (strcmp(mode, "anonymous") || getuid() || stat("/proc/self/exe", &actual) ||
+    if ((strcmp(mode, "anonymous") && strcmp(mode, "anonymous-prefault")) || getuid() ||
+        stat("/proc/self/exe", &actual) ||
         stat("/data/user/0/net.ryuya_dev.protectedlinux/files/kernel-probes/crosvm-copy",
              &expected) ||
         actual.st_dev != expected.st_dev || actual.st_ino != expected.st_ino ||
         !approved_arguments())
         _exit(79);
     enabled = 1;
+    prefault = !strcmp(mode, "anonymous-prefault");
     /* Do not propagate this experiment through a later exec. */
     unsetenv("LD_PRELOAD");
     unsetenv("PLB_DISKLESS_BACKING_PROBE");
@@ -98,6 +101,15 @@ static void *map_memory(void *address, size_t size, int prot, int flags, int fd,
     if (replace && mapping != MAP_FAILED) {
         int advice = madvise(mapping, size, MADV_HUGEPAGE);
         dprintf(STDERR_FILENO, "PLB_BACKING_REPLACED size=%zu hugepage_advice=%d\n", size, advice);
+        if (prefault) {
+            /* Populate only this new, zero-initialized guest mapping before
+             * Gunyah pins/donates its folios. No global THP or compaction setting. */
+            volatile unsigned char *bytes = mapping;
+            for (size_t at = 0; at < size; at += 4096)
+                bytes[at] = 0;
+            dprintf(STDERR_FILENO, "PLB_BACKING_PREFAULTED size=%zu alignment=%zu\n", size,
+                    (size_t)((uintptr_t)mapping & ((2UL * 1024 * 1024) - 1)));
+        }
     }
     return mapping;
 }
