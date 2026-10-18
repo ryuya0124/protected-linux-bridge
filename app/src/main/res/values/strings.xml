@@ -173,4 +173,21 @@ plb-udp-forward 5353 1.1.1.1 53 forwards guest localhost:5353 to the specified U
   <string name="storage_backup_exists">A previous disk is retained, or the requested capacity is invalid. Review disk state first.</string>
   <string name="storage_no_space">Not enough Android free space for the working and final copies.</string>
   <string name="storage_failed">Disk operation did not complete. The original is retained. Check private storage logs before retrying; an interrupted promotion is recovered at next start.</string>
+  <string name="android_guest_title">Android 17 guest · experimental</string>
+  <string name="android_guest_description">Separate Cuttlefish VM: 512 MB RAM, 2 CPUs, 480 × 800. The low memory limit causes severe slowdowns and app failures. Prepared guest files are required; no OS images are bundled. Debian is stopped before launch and its disks are preserved. Closing the viewer stops only this VM. Maximum session: 30 minutes. No guest network, audio, physical USB or accelerated graphics yet.</string>
+  <string name="android_guest_open">Open Android guest</string>
+  <string name="android_guest_starting">Starting Android 17 guest… First boot may take several minutes.</string>
+  <string name="android_guest_connected">Android 17 · experimental · 512 MB · slow frame capture</string>
+  <string name="android_guest_unsupported">This Android guest profile is verified only on SM-S948Q / Android 16.</string>
+  <string name="android_guest_root_error">Root is unavailable. Allow Protected Linux Bridge in your root manager.</string>
+  <string name="android_guest_missing">Guest files are missing or have unsafe permissions. Prepare the pinned Android profile using the repository guide.</string>
+  <string name="android_guest_busy">Another VM or storage operation is using the launcher. Close it and retry.</string>
+  <string name="android_guest_start_failed">The guest did not finish its initial setup. Check ProtectedLinuxAndroid logs.</string>
+  <string name="android_guest_error">Android guest stopped: %1$s</string>
+  <string name="android_guest_unlock">Unlock</string>
+  <string name="android_guest_back">Back</string>
+  <string name="android_guest_home">Home</string>
+  <string name="android_guest_close">Close</string>
+  <string name="android_guest_integrity">The guest kernel or ramdisk hash does not match the tested profile. Launch was refused.</string>
+  <string name="android_guest_headroom">Not enough free host memory to launch this VM safely. Close other apps and retry.</string>
 </resources>

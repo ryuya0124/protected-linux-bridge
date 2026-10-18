@@ -144,6 +144,7 @@ public final class MainActivity extends AppCompatActivity {
     integrationCard(pages[2]);
     audioDevicesCard(pages[2]);
     pages[3].addView(text(getString(R.string.tab_settings), 24));
+    androidGuestCard(pages[3]);
     kernelCard(pages[3]);
     resourcesCard(pages[3]);
     storageCard(pages[3]);
@@ -872,6 +873,27 @@ public final class MainActivity extends AppCompatActivity {
   private MaterialAutoCompleteTextView ramMenu, cpuMenu, minutesMenu, diskMenu;
   private MaterialSwitch keepVm, systemd;
   private TextView resourceStatus;
+
+  private void androidGuestCard(LinearLayout page) {
+    MaterialCardView card = card(page);
+    LinearLayout body = column();
+    body.setPadding(dp(18), dp(14), dp(18), dp(14));
+    card.addView(body);
+    body.addView(text(getString(R.string.android_guest_title), 20));
+    body.addView(text(getString(R.string.android_guest_description), 14));
+    button(R.string.android_guest_open, body)
+        .setOnClickListener(
+            view ->
+                new MaterialAlertDialogBuilder(this)
+                    .setTitle(R.string.android_guest_title)
+                    .setMessage(R.string.android_guest_description)
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .setPositiveButton(
+                        R.string.android_guest_open,
+                        (dialog, which) ->
+                            startActivity(new Intent(this, AndroidGuestActivity.class)))
+                    .show());
+  }
 
   private void resourcesCard(LinearLayout page) {
     MaterialCardView card = card(page);

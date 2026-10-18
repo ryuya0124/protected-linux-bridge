@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
-import argparse, subprocess, stat, platform, hashlib
+import argparse, subprocess, stat, platform, hashlib, json, shlex
 from build_guest_runtime import build as build_guest
 from fetch_gpu_runtime import fetch as fetch_gpu
 from build_clipboard_worker import build as build_clipboard
@@ -61,6 +61,27 @@ subprocess.run(
         str(out / "debian-mainline-bridge"),
         str(root / "native/console_bridge.c"),
         str(root / "native/network_proxy.c"),
+    ],
+    check=True,
+)
+# The guest setup source is kept readable; only the C string wrapper is generated.
+setup = (root / "native/android_guest_setup.sh").read_text()
+(temp / "android_guest_setup.generated.h").write_text(
+    "/* Generated from native/android_guest_setup.sh. */\n"
+    + "static const char android_setup_service[] =\n"
+    + json.dumps("exec:sh -c " + shlex.quote(setup))
+    + ";\n"
+)
+subprocess.run(
+    base
+    + [
+        "-I",
+        str(temp),
+        "-fPIE",
+        "-pie",
+        "-o",
+        str(out / "android-bridge"),
+        str(root / "native/android_guest_manager.c"),
     ],
     check=True,
 )

@@ -17,6 +17,7 @@ import subprocess
 import uuid
 import zlib
 
+from android_ramdisk import write_lowram
 from android_sparse import SparseImage
 from fetch_android_guest import MANIFEST, OUTPUT, check_existing
 
@@ -303,6 +304,7 @@ def main():
     }
     (OUTPUT / "android-base.json").write_text(json.dumps(record, indent=2) + "\n")
     build_ramdisk()
+    write_lowram(OUTPUT / "android-ramdisk.cpio", OUTPUT / "android-lowram.cpio")
     subprocess.run(
         [
             args.qemu_img,
@@ -326,6 +328,11 @@ def main():
         misc.truncate(2 * MIB)
     write_gpt(OUTPUT / "android-misc.raw", [("misc", misc_payload, 2 * MIB)])
     misc_payload.unlink()
+    frp_payload = OUTPUT / "frp-payload.raw"
+    with frp_payload.open("xb") as frp:
+        frp.truncate(MIB)
+    write_gpt(OUTPUT / "android-frp.raw", [("frp", frp_payload, MIB)])
+    frp_payload.unlink()
     print(json.dumps(record))
     print("Prepared private guest files only; no VM launched and no device modified.")
 

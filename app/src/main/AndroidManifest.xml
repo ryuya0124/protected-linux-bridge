@@ -17,6 +17,7 @@
       </intent-filter>
     </activity>
     <activity android:name=".DesktopActivity" android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden" android:exported="false" android:theme="@style/Theme.ProtectedLinux" android:windowSoftInputMode="adjustResize" />
+    <activity android:name=".AndroidGuestActivity" android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout" android:exported="false" android:theme="@style/Theme.ProtectedLinux" />
     <service android:name=".MicrophoneService" android:exported="false" android:foregroundServiceType="microphone" />
   </application>
 </manifest>

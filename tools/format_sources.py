@@ -57,6 +57,7 @@ def main():
         "-w",
         "-i",
         "4",
+        "native/android_guest_setup.sh",
         "native/plb-network",
         "native/plb-install-gui",
         "native/plb-install-gpu",

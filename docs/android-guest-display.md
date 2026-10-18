@@ -1,6 +1,6 @@
 # Android guest display investigation
 
-Status: 2026-10-19. The release APK still provides Debian profiles. **An interactive Android guest is not implemented or verified.** No Android image is flashed or installed into the host. All downloaded images are ignored development artifacts; phone-side files are confined to Bridge's private data. The existing Debian profiles/disks and stock kernel are retained. [Host prohibitions](host-boundary.md) remain in force.
+Status: 2026-10-19. The release APK retains Debian profiles and adds a separate, limited Android 17 display preview. **A stable, usable Android desktop is not verified.** No Android image is flashed or installed into the host. All downloaded images are ignored development artifacts; phone-side files are confined to Bridge's private data. The existing Debian profiles/disks and stock kernel are retained. [Host prohibitions](host-boundary.md) remain in force.
 
 ## Current boot gates
 
@@ -8,7 +8,7 @@ Status: 2026-10-19. The release APK still provides Debian profiles. **An interac
 |---|---|---|
 | Existing Android 16 SDK / 4 KiB kernel | Diskless kernel boot/poweroff; separate SDK disks reach second-stage init, apexd, servicemanager and system_server attempts | No working SurfaceFlinger; Goldfish emulator HAL/topology mismatch, fresh filesystem feature mismatch |
 | Latest checked SDK 37.2 / Android 17 / 16 KiB | Official repository metadata, bounded kernel/ramdisk download, kernel configuration inspection | No console output in bounded diskless probe; no successful boot claimed |
-| Android 17 Cuttlefish / 4 KiB | Diskless memory pass; separate GPT/qcow disk reaches normal guest AVB/verity mounts, guest SELinux, APEX, BootControl, encrypted F2FS userdata, HWC, SurfaceFlinger and system_server | Additional virtual HAL dependencies; no verified frame capture, interactive display, input or complete boot |
+| Android 17 Cuttlefish / 4 KiB | Diskless memory pass; separate GPT/qcow disk reaches normal guest AVB/verity mounts, guest SELinux, APEX, BootControl, encrypted F2FS userdata, HWC, SurfaceFlinger and system_server | Boot completion and real boot-animation/lock-screen frame capture observed; integrated viewer/control transport is experimental, with severe 512 MiB pressure and launcher/SystemUI failures |
 
 Cuttlefish build `16373615`, target `aosp_cf_arm64_only_phone-userdebug`, identifies Android 17 `CP2A.260605.016`. Its boot image contains Linux `6.12.74-android16-6-g3ec022196c4e-ab15076761-4k`. The kernel release name does not mean its Android userspace is version 16. The matching vendor ramdisk includes virtio-gpu, virtio-input, virtio-block, virtio-net and vsock modules. These are **guest modules**; none are loaded on Android's host kernel.
 
@@ -49,7 +49,7 @@ The downloaded vendor includes multiple variants of Gatekeeper, KeyMint, compose
 
 The initial ext4 fstab selection did not match the factory userdata image. Its actual superblock is F2FS; switching to the corresponding supplied fstab enabled normal encrypted F2FS userdata initialization. A missing guest `misc` device had independently prevented BootControl from registering; a separate new guest-only disk resolved that dependency. Neither correction modified the signed system/vendor/boot images or an Android host partition.
 
-At the recorded 45-second sample, compositor services, SurfaceFlinger and a system_server process started, while missing virtual HAL services still prevented completing startup. The installed crosvm also reports that its native host display is unsupported. **Service startup is not a verified GUI frame or an interactive Android boot.** No Android profile switch is exposed in the release APK yet.
+At the recorded 45-second sample, compositor services, SurfaceFlinger and a system_server process started, while missing virtual HAL services still prevented completing startup. The installed crosvm also reports that its native host display is unsupported. That initial service-startup checkpoint did not establish a GUI. Subsequent work captured real boot-animation/lock-screen frames and is integrated as the limited preview described below.
 
 Providing a guest vsock device and the actual `vsock_lights_port` boot property let the existing guest Lights service get past its dependency; [its published implementation](https://android.googlesource.com/device/google/cuttlefish/+/a1162ca7a4e6297f1699b65052a8c2dd466fd518/guest/hals/light/lights.rs) starts a guest-side vsock server. It does not require changing the Galaxy's brightness service. The following gate was the absent virtual sensors service. In that 512 MiB sample, guest Linux then OOM-killed system_server at about 41 seconds. This is **guest RAM exhaustion**, separate from the hypervisor `NOMEM` failure in larger diskless memory probes. No Gunyah mapping fault was recorded in that Android sample. Raising RAM is not assumed to solve both problems.
 
@@ -61,3 +61,78 @@ Providing a guest vsock device and the actual `vsock_lights_port` boot property 
 4. Only after those tests expose a separate Android profile in the APK. Debian fallback must remain possible, and stopping it must never signal Android or an unrelated VM.
 
 LineageOS/GSI userspace alone does not supply the matching vendor/HAL/device stack. The Android 17 Cuttlefish candidate moves the baseline forward without promising that arbitrary phone ROM images will boot.
+
+## Integrated display preview (0.4.0-preview.4)
+
+The app's **Settings → Android 17 guest** opens a separate experimental viewer.
+The prepared profile runs the pinned Android 17 build with 512 MiB RAM, two vCPUs,
+480×800 and software rendering. Boot animation and a real Android lock screen have
+been captured on the Galaxy. This is not a claim of a stable, usable Android desktop:
+512 MiB causes severe memory pressure, SystemUI/launcher ANRs and slow or failed
+app launches. Home/Back/tap controls are provisional. The wake/unlock button wakes the guest and raises only its own display timeout to 30 minutes; it does not bypass a secure guest PIN. The input transport and this guest setting were verified; a reliably interactive launcher is not verified. Arbitrary LineageOS/GSI images
+are not supported by this preset.
+
+The viewer uses a root-peer-checked, app-UID-only local socket. Its native manager
+connects only to the still-owned guest's fixed vsock CID/port, checks the pinned guest
+identity, initializes guest zram and maps the three required virtual HAL console nodes.
+The Cuttlefish sensor transport advertises an empty sensor set; it does not expose
+Galaxy sensors. The guest OEM-lock transport reports unlocking denied and locked.
+Neither implements host security, hardware attestation or changes host lock state.
+
+The original **userdebug** image's adbd is used for guest-only setup and bounded PNG
+capture. Its factory authentication configuration is not strengthened by this preview;
+AUTH challenges are refused rather than bypassed. No guest NIC, host filesystem
+share, physical USB device or listening host TCP server is added. This diagnostic guest
+must not be treated as a production secure Android install. The existing guest image
+verification checks are distinct from pvmfw/AVB attestation of the external ramdisk.
+
+The viewer suspends image capture in the background. On closing it, the manager
+requests sync and poweroff through the verified guest endpoint, waits for the tracked
+child and falls back to signals for that child only. Unsaved guest work can be lost if
+shutdown cannot complete. Session duration is capped at 30 minutes. Debian's
+manager is stopped before opening this profile; its persistent disks are never attached.
+The ordinary Debian profile remains selected and can be reopened afterwards.
+
+### Prepare the fixed profile
+
+OS images are **not bundled** in the APK. These are developer preparation steps for
+the explicitly selected Galaxy, not a general importer or an automatic installer:
+
+1. Fetch and verify the pinned files with `tools/fetch_android_guest.py --include-super`.
+2. Build the regular-file-only filesystem helper from
+   `docker build -t plb-fs-tools:trixie - < tools/android-fs-tools.Dockerfile`.
+3. Run `tools/build_android_probe.py` once in a fresh output directory. It creates
+   the separate base/working qcow2, misc and FRP virtual disks, original ramdisk and
+   `android-lowram.cpio`. It refuses existing outputs. Preserve an existing working
+   overlay; do not regenerate it over a used Android installation.
+4. With the app installed and its owned VM stopped, place `android-base.qcow2`,
+   `android-work.qcow2`, `android-misc.raw`, `android-frp.raw`, `android-ramdisk.cpio`
+   and `android-lowram.cpio` in the app-private `files/android-guests/cuttlefish17/`.
+   Place the extracted `Image` in `files/kernels/android17-cuttlefish/`.
+   Root must own these regular files; directories must be 0700. Immutable base,
+   kernel and ramdisks must be 0400; working overlay/misc/FRP must be 0600.
+   Stage through private temporary files if normal `adb push` lacks access.
+   Never copy to a block device, Android partition or another VM's directory.
+5. The app verifies the exact kernel and low-RAM ramdisk digests before launch.
+   The overlay's backing path is the fixed private Android base path produced by
+   the builder. Open the Android entry in Settings and grant the app's existing
+   root request if necessary. Vector needs no additional scope for this viewer.
+
+Do not disable the guest Bluetooth package while its hardware feature remains
+advertised: Android 17 treats that mismatch as a fatal configuration error on the
+next framework start. An attempted memory reduction revealed this, and both guest
+Bluetooth and NFC packages were re-enabled. No corresponding host package was changed.
+
+### Diagnostics and limits
+
+`adb -s "$GALAXY_ADB_SERIAL" logcat -s ProtectedLinuxAndroid` shows launcher/setup
+and transport failures. Do not publish full device/guest logs. The app uses no host
+UART log file; the bounded standalone diagnostic build keeps its guest console log.
+The new parser tests exercise truncated/oversized packets, bad magic/checksum,
+cancellation and the original concatenated ramdisk's preservation.
+
+A separate 640 MiB Android probe reproduced the Gunyah address-map failure within
+about ten seconds, before an interactive screen. Host boot ID remained unchanged,
+SELinux stayed Enforcing, and the unrelated trusted VM was untouched. The release
+therefore keeps 512 MiB and does not expose larger values as working. This limitation
+is investigated in [the memory report](gunyah-memory-investigation.md).

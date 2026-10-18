@@ -17,6 +17,7 @@ The guest writes one byte per 4 KiB across an anonymous mapping, reads every wri
 | Linux 6.18.57-plb1 | 1024 MiB | 768 MiB | Failed; last progress marker 448 MiB |
 | Same, VMM-local `--hugepages` | 1024 MiB | 768 MiB | Same failure; last marker 448 MiB |
 | Preinstalled Microdroid | 1024 MiB | 768 MiB | Same failure; last marker 448 MiB |
+| Android 17 Cuttlefish userspace, 2 CPUs | 640 MiB | Android boot | Same map failure at approximately 10 seconds |
 | Android 17 Cuttlefish, 6.12.74 / 4 KiB | 512 MiB | 256 MiB | Completed, zero errors; kernel/initramfs only |
 | Linux 6.18, private anonymous backing experiment | 512 MiB | 256 MiB | Completed, zero errors |
 | Same anonymous backing experiment | 1024 MiB | 768 MiB | Failed; last marker 512 MiB |
