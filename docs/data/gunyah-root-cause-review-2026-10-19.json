@@ -1,0 +1,78 @@
+{
+  "date": "2026-10-19",
+  "review_mode": "offline source, saved logs and already extracted kernel image",
+  "new_device_operations": false,
+  "new_vm_or_allocation_trials": false,
+  "host_settings_changed": false,
+  "earlier_warning_bursts_found": true,
+  "same_unchanged_boot_for_three_warning_captures": true,
+  "warning_captures": [
+    {
+      "label": "forward-refault-collapse-0417",
+      "bad_page_reports": 237,
+      "errors_by_stage_and_domain": {
+        "address_map_hypervisor": {},
+        "donate_hypervisor": {
+          "111": 1
+        },
+        "provide_folio_linux": {
+          "-22": 1
+        },
+        "reclaim_donation_hypervisor": {},
+        "unmap_hypervisor": {},
+        "resource_manager": {}
+      }
+    },
+    {
+      "label": "forward-refault-collapse-0422",
+      "bad_page_reports": 231,
+      "errors_by_stage_and_domain": {
+        "address_map_hypervisor": {},
+        "donate_hypervisor": {
+          "111": 1
+        },
+        "provide_folio_linux": {
+          "-22": 1
+        },
+        "reclaim_donation_hypervisor": {},
+        "unmap_hypervisor": {},
+        "resource_manager": {}
+      }
+    },
+    {
+      "label": "reverse-middle-refault-0857",
+      "bad_page_reports": 242,
+      "errors_by_stage_and_domain": {
+        "address_map_hypervisor": {},
+        "donate_hypervisor": {
+          "111": 1
+        },
+        "provide_folio_linux": {
+          "-22": 1
+        },
+        "reclaim_donation_hypervisor": {},
+        "unmap_hypervisor": {},
+        "resource_manager": {}
+      }
+    }
+  ],
+  "retained_distinct_bad_page_reports": 710,
+  "earliest_retained_warning_is_proven_first_ever": false,
+  "clean_taint_baseline_before_earliest_warning_available": false,
+  "matched_reclaim_failure_strings_in_bounded_approved_log_audit": 0,
+  "absence_of_reclaim_logs_proves_no_resource_leak": false,
+  "active_slot_image_failed_map_donation_back_call_present": true,
+  "active_slot_image_reclaim_calls_unmap_then_donate_back_then_platform_reclaim": true,
+  "public_hyp_revision": "254727746fce809aba0e629a13711a954b246968",
+  "public_allocator_s2pt_heap_can_fall_back_to_general_hyp_heap": true,
+  "public_address_mapper_can_use_platform_handler": true,
+  "public_source_verified_identical_to_installed_samsung_el2": false,
+  "exact_exhausted_hypervisor_allocator": "unidentified",
+  "issue44_state_when_checked": "open",
+  "issue44_comment_count_when_checked": 0,
+  "file_backed_mapping_ram_option_present_in_saved_installed_vmm_help": true,
+  "ordinary_memfd_handoff_boot_validated": false,
+  "single_trial_exception_reused": false,
+  "new_offline_audit_fixture_tests": 7,
+  "full_python_native_tests_passed": 150
+}

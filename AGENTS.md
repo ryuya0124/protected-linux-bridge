@@ -121,3 +121,12 @@ with 25248/352256 middle pages carrying THP flags (7.17%), before guest boot.
 Both policy restorers succeeded and original disk hashes remained unchanged.
 Do not delete the spent marker, regenerate an approval window or launch another
 affected-boot load without new explicit authorization. GPU drawing is unverified.
+
+## Retained-log chronology correction, later 2026-10-19 review
+
+Offline review found earlier forward 4096/3072 MiB refault+collapse captures with
+237 and 231 Bad page cache reports, before the reverse trial's 242, all in the
+same unchanged boot (710 retained distinct records total). Do not call reverse
+order the first occurrence or treat all earlier trials as clean. Initial map-10
+failures predated these warnings; multiple failure stages must stay separate.
+This source/log review authorizes no new VM, allocation or host setting change.

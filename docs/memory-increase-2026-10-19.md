@@ -36,6 +36,12 @@ warning below.
 
 ## Host warning and immediate response
 
+**Retained-log correction:** a later offline audit found two earlier forward
+refault/collapse bursts (237 and 231 messages), before the reverse trial's 242,
+in the same boot. Thus reverse order was not the first retained occurrence and
+earlier sessions cannot all be treated as clean. These three captures total 710
+distinct warning records. [Corrected chronology and source analysis](gunyah-root-cause-review.md).
+
 The reverse 3 GiB trial produced **242 new `BUG: Bad page cache` messages** in the
 captured kernel tail. The stacks passed through `filemap_unaccount_folio`,
 `shmem_undo_range`, `shmem_fallocate` and the trial's `fallocate` call. The reason
@@ -44,7 +50,9 @@ occurred during mapped-memfd hole punching, before the subsequent guest donation
 failure. This is a host page-management failure, not a guest Android crash. The
 precise vendor-kernel defect and lasting effects are not established.
 
-**No further VM or allocation-pressure trial was started after detection.**
+**No further VM or allocation-pressure trial was started immediately after this
+detection.** The later explicitly approved single GLES exception is documented
+separately; it is now consumed and stopped at its backing-admission gate.
 The owned VM exited, the three shmem policies were verified `never`, the owner lock
 was available, host boot identity/main system process IDs remained unchanged,
 SELinux stayed Enforcing and the unrelated trusted VM retained its PID. These

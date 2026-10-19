@@ -189,3 +189,11 @@ evidence. This test was not reached in the single approved affected-boot trial:
 main RAM prefault completed, but only 7.17% of its middle had THP flags and the
 unchanged admission gate exited 89. The exceptional one-trial marker is consumed;
 the released app remains guarded preview.7. No GPU boot success is claimed.
+
+`tools/audit_gunyah_logs.py` reads a single bounded saved log entirely offline.
+It separates raw hypervisor mapping/donation/reclaim values from Linux errno and
+RM RPC errors, deduplicates timestamped kernel records within the supplied
+single-boot log, and emits no raw addresses or paths. It cannot identify the exact
+EL2 allocator or infer a guest pass from VMM exit zero. The
+[source and chronology review](gunyah-root-cause-review.md) records the evidence
+and the earlier overlooked host page-cache bursts.

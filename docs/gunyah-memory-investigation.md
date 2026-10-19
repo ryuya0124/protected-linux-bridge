@@ -8,6 +8,12 @@ instruction to replay the retired path. [Follow-up and safeguards](memory-increa
 
 ## Status, 2026-10-19
 
+The [later source/retained-log review](gunyah-root-cause-review.md) separates
+Bridge's exit-89 refusal from hypervisor map-10, traces sparse metadata versus
+generic/platform stage-2 allocation, and corrects the warning chronology: two
+forward/refault/collapse bursts predated the reverse trial's warning. The exact
+EL2 allocator remains unproven. No extra device load was used in that review.
+
 The explicitly approved [small-shmem follow-up](small-shmem-policy-proposal.md)
 now includes a successful **2 GiB VM / 1536 MiB resident workload**: 393216
 unique guest pages, zero readback errors and 1572864 KiB guest max RSS. Later
