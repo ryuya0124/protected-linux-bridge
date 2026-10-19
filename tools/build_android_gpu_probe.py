@@ -14,12 +14,14 @@ import hashlib
 import json
 from pathlib import Path
 import platform
+import re
 import shlex
 import shutil
 import stat
 import subprocess
 
 from android_ramdisk import entries, PROPERTY_PATH
+from build_guest_gpu_payload import build as build_guest_payload
 
 ROOT = Path(__file__).resolve().parents[1]
 LOWRAM_SHA256 = "7e0c04dd3f3b9b92398c1e5ac0161e93d78c450e857d530d55012a6a550315e2"
@@ -71,14 +73,59 @@ def main():
     parser.add_argument("--sdk", type=Path, required=True)
     parser.add_argument("--mode", choices=("gles", "vulkan"), default="gles")
     parser.add_argument("--memory", type=int, choices=(512, 1536), default=512)
+    parser.add_argument(
+        "--guest-render-apk",
+        type=Path,
+        help="Embed only the signed fixed-package guest GLES probe (1536 MiB only)",
+    )
+    parser.add_argument(
+        "--approved-warning-boot-id",
+        help="Explicit one-trial approval only; private current boot UUID",
+    )
+    parser.add_argument(
+        "--approved-warning-issued-ms",
+        type=int,
+        help="Current host CLOCK_BOOTTIME milliseconds; authorization expires in five minutes",
+    )
     args = parser.parse_args()
+    warning_once = args.approved_warning_boot_id is not None
+    if warning_once != (args.approved_warning_issued_ms is not None):
+        parser.error("Both one-trial approval fields are required")
+    if warning_once and (
+        not args.guest_render_apk
+        or args.memory != 1536
+        or args.mode != "gles"
+        or not re.fullmatch(
+            r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", args.approved_warning_boot_id
+        )
+        or args.approved_warning_issued_ms <= 0
+    ):
+        parser.error(
+            "Approved affected-boot trial is restricted to the fixed 1536 MiB GLES render test"
+        )
     if args.memory == 1536 and args.mode != "gles":
         parser.error("The larger diagnostic currently supports GLES only")
+    if args.guest_render_apk and args.memory != 1536:
+        parser.error("The guest render APK requires the guarded 1536 MiB GLES build")
     if shutil.disk_usage(ROOT).free < 21 * 1024**3:
         parser.error("Retain at least 20 GiB Mac storage headroom")
     label = args.mode if args.memory == 512 else "gles1536"
+    if args.guest_render_apk:
+        label = "gles1536-render-once" if warning_once else "gles1536-render"
     out = ROOT / "artifacts/android-display/gpu-research" / label
     out.mkdir(mode=0o700, parents=True, exist_ok=True)
+    once_flags = []
+    if warning_once:
+        (out / "gpu_once.generated.h").write_text(
+            "/* Private, explicit one-trial approval. Never commit this generated file. */\n"
+            + "#define PLB_GPU_ONCE_BOOT_ID "
+            + json.dumps(args.approved_warning_boot_id)
+            + "\n"
+            + f"#define PLB_GPU_ONCE_ISSUED_MS {args.approved_warning_issued_ms}ULL\n"
+            + f"#define PLB_GPU_ONCE_DEADLINE_MS {args.approved_warning_issued_ms + 300000}ULL\n"
+            + "#define PLB_GPU_ONCE_TAINT 4640UL\n"
+        )
+        once_flags = ["-DPLB_GPU_WARNING_ONCE=1", "-I", str(out)]
     original = ROOT / "artifacts/android-display/cuttlefish17/android-lowram.cpio"
     (out / "android-gles.cpio").write_bytes(gles_ramdisk(original.read_bytes()))
     setup = (ROOT / "native/android_guest_setup.sh").read_text()
@@ -105,7 +152,7 @@ def main():
         / "bin/aarch64-linux-android35-clang"
     )
     flags = [str(compiler), "-O2", "-Wall", "-Wextra", "-Werror"]
-    defines = ["-DPLB_ANDROID_GFXSTREAM_PROBE=1"]
+    defines = ["-DPLB_ANDROID_GFXSTREAM_PROBE=1"] + once_flags
     sources = [
         ROOT / "native/android_guest_manager.c",
         ROOT / "native/android_guest_setup.sh",
@@ -120,12 +167,29 @@ def main():
         ROOT / "tools/android_ramdisk.py",
         ROOT / "tools/gfxstream_loader_probe.c",
     ]
+    guest_apk_digest = None
+    if args.guest_render_apk:
+        guest_apk_digest = build_guest_payload(
+            args.guest_render_apk, args.sdk, out / "android_gpu_probe.generated.h"
+        )
+        defines.append("-DPLB_ANDROID_GPU_RENDER_PROBE=1")
+        sources += [
+            ROOT / "tools/android_gpu_render_probe.h",
+            ROOT / "tools/build_guest_gpu_payload.py",
+        ]
     executable = out / "android-gpu-runner"
     if args.memory == 1536:
-        executable = out / "android-gpu1536-gles-runner"
-        library = out / "libandroid_gpu1536_gles_backing.so"
+        executable = out / (
+            "android-gpu1536-gles-once-runner" if warning_once else "android-gpu1536-gles-runner"
+        )
+        library = out / (
+            "libandroid_gpu1536_gles_once_backing.so"
+            if warning_once
+            else "libandroid_gpu1536_gles_backing.so"
+        )
         subprocess.run(
             flags
+            + once_flags
             + [
                 "-shared",
                 "-fPIC",
@@ -156,12 +220,18 @@ def main():
                 "tools/small_shmem_policy_probe.c",
             )
         ]
+        if warning_once:
+            sources += [ROOT / "tools/gpu_warning_once.h"]
+        supervisor = out / (
+            "small-shmem-policy-probe-gpu-once" if warning_once else "small-shmem-policy-probe"
+        )
         subprocess.run(
             flags
+            + once_flags
             + [
                 str(ROOT / "tools/small_shmem_policy_probe.c"),
                 "-o",
-                str(out / "small-shmem-policy-probe"),
+                str(supervisor),
             ],
             check=True,
         )
@@ -215,7 +285,7 @@ def main():
         + list(out.glob("*.h"))
         + list(out.glob("*.so"))
         + [out / "android-gles.cpio", executable, out / "gfxstream-loader-probe"]
-        + ([out / "small-shmem-policy-probe"] if args.memory == 1536 else [])
+        + ([supervisor] if args.memory == 1536 else [])
     }
     (out / "build.json").write_text(
         json.dumps(
@@ -223,6 +293,8 @@ def main():
                 "mode": args.mode,
                 "memory_mib": args.memory,
                 "boot_validated": False,
+                "explicit_affected_boot_single_trial": warning_once,
+                "guest_render_apk_sha256": guest_apk_digest,
                 "sha256": records,
             },
             indent=2,

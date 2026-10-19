@@ -6,6 +6,9 @@
 #include <pthread.h>
 #include "../native/android_guest_adb.h"
 #include "android_guest_setup.generated.h"
+#ifdef PLB_ANDROID_GPU_RENDER_PROBE
+#include "android_gpu_render_probe.h"
+#endif
 
 static void *android_memory_observer(void *unused) {
     (void)unused;
@@ -20,6 +23,9 @@ static void *android_memory_observer(void *unused) {
                          "echo SYSTEMUI=$(pidof com.android.systemui)'";
     const char expected[] = "vsoc_arm64_only\ncutf_cvm\n16373615\n";
     int captured = 0, setup = 0;
+#ifdef PLB_ANDROID_GPU_RENDER_PROBE
+    int render_probe_started = 0, render_probe_captured = 0;
+#endif
 #ifdef PLB_ANDROID_GPU_MEMORY_PROBE
     int renderer_observed = 0;
 #endif
@@ -67,6 +73,26 @@ static void *android_memory_observer(void *unused) {
                 }
             }
 #endif
+#ifdef PLB_ANDROID_GPU_RENDER_PROBE
+            if (!render_probe_started) {
+                if (gpu_probe_start(output)) {
+                    fprintf(stderr, "PLB_ANDROID_GPU_PROBE_START_FAILED\n");
+                    break;
+                }
+                render_probe_started = 1;
+                continue;
+            }
+            if (!render_probe_captured) {
+                int result = gpu_probe_collect_frame(output);
+                if (result < 0) {
+                    fprintf(stderr, "PLB_ANDROID_GPU_PROBE_CAPTURE_FAILED\n");
+                    break;
+                }
+                if (!result)
+                    continue;
+                render_probe_captured = 1;
+            }
+#endif
             const char home[] =
                 "exec:sh -c 'cmd power wakeup; wm dismiss-keyguard; input keyevent 3; sleep 2; "
                 "dumpsys activity activities | grep -E \"mResumedActivity|topResumedActivity\"'";
@@ -92,6 +118,13 @@ static void *android_memory_observer(void *unused) {
                     close(fd);
                     fprintf(stderr, "PLB_ANDROID_MEMORY_FRAME complete=%d bytes=%zu\n", captured,
                             at);
+#ifdef PLB_ANDROID_GPU_RENDER_PROBE
+                    if (captured && render_probe_captured) {
+                        (void)gpu_probe_call(gpu_probe_poweroff, output, &length, NULL);
+                        fprintf(stderr, "PLB_ANDROID_GPU_GUEST_POWEROFF_REQUESTED\n");
+                        break;
+                    }
+#endif
                 }
             }
         }

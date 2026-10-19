@@ -30,3 +30,12 @@ a forty-second deadline. No other memory policy or prohibited host change is
 authorized. See [implementation and measured limits](android-large-profile.md).
 The root controller may move only itself out of the launching app's cached-app
 freezer cgroup; it does not change freezer policies or any other process.
+
+After preview.7, the owner separately accepted the risk and allowed **one**
+1536 MiB GLES developer trial in the affected boot. Only a distinct boot/time-
+and inherited-FD-bound artifact could claim the root-private `O_EXCL` counter.
+The counter is now consumed. That trial stopped at the unchanged prefault-only
+backing gate, exit 89, before guest boot. Both restoration acknowledgements and
+unchanged original-disk hashes were verified. Normal builds still reject the
+affected boot. No automatic retry or fresh approval is inferred from this
+exception. [Exact result and limits](android-gpu1536-research.md).

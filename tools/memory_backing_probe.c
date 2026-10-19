@@ -35,6 +35,12 @@
 #include "backing_page_order.h"
 #include "owned_page_summary.h"
 #include "host_memory_health.h"
+#ifdef PLB_GPU_WARNING_ONCE
+#ifndef PLB_ANDROID_GPU_BACKING
+#error "The one-trial backing exception is never available to production memory variants"
+#endif
+#include "gpu_warning_once.h"
+#endif
 #ifndef PLB_PREFAULT_ONLY_BACKING
 #include "shmem_refault_probe.h"
 #endif
@@ -258,8 +264,20 @@ __attribute__((constructor)) static void initialize(void) {
         actual.st_dev != expected.st_dev || actual.st_ino != expected.st_ino ||
         !approved_arguments())
         _exit(79);
-    if (!plb_host_memory_healthy())
+    if (
+#ifdef PLB_GPU_WARNING_ONCE
+        !plb_gpu_once_admitted()
+#else
+        !plb_host_memory_healthy()
+#endif
+    )
         _exit(90);
+#ifdef PLB_GPU_WARNING_ONCE
+    int approval_fd = plb_gpu_once_proof_fd();
+    unsetenv(PLB_GPU_ONCE_FD_ENV);
+    if (approval_fd >= 0)
+        close(approval_fd);
+#endif
     enabled = 1;
     lock_backing = !strcmp(mode, "shared-upper-locked");
     tail_safe = !strcmp(mode, "shared-middle-refault") ||

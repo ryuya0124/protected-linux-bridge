@@ -24,6 +24,10 @@
 #include "../native/profile_lock.h"
 #include "host_memory_health.h"
 #include "../native/android_owned_process.h"
+#ifdef PLB_GPU_WARNING_ONCE
+#include "gpu_warning_once.h"
+#include "android_gpu_memory_config.h"
+#endif
 
 #ifdef PLB_POLICY_MOCK
 #define APPLY_OPTION "--run-mock"
@@ -146,6 +150,10 @@ static int restore(void) {
 }
 
 static pid_t sample(pid_t child, int *status) {
+#ifdef PLB_GPU_WARNING_ONCE
+    if (plb_gpu_once_kernel_bad())
+        interrupted = 1;
+#endif
     pid_t result;
     do {
         result = waitpid(child, status, WNOHANG);
@@ -199,11 +207,16 @@ int main(int argc, char **argv) {
     int refault = argc == 3 && !strcmp(argv[2], "--allocation-refault");
     if ((argc == 3 && !vm && !refault) || (!strcmp(argv[1], "--plan") && argc != 2))
         return 20;
-    const char *probe = android_gpu1536 ? FILES "/kernel-probes/android-gpu1536-gles-runner"
-                        : android1536   ? FILES "/kernel-probes/android-memory1536-policy-runner"
-                        : android       ? FILES "/kernel-probes/android-memory-policy-runner"
-                        : vm            ? vm_probe
-                                        : allocation_probe;
+    const char *probe = android_gpu1536 ? FILES "/kernel-probes/"
+#ifdef PLB_GPU_WARNING_ONCE
+                            PLB_GPU_MEMORY_RUNNER
+#else
+                                                "android-gpu1536-gles-runner"
+#endif
+                        : android1536 ? FILES "/kernel-probes/android-memory1536-policy-runner"
+                        : android     ? FILES "/kernel-probes/android-memory-policy-runner"
+                        : vm          ? vm_probe
+                                      : allocation_probe;
     /* Android retains its preallocated memory after policy restoration. Only
      * the first ten seconds use the approved host policy; observe boot later. */
     int controller_steps = android ? 100 : vm ? 320 : 120;
@@ -212,7 +225,13 @@ int main(int argc, char **argv) {
     __system_property_get("ro.build.version.sdk", sdk);
     if (strcmp(model, "SM-S948Q") || strcmp(sdk, "36"))
         return 21;
-    if (strcmp(argv[1], "--plan") && !plb_host_memory_healthy()) {
+    if (strcmp(argv[1], "--plan") &&
+#ifdef PLB_GPU_WARNING_ONCE
+        (!android_gpu1536 || !plb_gpu_once_window())
+#else
+        !plb_host_memory_healthy()
+#endif
+    ) {
         fprintf(stderr, "PLB_POLICY_REJECTED host_memory_warning=1\n");
         return 38;
     }
@@ -256,6 +275,13 @@ int main(int argc, char **argv) {
          * refuses an app group; it never moves another task or changes policy. */
         if (android_isolate_owned_controller(0))
             return 41;
+#ifdef PLB_GPU_WARNING_ONCE
+        if (plb_gpu_once_watch_open())
+            return 43;
+        if (plb_gpu_once_claim() < 0)
+            return 44;
+        fprintf(stderr, "PLB_GPU_ONCE_CLAIMED memory_mib=1536 no_retry=1\n");
+#endif
         pid_t parent = getpid(), validator = fork();
         if (!validator) {
             if (prctl(PR_SET_PDEATHSIG, SIGKILL) || getppid() != parent)
@@ -282,6 +308,10 @@ int main(int argc, char **argv) {
         if (done < 0 || !WIFEXITED(status) || WEXITSTATUS(status))
             return 42;
     }
+#ifdef PLB_GPU_WARNING_ONCE
+    if (plb_gpu_once_kernel_bad() || interrupted)
+        return 43;
+#endif
     int alive[2];
     if (pipe2(alive, O_CLOEXEC))
         return 25;

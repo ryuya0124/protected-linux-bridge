@@ -4,10 +4,19 @@
 #ifndef PLB_ANDROID_GPU_MEMORY_CONFIG_H
 #define PLB_ANDROID_GPU_MEMORY_CONFIG_H
 #define PLB_GPU_MEMORY_MIB 1536
+#ifdef PLB_GPU_WARNING_ONCE
+#define PLB_GPU_MEMORY_DIRECTORY "cf17-gpu1536-gles-once"
+#define PLB_GPU_MEMORY_RUNNER "android-gpu1536-gles-once-runner"
+#define PLB_GPU_MEMORY_LIBRARY                                                                     \
+    "/data/user/0/net.ryuya_dev.protectedlinux/files/kernel-probes/"                               \
+    "libandroid_gpu1536_gles_once_backing.so"
+#else
 #define PLB_GPU_MEMORY_DIRECTORY "cf17-gpu1536-gles"
+#define PLB_GPU_MEMORY_RUNNER "android-gpu1536-gles-runner"
 #define PLB_GPU_MEMORY_LIBRARY                                                                     \
     "/data/user/0/net.ryuya_dev.protectedlinux/files/kernel-probes/"                               \
     "libandroid_gpu1536_gles_backing.so"
+#endif
 #define PLB_GPU_MEMORY_ARGUMENT "size=1536"
 #define PLB_GPU_MEMORY_GPU_ARGUMENT                                                                \
     "backend=gfxstream,context-types=gfxstream-gles:gfxstream-composer,"                           \

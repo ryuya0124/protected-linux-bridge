@@ -17,3 +17,6 @@ dependencyResolutionManagement {
 rootProject.name = "ProtectedLinuxBridge"
 
 include(":app")
+
+// Developer-only APK: the activity refuses the Galaxy host before creating EGL.
+include(":guest-gpu-probe")

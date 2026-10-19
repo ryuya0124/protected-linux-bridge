@@ -103,3 +103,21 @@ prefault-only backing, retaining exact host/VMM/library pins and the common lock
 These requests do not authorize bypassing the affected-boot health guard, loading
 a module, broadening host policy writes or rebooting Android. No additional VM
 or pressure trial is run in the current BAD_PAGE-tainted boot.
+
+
+## Explicit single-trial exception, user approval after preview.7, 2026-10-19
+
+The user explicitly accepted the risk and authorized **one** 1536 MiB GLES
+trial in the current BAD_PAGE-marked boot. Only the separate developer artifact
+may use the boot/time-bound, inherited-FD, O_EXCL single-use exception. Keep the
+normal APK and diagnostics fail-closed. Never clear taint, restore hole punching,
+retry a failed VMM automatically, broaden THP settings, reboot Android, modify
+a host kernel/partition/protection, or touch another VM. Preserve existing disks
+and use a separately copied GPU profile. Monitor new kernel reports and stop only
+the owned trial on a new failure. A consumed trial needs new explicit user approval.
+
+The exception has now been consumed: prefault-only backing admission exited 89,
+with 25248/352256 middle pages carrying THP flags (7.17%), before guest boot.
+Both policy restorers succeeded and original disk hashes remained unchanged.
+Do not delete the spent marker, regenerate an approval window or launch another
+affected-boot load without new explicit authorization. GPU drawing is unverified.

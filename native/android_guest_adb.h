@@ -1,7 +1,9 @@
 /* MIT. Bounded client for the pinned, offline Cuttlefish userdebug guest's adbd.
  * Only connects to guest CID 39821, port 5555. Never connects to host Android ADB.
  * AUTH is rejected: supporting authenticated general-purpose ADB is out of scope.
- * No listening TCP socket, forwarding, file upload or arbitrary client command.
+ * No listening TCP socket, forwarding or arbitrary client command. The separate
+ * development render probe can upload only its built-in signed guest test APK;
+ * the ordinary app has no upload endpoint or caller-selected payload/path.
  */
 #ifndef PLB_ANDROID_PROTOCOL_TEST
 #include <linux/vm_sockets.h>

@@ -178,3 +178,14 @@ creates both SHA-pinned manager/library pairs. [Current app evidence](android-la
 prefault-only graphics/memory comparison. The 512 MiB GLES/Vulkan diagnostics
 remain separate, and the combined 1536 MiB Vulkan variant is deliberately rejected.
 [GPU investigation, safety gates and limitations](android-gpu1536-research.md).
+
+The optional developer-only `:guest-gpu-probe` module builds a fixed signed GLES
+proof APK; it refuses the host identity before constructing EGL. Build/test with
+`:guest-gpu-probe:assembleRelease :guest-gpu-probe:testDebugUnitTest
+:guest-gpu-probe:lintRelease` using the normal private signing environment. Pass
+its release APK with `--guest-render-apk` only to the 1536 MiB GLES diagnostic.
+The offline `tools/verify_guest_gpu_frame.py` rejects software/stale/invalid
+evidence. This test was not reached in the single approved affected-boot trial:
+main RAM prefault completed, but only 7.17% of its middle had THP flags and the
+unchanged admission gate exited 89. The exceptional one-trial marker is consumed;
+the released app remains guarded preview.7. No GPU boot success is claimed.

@@ -28,6 +28,9 @@
 #if defined(PLB_ANDROID_MEMORY_POLICY) && !defined(PLB_ANDROID_MEMORY_PROBE)
 #error "The policy diagnostic requires the isolated Android memory profile"
 #endif
+#if defined(PLB_ANDROID_GPU_RENDER_PROBE) && !defined(PLB_ANDROID_GPU_MEMORY_PROBE)
+#error "The guest render test is restricted to the guarded GPU memory diagnostic"
+#endif
 #if defined(PLB_ANDROID_GPU_MEMORY_PROBE) &&                                                       \
     (!defined(PLB_ANDROID_MEMORY_PROBE) || !defined(PLB_ANDROID_GFXSTREAM_PROBE) ||                \
      !defined(PLB_ANDROID_MEMORY_POLICY) || PLB_ANDROID_MEMORY_MIB != 1536 ||                      \
@@ -79,6 +82,12 @@
 
 #include "android_sensor_transport.h"
 #include "../tools/host_memory_health.h"
+#ifdef PLB_GPU_WARNING_ONCE
+#ifndef PLB_ANDROID_GPU_RENDER_PROBE
+#error "The approved exception is restricted to the fixed guest render diagnostic"
+#endif
+#include "../tools/gpu_warning_once.h"
+#endif
 
 static volatile _Atomic sig_atomic_t stopping;
 static void stop(int signal) {
@@ -242,7 +251,13 @@ int main(int argc, char **argv) {
 #endif
 #if defined(PLB_ANDROID_PROBE) || defined(PLB_ANDROID_LARGE_PROFILE)
     /* Refuse even a preflight before inspecting/preparing a new disk profile. */
-    if (!plb_host_memory_healthy()) {
+    if (
+#ifdef PLB_GPU_WARNING_ONCE
+        !plb_gpu_once_admitted()
+#else
+        !plb_host_memory_healthy()
+#endif
+    ) {
         fprintf(stderr, "ANDROID_PROFILE_REJECTED host_memory_warning=1\n");
         return 42;
     }
@@ -356,6 +371,10 @@ int main(int argc, char **argv) {
     if (clear_log(BASE "/android-console.log")
 #ifdef PLB_ANDROID_MEMORY_PROBE
         || clear_log(BASE "/android-memory-frame.png")
+#endif
+#ifdef PLB_ANDROID_GPU_RENDER_PROBE
+        || clear_log(BASE "/android-gpu-probe-result.log") ||
+        clear_log(BASE "/android-gpu-probe-frame.png")
 #endif
     )
         return 24;

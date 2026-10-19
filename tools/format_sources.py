@@ -38,7 +38,9 @@ def main():
         if p.suffix in (".c", ".h")
     ]
     java = [
-        p for folder in ("app/src", "native/clipboard") for p in (ROOT / folder).rglob("*.java")
+        p
+        for folder in ("app/src", "guest-gpu-probe/src", "native/clipboard")
+        for p in (ROOT / folder).rglob("*.java")
     ]
     run(args.clang_format, "-i", *c)
     run(args.java, "-jar", CACHE / "google-java-format.jar", "--replace", *java)
@@ -50,6 +52,7 @@ def main():
         "build.gradle.kts",
         "settings.gradle.kts",
         "app/build.gradle.kts",
+        "guest-gpu-probe/build.gradle.kts",
     )
     run(args.black, "tools", "tests", "native/clipboard_watch.py")
     run(
@@ -73,7 +76,11 @@ def main():
     )
     ET.register_namespace("android", "http://schemas.android.com/apk/res/android")
     ET.register_namespace("tools", "http://schemas.android.com/tools")
-    for path in (ROOT / "app/src").rglob("*.xml"):
+    for path in (
+        path
+        for folder in ("app/src", "guest-gpu-probe/src")
+        for path in (ROOT / folder).rglob("*.xml")
+    ):
         tree = ET.parse(path)
         ET.indent(tree, space="  ")
         tree.write(path, encoding="utf-8", xml_declaration=True)

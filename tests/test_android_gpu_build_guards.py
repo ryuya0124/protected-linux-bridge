@@ -26,6 +26,13 @@ class AndroidGpuBuildGuardsTest(unittest.TestCase):
             (output / "android_gpu_early.generated.h").write_text(
                 'static const char console_swap_command[] = "true\\n";\n'
             )
+            (output / "android_gpu_probe.generated.h").write_text(
+                "\n".join(
+                    f'static const char gpu_probe_{name}[] = "exec:true";'
+                    for name in ("begin", "finish", "cleanup", "collect", "poweroff")
+                )
+                + '\nstatic const char *const gpu_probe_chunks[] = {"exec:true"};\n'
+            )
             return subprocess.run(
                 [
                     str(COMPILER),
@@ -51,6 +58,15 @@ class AndroidGpuBuildGuardsTest(unittest.TestCase):
     def test_bounded_gles1536_manager_compiles(self):
         result = self.compile_manager()
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_fixed_payload_render_build_compiles_only_in_the_gpu_diagnostic(self):
+        result = self.compile_manager(("-DPLB_ANDROID_GPU_RENDER_PROBE=1",))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        result = self.compile_manager(
+            ("-DPLB_ANDROID_GPU_RENDER_PROBE=1", "-UPLB_ANDROID_GPU_MEMORY_PROBE")
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("guest render test is restricted", result.stderr)
 
     def test_larger_gpu_size_vulkan_and_missing_policy_are_rejected(self):
         for extra in (
