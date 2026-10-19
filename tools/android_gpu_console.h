@@ -6,6 +6,9 @@
 static int gpu_console_fd = -1;
 static unsigned long gpu_console_bytes;
 static int gpu_console_started;
+#ifdef PLB_ANDROID4G_INTERACTIVE
+static _Atomic int gpu_console_finish;
+#endif
 #include "android_gpu_early.generated.h"
 
 static void gpu_console_poll(struct sensor_endpoint *console, pid_t child, int tick) {
@@ -47,7 +50,7 @@ static void gpu_console_poll(struct sensor_endpoint *console, pid_t child, int t
         console->used = combined < sizeof(marker) - 2 ? combined : sizeof(marker) - 2;
         memcpy(console->buffer, window + combined - console->used, console->used);
     }
-    if (gpu_console_started > 0 && tick >= gpu_console_started) {
+    if (!stopping && gpu_console_started > 0 && tick >= gpu_console_started) {
         ssize_t sent = send(console->client, console_swap_command, sizeof(console_swap_command) - 1,
                             MSG_NOSIGNAL);
         fprintf(stderr, "ANDROID_GPU_EARLY_CONSOLE sent=%d\n",
@@ -64,7 +67,13 @@ static void *gpu_console_worker(void *opaque) {
     struct gpu_console_context *context = opaque;
     struct timespec start, now;
     clock_gettime(CLOCK_MONOTONIC, &start);
-    while (!stopping) {
+    while (
+#ifdef PLB_ANDROID4G_INTERACTIVE
+        !atomic_load(&gpu_console_finish)
+#else
+        !stopping
+#endif
+    ) {
         struct pollfd ready = {
             .fd = context->console->client >= 0 ? context->console->client
                                                 : context->console->listener,
@@ -78,3 +87,15 @@ static void *gpu_console_worker(void *opaque) {
     }
     return NULL;
 }
+
+#ifdef PLB_ANDROID4G_INTERACTIVE
+static void gpu_console_finish_worker(pthread_t thread, int started,
+                                      struct sensor_endpoint *console) {
+    atomic_store(&gpu_console_finish, 1);
+    if (started)
+        pthread_join(thread, NULL);
+    sensor_close(console, BASE "/early-console.sock");
+    if (gpu_console_fd >= 0)
+        close(gpu_console_fd);
+}
+#endif

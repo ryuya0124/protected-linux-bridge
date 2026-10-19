@@ -128,6 +128,9 @@ static void stop(int signal) {
 }
 
 #include "android_guest_display.h"
+#ifdef PLB_ANDROID4G_INTERACTIVE
+#include "android_vmm_log.h"
+#endif
 #if (defined(PLB_ANDROID_MEMORY_PROBE) || defined(PLB_ANDROID_ADOPTED_PROBE)) &&                   \
     !defined(PLB_ANDROID4G_INTERACTIVE)
 #include "../tools/android_memory_observer.h"
@@ -435,6 +438,9 @@ int main(int argc, char **argv) {
         return 35;
 #endif
     if (clear_log(BASE "/android-console.log")
+#ifdef PLB_ANDROID4G_INTERACTIVE
+        || clear_log(BASE "/android-vmm.log")
+#endif
 #if defined(PLB_ANDROID_MEMORY_PROBE) || defined(PLB_ANDROID_ADOPTED_PROBE)
         || clear_log(BASE "/android-memory-frame.png")
 #endif
@@ -476,8 +482,24 @@ int main(int argc, char **argv) {
         goto large_startup_failed;
     }
 #endif
+#ifdef PLB_ANDROID4G_INTERACTIVE
+    int vmm_output[2];
+    if (pipe2(vmm_output, O_CLOEXEC))
+        return 24;
+    // Status messages must not freeze the monitor when the app is cached.
+    int output_flags = fcntl(STDERR_FILENO, F_GETFL);
+    if (output_flags < 0 || fcntl(STDERR_FILENO, F_SETFL, output_flags | O_NONBLOCK))
+        return 24;
+    signal(SIGPIPE, SIG_IGN);
+#endif
     pid_t parent = getpid(), child = fork();
     if (!child) {
+#ifdef PLB_ANDROID4G_INTERACTIVE
+        close(vmm_output[0]);
+        if (dup2(vmm_output[1], STDOUT_FILENO) < 0 || dup2(vmm_output[1], STDERR_FILENO) < 0)
+            _exit(24);
+        close(vmm_output[1]);
+#endif
         if (prctl(PR_SET_PDEATHSIG, SIGKILL) || getppid() != parent)
             _exit(25);
         unsetenv("LD_PRELOAD");
@@ -703,7 +725,7 @@ int main(int argc, char **argv) {
     }
 #endif
 #ifdef PLB_ANDROID_GFXSTREAM_PROBE
-    pthread_t console_thread;
+    pthread_t console_thread = 0;
     struct gpu_console_context console_context = {&console, child};
     int console_started =
         !pthread_create(&console_thread, NULL, gpu_console_worker, &console_context);
@@ -712,7 +734,22 @@ int main(int argc, char **argv) {
     int bootstrap_started = !pthread_create(&bootstrap, NULL, diagnostic_guest_setup, NULL);
 #endif
 #endif
+#ifdef PLB_ANDROID4G_INTERACTIVE
+    close(vmm_output[1]);
+    struct android_vmm_log vmm_log;
+    int vmm_log_started = !android_vmm_log_start(&vmm_log, vmm_output[0], BASE "/android-vmm.log");
+    int interactive_failure = vmm_log_started && console_started ? 0 : 24;
+    if (!console_started)
+        stopping = 1;
+    if (!vmm_log_started) {
+        close(vmm_output[0]);
+        stopping = 1;
+    }
+#endif
 #if !defined(PLB_ANDROID_PROBE) || defined(PLB_ANDROID4G_INTERACTIVE)
+#ifdef PLB_ANDROID4G_INTERACTIVE
+    android_network_owner_fd = lock;
+#endif
     int display_started = android_display_start(app_uid) == 0;
     if (!display_started) {
         stopping = 1;
@@ -727,7 +764,9 @@ int main(int argc, char **argv) {
 #endif
     int status = 0;
     pid_t done = 0;
-#ifdef PLB_ANDROID4G_INTERACTIVE
+#ifdef PLB_ANDROID4G_SURFACE_INTERACTIVE
+    const int ticks = 1800; /* Separate developer Surface session: at most three minutes. */
+#elif defined(PLB_ANDROID4G_INTERACTIVE)
     const int ticks = 18000;
 #elif defined(PLB_ANDROID_ADOPTED_PROBE)
     const int ticks = 1600;
@@ -739,8 +778,20 @@ int main(int argc, char **argv) {
     const int ticks = 18000;
 #endif
     for (int i = 0; i < ticks && !stopping; i++) {
+#ifdef PLB_ANDROID4G_INTERACTIVE
+        if (vmm_log_started && atomic_load(&vmm_log.fault)) {
+            fprintf(stderr, "PLB_GUNYAH_PAGE_FAULT guest_error=1\n");
+            interactive_failure = 33;
+            stopping = 1;
+            kill(child, SIGTERM);
+            break;
+        }
+#endif
 #ifdef PLB_ANDROID_ADOPTED_PROBE
         if (!plb_host_memory_healthy() || plb_diagnostic_kernel_bad(kernel_monitor)) {
+#ifdef PLB_ANDROID4G_INTERACTIVE
+            interactive_failure = 42;
+#endif
             fprintf(stderr, "PLB_ANDROID_ADOPTED_HOST_FAILURE\n");
             stopping = 1;
             kill(child, SIGTERM); /* Owned unreaped child only. */
@@ -766,6 +817,9 @@ int main(int argc, char **argv) {
             /* The PID remains an owned, unreaped child even if it just exited. */
             done = poll_child(child, &status);
             if (!done) {
+#ifdef PLB_ANDROID4G_INTERACTIVE
+                interactive_failure = 23;
+#endif
                 fprintf(stderr, "PLB_ANDROID_ADOPTED_RESOURCE_LIMIT\n");
                 stopping = 1;
                 kill(child, SIGTERM);
@@ -789,6 +843,9 @@ int main(int argc, char **argv) {
     stopping = 1;
     if (display_started)
         android_display_stop();
+#ifdef PLB_ANDROID4G_INTERACTIVE
+    android_network_stop();
+#endif
 #endif
 #ifdef PLB_ANDROID_GFXSTREAM_PROBE
     stopping = 1;
@@ -796,11 +853,13 @@ int main(int argc, char **argv) {
     if (bootstrap_started)
         pthread_join(bootstrap, NULL);
 #endif
+#ifndef PLB_ANDROID4G_INTERACTIVE
     if (console_started)
         pthread_join(console_thread, NULL);
     sensor_close(&console, BASE "/early-console.sock");
     if (gpu_console_fd >= 0)
         close(gpu_console_fd);
+#endif
 #endif
     if (!done) {
 #if !defined(PLB_ANDROID_PROBE) || defined(PLB_ANDROID4G_INTERACTIVE)
@@ -825,6 +884,13 @@ int main(int argc, char **argv) {
             while (waitpid(child, &status, 0) < 0 && errno == EINTR) {
             }
         }
+#ifdef PLB_ANDROID4G_INTERACTIVE
+        gpu_console_finish_worker(console_thread, console_started, &console);
+        if (vmm_log_started)
+            android_vmm_log_stop(&vmm_log);
+        if (interactive_failure)
+            return interactive_failure;
+#endif
         sensor_close(&control, BASE "/sensor-control.sock");
         sensor_close(&data, BASE "/sensor-data.sock");
         sensor_close(&oemlock, BASE "/oemlock.sock");
@@ -834,6 +900,13 @@ int main(int argc, char **argv) {
 #endif
         return 124;
     }
+#ifdef PLB_ANDROID4G_INTERACTIVE
+    gpu_console_finish_worker(console_thread, console_started, &console);
+    if (vmm_log_started)
+        android_vmm_log_stop(&vmm_log);
+    if (interactive_failure)
+        return interactive_failure;
+#endif
     sensor_close(&control, BASE "/sensor-control.sock");
     sensor_close(&data, BASE "/sensor-data.sock");
     sensor_close(&oemlock, BASE "/oemlock.sock");

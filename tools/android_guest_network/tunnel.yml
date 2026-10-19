@@ -1,0 +1,17 @@
+tunnel:
+  name: plb0
+  mtu: 1280
+  ipv4: 198.18.0.1
+  icmp: 'off'
+socks5:
+  address: 127.0.0.1
+  port: 1080
+  udp: 'tcp'
+misc:
+  max-session-count: 12
+  tcp-buffer-size: 16384
+  task-stack-size: 65536
+  connect-timeout: 10000
+  tcp-read-write-timeout: 300000
+  udp-read-write-timeout: 60000
+  log-level: warn

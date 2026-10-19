@@ -896,10 +896,17 @@ public final class MainActivity extends AppCompatActivity {
               TextView gpuConditions = text(getString(R.string.android_guest_gpu_conditions), 14);
               gpuConditions.setVisibility(View.GONE);
               options.addView(gpuConditions);
+              MaterialSwitch androidInternet = new MaterialSwitch(this);
+              androidInternet.setText(R.string.android_guest_internet);
+              androidInternet.setChecked(true);
+              androidInternet.setVisibility(View.GONE);
+              options.addView(androidInternet);
               memory.setOnItemClickListener(
                   (parent, item, position, id) -> {
                     selectedMemory[0] = AndroidGuestProfile.memoryAt(position);
                     gpuConditions.setVisibility(
+                        selectedMemory[0] == 4096 ? View.VISIBLE : View.GONE);
+                    androidInternet.setVisibility(
                         selectedMemory[0] == 4096 ? View.VISIBLE : View.GONE);
                   });
               android.widget.ScrollView scroll = new android.widget.ScrollView(this);
@@ -910,17 +917,21 @@ public final class MainActivity extends AppCompatActivity {
                   .setNegativeButton(android.R.string.cancel, null)
                   .setPositiveButton(
                       R.string.android_guest_open,
-                      (dialog, which) -> confirmAndroidGuest(selectedMemory[0]))
+                      (dialog, which) ->
+                          confirmAndroidGuest(
+                              selectedMemory[0],
+                              selectedMemory[0] == 4096 && androidInternet.isChecked()))
                   .show();
             });
   }
 
-  private void confirmAndroidGuest(int memoryMib) {
+  private void confirmAndroidGuest(int memoryMib, boolean internet) {
     Runnable launch =
         () ->
             startActivity(
                 new Intent(this, AndroidGuestActivity.class)
                     .putExtra(AndroidGuestActivity.EXTRA_MEMORY_MIB, memoryMib)
+                    .putExtra(AndroidGuestActivity.EXTRA_INTERNET, internet)
                     .putExtra(
                         AndroidGuestActivity.EXTRA_POLICY_ACKNOWLEDGED,
                         AndroidGuestProfile.guarded(memoryMib)));

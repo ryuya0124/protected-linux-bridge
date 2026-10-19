@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application android:label="PLB Surface Probe" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:allowBackup="false">
+    <activity android:name=".ProbeActivity" android:exported="true" android:launchMode="singleTask" android:configChanges="orientation|screenSize" />
+    <provider android:name=".SurfaceProvider" android:authorities="net.ryuya_dev.protectedlinux.surfaceprobe" android:exported="false" />
+  </application>
+</manifest>

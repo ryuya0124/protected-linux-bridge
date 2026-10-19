@@ -39,7 +39,13 @@ def main():
     ]
     java = [
         p
-        for folder in ("app/src", "guest-gpu-probe/src", "native/clipboard")
+        for folder in (
+            "app/src",
+            "guest-gpu-probe/src",
+            "native/clipboard",
+            "tools/surface_probe",
+            "tools/android_guest_network",
+        )
         for p in (ROOT / folder).rglob("*.java")
     ]
     run(args.clang_format, "-i", *c)
@@ -53,6 +59,8 @@ def main():
         "settings.gradle.kts",
         "app/build.gradle.kts",
         "guest-gpu-probe/build.gradle.kts",
+        "tools/surface_probe/build.gradle.kts",
+        "tools/surface_probe/settings.gradle.kts",
     )
     run(args.black, "tools", "tests", "native/clipboard_watch.py")
     run(
@@ -66,6 +74,7 @@ def main():
         "native/plb-install-gpu",
         "native/plb-install-integration",
         "kernels/build.sh",
+        "tools/android_guest_network/start.sh",
     )
     run(
         args.prettier,
@@ -78,7 +87,7 @@ def main():
     ET.register_namespace("tools", "http://schemas.android.com/tools")
     for path in (
         path
-        for folder in ("app/src", "guest-gpu-probe/src")
+        for folder in ("app/src", "guest-gpu-probe/src", "tools/surface_probe")
         for path in (ROOT / folder).rglob("*.xml")
     ):
         tree = ET.parse(path)

@@ -42,6 +42,7 @@ def build(root, sdk, output, compiler):
             "policy",
             "allocation-probe",
             "pressure-check",
+            "network-controller",
         ):
             (output / ("gpu4g-" + name)).unlink(missing_ok=True)
         (output / "android-gpu4g-bridge").unlink(missing_ok=True)
@@ -71,6 +72,35 @@ def build(root, sdk, output, compiler):
     shutil.copyfile(kernel, output / "gpu4g-guest.Image")
     shutil.copyfile(vmm, output / "gpu4g-crosvm")
     flags = [str(compiler), "-O2", "-Wall", "-Wextra", "-Werror", "-pthread", "-I", str(temporary)]
+    # Guest networking is compiled from the pinned HEV sources and the actual
+    # guest framework signatures. It is requested only after guest readiness.
+    import sys
+
+    for script in ("build_android_network_agent.py", "build_android_network_trial.py"):
+        subprocess.run(
+            [sys.executable, str(root / "tools" / script), "--sdk", str(sdk)], check=True
+        )
+    network = root / "artifacts/android4g-gpu/network-agent"
+    subprocess.run(
+        [
+            str(compiler),
+            "-O2",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-I",
+            str(network),
+            "-DPLB_CID=39821",
+            "-DPLB_PROXY_PORT=50442",
+            '-DPLB_PROXY_LOG="/data/user/0/net.ryuya_dev.protectedlinux/files/android-network-proxy.log"',
+            str(root / "native/android_network_controller.c"),
+            str(root / "native/network_proxy.c"),
+            "-o",
+            str(output / "gpu4g-network-controller"),
+        ],
+        check=True,
+    )
+
     modes = [
         "-DPLB_ANDROID4G_INTERACTIVE=1",
         "-DPLB_ANDROID4G_CUSTOM_GUEST=1",
@@ -157,6 +187,7 @@ def build(root, sdk, output, compiler):
         "policy",
         "allocation-probe",
         "pressure-check",
+        "network-controller",
     )
     (temporary / "gpu4g_install.generated.h").write_text(
         "/* Exact APK payload identities, copied and verified again by root. */\n"

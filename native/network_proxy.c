@@ -4,6 +4,7 @@
 #include <sys/socket.h>
 #include <sys/prctl.h>
 #include <sys/wait.h>
+#include <sys/resource.h>
 #include <linux/vm_sockets.h>
 #include <arpa/inet.h>
 #include <netdb.h>
@@ -16,8 +17,16 @@
 #include <unistd.h>
 #include <errno.h>
 #include "stream_relay.h"
+#ifndef PLB_CID
 #define PLB_CID 39820
+#endif
+#ifndef PLB_PROXY_PORT
 #define PLB_PROXY_PORT 50441
+#endif
+#ifndef PLB_PROXY_LOG
+#define PLB_PROXY_LOG "/data/user/0/net.ryuya_dev.protectedlinux/files/vm/network-proxy.log"
+#endif
+#include "network_fd_boundary.h"
 static int forbidden_address(const struct sockaddr *address) {
     if (address->sa_family == AF_INET) {
         unsigned ip = ntohl(((const struct sockaddr_in *)address)->sin_addr.s_addr);
@@ -292,19 +301,31 @@ pid_t plb_start_proxy(uid_t network_uid, int manager_listener, int startup_clien
         close(listener);
         return pid;
     }
-    // The unprivileged proxy must never retain the root manager's control listener.
-    if (manager_listener >= 0)
-        close(manager_listener);
-    if (startup_client >= 0)
-        close(startup_client);
-    int diagnostic = open("/data/user/0/net.ryuya_dev.protectedlinux/files/vm/network-proxy.log",
-                          O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW, 0600);
-    if (diagnostic >= 0) {
-        dup2(diagnostic, STDERR_FILENO);
+    // Close every inherited VM/control/disk descriptor before dropping privilege.
+    if (plb_network_close_inherited(listener))
+        _exit(75);
+    // The explicit descriptors are included above; do not close a reused FD below.
+    (void)manager_listener;
+    (void)startup_client;
+    int null_fd = open("/dev/null", O_RDWR | O_CLOEXEC);
+    if (null_fd < 0 || dup2(null_fd, STDIN_FILENO) < 0 || dup2(null_fd, STDOUT_FILENO) < 0)
+        _exit(76);
+    if (null_fd > STDERR_FILENO)
+        close(null_fd);
+    int diagnostic =
+        open(PLB_PROXY_LOG, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW, 0600);
+    if (diagnostic < 0)
+        diagnostic = open("/dev/null", O_WRONLY | O_CLOEXEC);
+    if (diagnostic < 0 || dup2(diagnostic, STDERR_FILENO) < 0)
+        _exit(77);
+    if (diagnostic > STDERR_FILENO)
         close(diagnostic);
-    }
-    prctl(PR_SET_PDEATHSIG, SIGKILL);
-    if (getppid() != parent)
+    // Only this relay's bounded diagnostic file remains open, never a VM disk.
+    struct rlimit log_limit = {2U * 1024U * 1024U, 2U * 1024U * 1024U};
+    signal(SIGXFSZ, SIG_IGN);
+    if (setrlimit(RLIMIT_FSIZE, &log_limit))
+        _exit(78);
+    if (prctl(PR_SET_PDEATHSIG, SIGKILL) || getppid() != parent)
         _exit(70);
     signal(SIGPIPE, SIG_IGN);
     signal(SIGTERM, SIG_DFL);
@@ -322,7 +343,8 @@ pid_t plb_start_proxy(uid_t network_uid, int manager_listener, int startup_clien
     if (prctl(PR_SET_PDEATHSIG, SIGKILL) || getppid() != parent)
         _exit(73);
     int active = 0;
-    for (;;) {
+    double deadline = plb_now() + lifetime;
+    while (plb_now() < deadline) {
         while (waitpid(-1, NULL, WNOHANG) > 0)
             if (active > 0)
                 active--;
@@ -362,12 +384,19 @@ pid_t plb_start_proxy(uid_t network_uid, int manager_listener, int startup_clien
             active++;
         close(client);
     }
+    close(listener);
+    _exit(0);
 }
 #ifdef PLB_PROXY_STANDALONE
 int main(int argc, char **argv) {
     if (getuid() != 0 || argc != 2)
         return 1;
-    pid_t child = plb_start_proxy((uid_t)atoi(argv[1]), -1, -1, 1800);
+    char *end;
+    errno = 0;
+    unsigned long uid = strtoul(argv[1], &end, 10);
+    if (!*argv[1] || *end || errno || uid < 10000 || uid > 99999)
+        return 1;
+    pid_t child = plb_start_proxy((uid_t)uid, -1, -1, 1800);
     if (child < 0) {
         perror("proxy start");
         return 2;

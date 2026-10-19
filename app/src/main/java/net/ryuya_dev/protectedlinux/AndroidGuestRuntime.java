@@ -75,7 +75,8 @@ final class AndroidGuestRuntime {
               "manager",
               "policy",
               "allocation-probe",
-              "pressure-check"
+              "pressure-check",
+              "network-controller"
             }) {
           install(context, "gpu4g-" + name);
         }

@@ -37,7 +37,7 @@ def git(source, *arguments, check=True):
     )
 
 
-def prepare_source(source, minijail, android_gpu=False):
+def prepare_source(source, minijail, android_gpu=False, android_surface=False):
     if git(source, "rev-parse", "HEAD").stdout.strip() != VMM_REVISION:
         raise ValueError("Unexpected crosvm source revision")
     if git(minijail, "rev-parse", "HEAD").stdout.strip() != MINIJAIL_REVISION:
@@ -58,8 +58,25 @@ def prepare_source(source, minijail, android_gpu=False):
         "gpu_display/src/lib.rs",
         "gpu_display/src/sys/linux.rs",
     }
+    surface_patch = ROOT / "tools/crosvm_android_surface.patch"
+    if android_surface:
+        if not android_gpu:
+            raise ValueError("Surface library requires the separate GPU build")
+        allowed.update(
+            {"src/main.rs", "rutabaga_gfx/src/lib.rs", "devices/src/virtio/gpu/virtio_gpu.rs"}
+        )
     if not set(git(source, "diff", "--name-only", "HEAD").stdout.splitlines()) <= allowed:
         raise ValueError("Source has unrelated tracked modifications")
+    # Remove only our exact prior Surface patch while checking the baseline
+    # patches, then reapply it. Extra init context must not invalidate their
+    # reverse checks or accidentally apply a baseline patch twice.
+    if (
+        android_surface
+        and not git(
+            source, "apply", "--reverse", "--check", str(surface_patch), check=False
+        ).returncode
+    ):
+        git(source, "apply", "--reverse", str(surface_patch))
     patch = ROOT / "tools/crosvm_preallocated_ram.patch"
     if git(source, "apply", "--reverse", "--check", str(patch), check=False).returncode:
         git(source, "apply", "--check", str(patch))
@@ -100,6 +117,9 @@ def prepare_source(source, minijail, android_gpu=False):
     if link.resolve() != minijail:
         link.unlink()
         link.symlink_to(minijail)
+    if android_surface:
+        git(source, "apply", "--check", str(surface_patch))
+        git(source, "apply", str(surface_patch))
 
 
 def build(args):
@@ -116,7 +136,8 @@ def build(args):
         header = path.read_bytes()[:20]
         if header[:6] != b"\x7fELF\x02\x01" or header[18:20] != b"\xb7\x00":
             raise ValueError("Expected an AArch64 ELF link library")
-    prepare_source(source, minijail, args.android_gpu)
+    surface_library = getattr(args, "android_surface_library", False)
+    prepare_source(source, minijail, args.android_gpu, surface_library)
     if args.android_gpu:
         gfxstream = libraries / "libgfxstream_backend.so"
         if (
@@ -173,10 +194,9 @@ def build(args):
         "--no-default-features",
         "--features",
         ",".join(features),
-        "--bin",
-        "crosvm",
     ]
-    log_path = output / "build.log"
+    command += ["--lib"] if surface_library else ["--bin", "crosvm"]
+    log_path = output / ("surface-build.log" if surface_library else "build.log")
     with log_path.open("wb") as log:
         process = subprocess.Popen(
             command,
@@ -205,7 +225,11 @@ def build(args):
                 except subprocess.TimeoutExpired:
                     os.killpg(process.pid, signal.SIGKILL)
                     process.wait()
-    binary = output / "target/aarch64-linux-android/release/crosvm"
+    binary = (
+        output
+        / "target/aarch64-linux-android/release"
+        / ("libplb_crosvm_surface.so" if surface_library else "crosvm")
+    )
     inputs = [
         ROOT / "tools/crosvm_preallocated_ram.rs",
         ROOT / "tools/crosvm_split_lend.rs",
@@ -218,6 +242,8 @@ def build(args):
                 ROOT / "tools/crosvm_gpu_diagnostics.patch",
             ]
         )
+    if surface_library:
+        inputs.append(ROOT / "tools/crosvm_android_surface.patch")
     manifest = {
         "source_revision": VMM_REVISION,
         "minijail_revision": MINIJAIL_REVISION,
@@ -225,7 +251,10 @@ def build(args):
         "rust_version": subprocess.check_output(
             [str(rust / "rustc"), "--version"], text=True
         ).strip(),
-        "vmm_sha256": hashlib.sha256(binary.read_bytes()).hexdigest(),
+        ("surface_library_sha256" if surface_library else "vmm_sha256"): hashlib.sha256(
+            binary.read_bytes()
+        ).hexdigest(),
+        "artifact_kind": "surface-library" if surface_library else "executable",
         "host_library_sha256": {
             p.name: hashlib.sha256(p.read_bytes()).hexdigest()
             for p in (
@@ -237,7 +266,9 @@ def build(args):
         "build_starts_vm": False,
         "production_apk_changed": False,
     }
-    (output / "vmm-build.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    (output / ("surface-vmm-build.json" if surface_library else "vmm-build.json")).write_text(
+        json.dumps(manifest, indent=2) + "\n"
+    )
     print(json.dumps(manifest, indent=2))
 
 
@@ -247,6 +278,11 @@ def main():
         "--android-gpu",
         action="store_true",
         help="Separate qcow/gfxstream headless Android diagnostic",
+    )
+    parser.add_argument(
+        "--android-surface-library",
+        action="store_true",
+        help="Experimental same-process JNI/Surface library, requires --android-gpu; never starts a VM",
     )
     parser.add_argument(
         "--split-ram", action="store_true", help="Separate 256 MiB registration comparison build"

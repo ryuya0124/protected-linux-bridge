@@ -207,5 +207,9 @@ plb-udp-forward 5353 1.1.1.1 53 でゲストのlocalhost:5353を指定したUDP�
   <string name="android_guest_gpu_title">Android 17・4GiB GPU実験</string>
   <string name="android_guest_gpu_bundle_missing">このAPKには検証対象のAndroid GPU実行環境が含まれていません。GPU対応のリリース版を使用してください。従来の構成は引き続き利用できます。</string>
   <string name="android_guest_gpu_allocation_failed">GunyahがゲストRAMを割り当てられませんでした。空きRAMが十分でも発生する既知の起動失敗です。自動再試行せず、このVMを停止しました。従来の構成を選ぶか、後で手動で再試行してください。Androidの再起動は行っていません。</string>
-  <string name="android_guest_gpu_conditions">独立したAndroid 17の構成です。ホーム画面表示とAdreno GLES描画の読み戻しに成功していますが、起動は不安定でGunyahのENOMEMエラーになる場合があります。Vulkan・通信・音声・USBは未対応です。表示転送は低速なPNG方式のため、GPU描画に成功しても滑らかな表示やゼロコピーにはなりません。\n\n起動のたびに、ホスト全体の16／32／64／128／256／512KiB shmem THPを一時的にadviseへ変更することを許可します。RAMの準備完了後すぐ元のneverへ戻し、異常時は独立した監視プロセスが40秒の期限で復元を試みます。この間、巨大ページを要求する他のアプリにも影響します。準備で最大6GiBのRAMを使用し、バックグラウンドアプリが終了する場合があります。カーネルやハイパーバイザーの障害でAndroidが停止し、一時rootを失う可能性は残ります。ホストのページ管理エラーを検出すると起動しません。\n\nゲストの総RAMは4096MiBで、128MiBの共有DMA領域を含みます。専用ゲストカーネル・VMMと、新しい永続ディスクをアプリ専用領域へ保存します。既存のDebian・Android構成は保持します。画面を閉じるとこのVMだけを停止します。上限30分。自動再試行やホスト再起動は行いません。</string>
+  <string name="android_guest_gpu_conditions">独立したAndroid 17の構成です。ホーム画面表示とAdreno GLES描画の読み戻しに成功していますが、起動は不安定でGunyahのENOMEMエラーになる場合があります。通信は選択制で、IPv4のTCP・UDPをBridgeアプリ経由で中継します。Vulkan・音声・USBは未対応です。表示転送はCPUでの画面取得（非圧縮・PNG予備経路）のため、GPU描画に成功しても滑らかな表示やゼロコピーにはなりません。\n\n起動のたびに、ホスト全体の16／32／64／128／256／512KiB shmem THPを一時的にadviseへ変更することを許可します。RAMの準備完了後すぐ元のneverへ戻し、異常時は独立した監視プロセスが40秒の期限で復元を試みます。この間、巨大ページを要求する他のアプリにも影響します。準備で最大6GiBのRAMを使用し、バックグラウンドアプリが終了する場合があります。カーネルやハイパーバイザーの障害でAndroidが停止し、一時rootを失う可能性は残ります。ホストのページ管理エラーを検出すると起動しません。\n\nゲストの総RAMは4096MiBで、128MiBの共有DMA領域を含みます。専用ゲストカーネル・VMMと、新しい永続ディスクをアプリ専用領域へ保存します。既存のDebian・Android構成は保持します。画面を閉じるとこのVMだけを停止します。上限30分。自動再試行やホスト再起動は行いません。</string>
+  <string name="android_guest_internet">Androidゲストのインターネット（IPv4・TCP・UDP）</string>
+  <string name="android_guest_network_preparing">ゲストの通信を準備しています…</string>
+  <string name="android_guest_network_ready">ゲスト回線を構成しました・接続可否はAndroidが確認します</string>
+  <string name="android_guest_network_failed">通信の準備に失敗しました・VMはオフラインで利用できます</string>
 </resources>

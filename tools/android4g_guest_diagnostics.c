@@ -16,7 +16,8 @@ static volatile int stopping;
 int main(int argc, char **argv) {
     int frame = argc == 2 && !strcmp(argv[1], "--frame");
     int raw_frame = argc == 2 && !strcmp(argv[1], "--raw-frame");
-    if (getuid() || (argc != 1 && !frame && !raw_frame))
+    int network_state = argc == 2 && !strcmp(argv[1], "--network-state");
+    if (getuid() || (argc != 1 && !frame && !raw_frame && !network_state))
         return 20;
     unsigned char *output = malloc(ANDROID_ADB_LIMIT + 1);
     if (!output)
@@ -45,6 +46,22 @@ int main(int argc, char **argv) {
             failed = fwrite(output, 1, length, stdout) != length;
         free(output);
         return failed ? 26 : 0;
+    }
+    if (network_state) {
+        const char *queries[] = {
+            "exec:sh -c 'ip addr; ip route; ls -lZ /dev/tun /dev/net/tun; "
+            "cmd connectivity help; cmd netd help'",
+            "exec:sh -c 'timeout 3 dumpsys connectivity | head -n 100; "
+            "getprop ro.product.cpu.abi; id -Z'",
+        };
+        int result = 0;
+        for (size_t i = 0; i < sizeof(queries) / sizeof(queries[0]); i++) {
+            if (android_adb(queries[i], output, &length))
+                result = 24;
+            fwrite(output, 1, length, stdout);
+        }
+        free(output);
+        return result;
     }
     const char *const queries[] = {
         "exec:logcat -d -s PLBGpuProbe:V '*:S'",

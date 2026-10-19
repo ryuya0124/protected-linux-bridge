@@ -1,7 +1,17 @@
 /* MIT. Separate developer profile; never the existing Android/Debian disks. */
 #ifndef PLB_ANDROID4G_CONFIG_H
 #define PLB_ANDROID4G_CONFIG_H
-#ifdef PLB_ANDROID4G_INTERACTIVE
+#ifdef PLB_ANDROID4G_SURFACE_INTERACTIVE
+#if !defined(PLB_ANDROID4G_INTERACTIVE) || !defined(PLB_ANDROID4G_CUSTOM_GUEST)
+#error "Surface mode requires the separate guarded interactive custom-guest diagnostic"
+#endif
+#define PLB_ANDROID4G_RUNTIME FILES "/android-gpu4g-surface-runtime"
+#define PLB_ANDROID4G_BASE FILES "/android-guests/cf17-gpu4096-surface"
+#define PLB_ANDROID4G_KERNEL PLB_ANDROID4G_RUNTIME "/guest.Image"
+#define PLB_ANDROID4G_PROXY PLB_ANDROID4G_RUNTIME "/adopt-vmm"
+#define PLB_ANDROID4G_MANAGER PLB_ANDROID4G_RUNTIME "/manager"
+#define PLB_ANDROID4G_VMM PLB_ANDROID4G_RUNTIME "/crosvm"
+#elif defined(PLB_ANDROID4G_INTERACTIVE)
 #define PLB_ANDROID4G_RUNTIME FILES "/android-gpu4g-runtime"
 #define PLB_ANDROID4G_BASE FILES "/android-guests/cf17-gpu4096"
 #define PLB_ANDROID4G_KERNEL PLB_ANDROID4G_RUNTIME "/guest.Image"

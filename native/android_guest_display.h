@@ -15,6 +15,9 @@ static int display_listener = -1;
 static _Atomic int display_client = -1;
 static uid_t display_uid;
 static int android_identity_ready;
+#ifdef PLB_ANDROID4G_INTERACTIVE
+#include "android_network_session.h"
+#endif
 static pthread_t display_thread;
 static int display_thread_started;
 
@@ -140,6 +143,15 @@ static void *android_display_worker(void *unused) {
                 break;
             continue;
         }
+#ifdef PLB_ANDROID4G_INTERACTIVE
+        if (command == 'N') {
+            unsigned char reply = android_network_start(display_uid) ? 1 : 0;
+            fprintf(stderr, "ANDROID_NETWORK_SETUP result=%u\n", reply);
+            if (android_io(client, &reply, 1, 1))
+                break;
+            continue;
+        }
+#endif
         char service[256];
         if (command == 'F') {
             strcpy(service, "exec:screencap -p");
@@ -191,6 +203,9 @@ static int android_display_start(uid_t uid) {
 }
 
 static void android_guest_shutdown(void) {
+#ifdef PLB_ANDROID4G_INTERACTIVE
+    android_network_stop();
+#endif
     if (!android_identity_ready)
         return;
     unsigned char *output = malloc(ANDROID_ADB_LIMIT);

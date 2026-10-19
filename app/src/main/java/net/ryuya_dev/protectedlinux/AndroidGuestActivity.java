@@ -6,6 +6,7 @@ import android.net.LocalSocket;
 import android.net.LocalSocketAddress;
 import android.os.Bundle;
 import android.view.MotionEvent;
+import android.view.View;
 import android.view.ViewConfiguration;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -30,6 +31,7 @@ import java.util.concurrent.Executors;
 
 /** Separate experimental Android display. Debian's terminal sessions remain separate. */
 public final class AndroidGuestActivity extends AppCompatActivity {
+  static final String EXTRA_INTERNET = "android_guest_internet";
   static final String EXTRA_MEMORY_MIB = "android_memory_mib";
   static final String EXTRA_POLICY_ACKNOWLEDGED = "android_small_shmem_acknowledged";
   private final ExecutorService worker = Executors.newSingleThreadExecutor();
@@ -37,7 +39,7 @@ public final class AndroidGuestActivity extends AppCompatActivity {
   private volatile boolean closed, resumed;
   private volatile LocalSocket connection;
   private volatile Process manager;
-  private TextView status;
+  private TextView status, networkStatus;
   private ImageView display;
   private Bitmap currentFrame;
   private int memoryMib;
@@ -58,6 +60,13 @@ public final class AndroidGuestActivity extends AppCompatActivity {
     status.setText(R.string.android_guest_starting);
     status.setPadding(0, padding, 0, padding);
     page.addView(status);
+    networkStatus = new TextView(this);
+    networkStatus.setText(R.string.android_guest_network_preparing);
+    networkStatus.setVisibility(
+        memoryMib == 4096 && getIntent().getBooleanExtra(EXTRA_INTERNET, false)
+            ? View.VISIBLE
+            : View.GONE);
+    page.addView(networkStatus);
     display = new ImageView(this);
     display.setScaleType(ImageView.ScaleType.FIT_CENTER);
     display.setBackgroundColor(android.graphics.Color.BLACK);
@@ -204,6 +213,17 @@ public final class AndroidGuestActivity extends AppCompatActivity {
           || number(input) != 800
           || number(input) != 0)
         throw new IOException(getString(R.string.android_guest_start_failed));
+      if (memoryMib == 4096 && getIntent().getBooleanExtra(EXTRA_INTERNET, false)) {
+        output.write('N');
+        int result = input.read();
+        if (result < 0) throw new EOFException();
+        runOnUiThread(
+            () ->
+                networkStatus.setText(
+                    result == 0
+                        ? R.string.android_guest_network_ready
+                        : R.string.android_guest_network_failed));
+      }
       boolean rawFrames = true;
       byte[] rawFrame = new byte[AndroidGuestFrame.SIZE];
       byte[] pendingCommand = null;

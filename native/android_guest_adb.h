@@ -68,19 +68,34 @@ static int android_adb(const char *service, unsigned char *output, size_t *lengt
     struct sockaddr_vm address = {.svm_family = AF_VSOCK, .svm_cid = 39821, .svm_port = 5555};
     unsigned char *body = malloc(1024 * 1024);
     int result = -1;
+#ifdef PLB_ANDROID_ADB_TRACE
+    int stage = 1;
+#endif
     if (!body || connect(fd, (struct sockaddr *)&address, sizeof(address)))
         goto done;
     const char identity[] = "host::";
     uint32_t header[6];
+#ifdef PLB_ANDROID_ADB_TRACE
+    stage = 2;
+#endif
     if (android_adb_send(fd, ADB_CNXN, 0x01000001, 1024 * 1024, identity, sizeof(identity)) ||
         android_adb_receive(fd, header, body) || header[0] != ADB_CNXN)
         goto done;
+#ifdef PLB_ANDROID_ADB_TRACE
+    stage = 3;
+#endif
     if (android_adb_send(fd, ADB_OPEN, 1, 0, service, (uint32_t)strlen(service) + 1))
         goto done;
     uint32_t remote = 0;
     for (unsigned packets = 0; packets < 1024 && (!stopping || android_shutdown_io); packets++) {
+#ifdef PLB_ANDROID_ADB_TRACE
+        stage = 4;
+#endif
         if (android_adb_receive(fd, header, body))
             goto done;
+#ifdef PLB_ANDROID_ADB_TRACE
+        stage = 5;
+#endif
         if (header[2] != 1)
             goto done;
         if (header[0] == ADB_OKAY) {
@@ -101,6 +116,11 @@ static int android_adb(const char *service, unsigned char *output, size_t *lengt
         }
     }
 done:
+#ifdef PLB_ANDROID_ADB_TRACE
+    if (result)
+        fprintf(stderr, "PLB_ADB_QUERY_FAILED stage=%d errno=%d service_bytes=%zu\n", stage, errno,
+                strlen(service));
+#endif
     free(body);
     close(fd);
     return result;

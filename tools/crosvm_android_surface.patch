@@ -1,0 +1,164 @@
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -8,6 +8,11 @@
+ [[bin]]
+ name = "crosvm"
+ path = "src/main.rs"
++
++[lib]
++name = "plb_crosvm_surface"
++path = "src/main.rs"
++crate-type = ["cdylib"]
+ 
+ [profile.release]
+ panic = 'abort'
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -1111,3 +1111,40 @@
+         );
+     }
+ }
++
++/// Internal JNI launcher entry; argv and the native window belong to this root process.
++#[no_mangle]
++pub unsafe extern "C" fn plb_crosvm_surface_main(
++    argc: i32,
++    argv: *const *const std::ffi::c_char,
++    window: usize,
++) -> i32 {
++    if argc < 1 || argc > 160 || argv.is_null() {
++        return 70;
++    }
++    let mut arguments = Vec::new();
++    for index in 0..argc as usize {
++        let pointer = *argv.add(index);
++        if pointer.is_null() {
++            return 71;
++        }
++        let argument = std::ffi::CStr::from_ptr(pointer);
++        if argument.to_bytes().len() > 4096 {
++            return 72;
++        }
++        match argument.to_str() {
++            Ok(value) => arguments.push(value.to_owned()),
++            Err(_) => return 73,
++        }
++    }
++    rutabaga_gfx::plb_set_android_window(window, std::process::id());
++    syslog::early_init();
++    let result = crosvm_main(arguments);
++    match &result {
++        Ok(code) => *code as i32,
++        Err(error) => {
++            eprintln!("PLB_SURFACE_VMM_ERROR {error:?}");
++            error_to_exit_code(&result)
++        }
++    }
++}
+--- a/rutabaga_gfx/src/lib.rs
++++ b/rutabaga_gfx/src/lib.rs
+@@ -58,3 +58,20 @@
+     pub use crate::rutabaga_os::WritePipe as RutabagaWritePipe;
+     pub use crate::rutabaga_os::DEFAULT_RAW_DESCRIPTOR as RUTABAGA_DEFAULT_RAW_DESCRIPTOR;
+ }
++
++#[cfg(feature = "gfxstream")]
++pub fn plb_set_android_window(window: usize, owner: u32) {
++    gfxstream::plb_set_android_window(window, owner);
++}
++
++/// True only in the process that owns the developer Android display Surface.
++pub fn plb_android_window_is_active() -> bool {
++    #[cfg(feature = "gfxstream")]
++    {
++        gfxstream::plb_android_window_is_active()
++    }
++    #[cfg(not(feature = "gfxstream"))]
++    {
++        false
++    }
++}
+--- a/rutabaga_gfx/src/gfxstream.rs
++++ b/rutabaga_gfx/src/gfxstream.rs
+@@ -416,6 +416,15 @@
+         fence_handler: RutabagaFenceHandler,
+         debug_handler: Option<RutabagaDebugHandler>,
+     ) -> RutabagaResult<Box<dyn RutabagaComponent>> {
++        let window = PLB_ANDROID_WINDOW.load(std::sync::atomic::Ordering::SeqCst);
++        let gfxstream_flags = if window != 0 {
++            if PLB_ANDROID_OWNER.load(std::sync::atomic::Ordering::SeqCst) != std::process::id() {
++                return Err(RutabagaError::InvalidComponent);
++            }
++            gfxstream_flags.use_surfaceless(false)
++        } else {
++            gfxstream_flags
++        };
+         let use_debug = debug_handler.is_some();
+         let mut cookie = Box::new(RutabagaCookie {
+             render_server_fd: None,
+@@ -472,6 +481,22 @@
+             ))?;
+         }
+ 
++        if window != 0 {
++            // The JNI owner retains ANativeWindow for the complete VMM lifetime.
++            // Refuse a forked renderer above: pointers never cross process boundaries.
++            unsafe {
++                gfxstream_backend_setup_window(
++                    window as *const std::ffi::c_void,
++                    0,
++                    0,
++                    display_width as i32,
++                    display_height as i32,
++                    display_width as i32,
++                    display_height as i32,
++                );
++            }
++            eprintln!("PLB_ANDROID_NATIVE_WINDOW_ATTACHED");
++        }
+         Ok(Box::new(Gfxstream { _cookie: cookie }))
+     }
+ 
+@@ -1004,3 +1029,25 @@
+         Ok(())
+     }
+ }
++
++static PLB_ANDROID_WINDOW: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
++static PLB_ANDROID_OWNER: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
++pub fn plb_set_android_window(window: usize, owner: u32) {
++    PLB_ANDROID_OWNER.store(owner, std::sync::atomic::Ordering::SeqCst);
++    PLB_ANDROID_WINDOW.store(window, std::sync::atomic::Ordering::SeqCst);
++}
++pub fn plb_android_window_is_active() -> bool {
++    PLB_ANDROID_WINDOW.load(std::sync::atomic::Ordering::SeqCst) != 0
++        && PLB_ANDROID_OWNER.load(std::sync::atomic::Ordering::SeqCst) == std::process::id()
++}
++extern "C" {
++    fn gfxstream_backend_setup_window(
++        window: *const std::ffi::c_void,
++        x: i32,
++        y: i32,
++        width: i32,
++        height: i32,
++        framebuffer_width: i32,
++        framebuffer_height: i32,
++    );
++}
+--- a/devices/src/virtio/gpu/virtio_gpu.rs
++++ b/devices/src/virtio/gpu/virtio_gpu.rs
+@@ -769,6 +769,14 @@
+             return Ok(OkNoData);
+         }
+ 
++        // The Android Surface variant presents through gfxstream's native
++        // window. The baseline headless backend still follows the path below.
++        #[cfg(target_os = "android")]
++        if rutabaga_gfx::plb_android_window_is_active() {
++            return self.rutabaga.resource_flush(resource_id)
++                .map(|_| OkNoData).map_err(ErrRutabaga);
++        }
++
+         #[cfg(windows)]
+         match self.rutabaga.resource_flush(resource_id) {
+             Ok(_) => return Ok(OkNoData),

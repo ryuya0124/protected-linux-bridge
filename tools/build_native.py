@@ -24,6 +24,7 @@ identity_files = (
     + list((root / "tools").glob("*.py"))
     + list((root / "tools").glob("*.c"))
     + list((root / "tools").glob("*.h"))
+    + [p for p in (root / "tools/android_guest_network").rglob("*") if p.is_file()]
     + [root / "third_party/hev/sources.json"]
 )
 identity = hashlib.sha256(b"".join(p.read_bytes() for p in sorted(identity_files))).hexdigest()[:20]
@@ -129,12 +130,12 @@ for memory in (1536, 1792):
         check=True,
     )
 
+tunnel = build_tun(root, Path(a.sdk))
 build_android_gpu4g(root, Path(a.sdk), out, clang)
 
 fetch_gpu(root, out)
 build_clipboard(root, Path(a.sdk), out)
 agent = build_guest(root, Path(a.sdk))
-tunnel = build_tun(root, Path(a.sdk))
 zerofree = fetch_storage(root, out)
 data = bytearray()
 inode = 1
