@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Build the isolated Android guest GPU diagnostic; never install or launch it.
 
-All output is private development data. The default GLES path uses the original
+All output is private development data. The default 512 MiB GLES path uses the original
 installed crosvm, with no preload, private VMM copy or global host-policy writes.
 The separately selected Vulkan diagnostic pins its process-local compatibility
 library and remains unverified. Existing guest disks are never opened here.
+The 1536 MiB GLES build adds a separate prefault-only memory library and bounded
+three-key policy supervisor. It is not boot-validated and never runs here.
 """
 
 import argparse
@@ -68,10 +70,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sdk", type=Path, required=True)
     parser.add_argument("--mode", choices=("gles", "vulkan"), default="gles")
+    parser.add_argument("--memory", type=int, choices=(512, 1536), default=512)
     args = parser.parse_args()
+    if args.memory == 1536 and args.mode != "gles":
+        parser.error("The larger diagnostic currently supports GLES only")
     if shutil.disk_usage(ROOT).free < 21 * 1024**3:
         parser.error("Retain at least 20 GiB Mac storage headroom")
-    out = ROOT / "artifacts/android-display/gpu-research" / args.mode
+    label = args.mode if args.memory == 512 else "gles1536"
+    out = ROOT / "artifacts/android-display/gpu-research" / label
     out.mkdir(mode=0o700, parents=True, exist_ok=True)
     original = ROOT / "artifacts/android-display/cuttlefish17/android-lowram.cpio"
     (out / "android-gles.cpio").write_bytes(gles_ramdisk(original.read_bytes()))
@@ -80,7 +86,9 @@ def main():
     (out / "android_gpu_early.generated.h").write_text(
         "/* Generated guest-only diagnostic command. */\n"
         + "static const char console_swap_command[] =\n"
-        + json.dumps(early_command(setup + "\n" + supplement))
+        # In the larger probe the identity-checked ADB observer owns swap setup.
+        # Avoid two threads racing its zram initialization through the console.
+        + json.dumps(early_command((setup + "\n" if args.memory == 512 else "") + supplement))
         + ";\n"
     )
     (out / "android_guest_setup.generated.h").write_text(
@@ -112,6 +120,51 @@ def main():
         ROOT / "tools/android_ramdisk.py",
         ROOT / "tools/gfxstream_loader_probe.c",
     ]
+    executable = out / "android-gpu-runner"
+    if args.memory == 1536:
+        executable = out / "android-gpu1536-gles-runner"
+        library = out / "libandroid_gpu1536_gles_backing.so"
+        subprocess.run(
+            flags
+            + [
+                "-shared",
+                "-fPIC",
+                "-DPLB_ANDROID_GPU_BACKING=1",
+                str(ROOT / "tools/memory_backing_probe.c"),
+                "-o",
+                str(library),
+            ],
+            check=True,
+        )
+        digest = hashlib.sha256(library.read_bytes()).hexdigest()
+        defines += [
+            "-DPLB_ANDROID_MEMORY_PROBE=1",
+            "-DPLB_ANDROID_MEMORY_MIB=1536",
+            "-DPLB_ANDROID_MEMORY_POLICY=1",
+            "-DPLB_ANDROID_GPU_MEMORY_PROBE=1",
+            f'-DPLB_ANDROID_MEMORY_LIBRARY_SHA256="{digest}"',
+        ]
+        sources += [
+            ROOT / name
+            for name in (
+                "tools/android_gpu_memory_config.h",
+                "tools/memory_backing_probe.c",
+                "tools/android_memory_observer.h",
+                "tools/owned_page_summary.h",
+                "tools/host_memory_health.h",
+                "tools/diagnostic_owner_lock.h",
+                "tools/small_shmem_policy_probe.c",
+            )
+        ]
+        subprocess.run(
+            flags
+            + [
+                str(ROOT / "tools/small_shmem_policy_probe.c"),
+                "-o",
+                str(out / "small-shmem-policy-probe"),
+            ],
+            check=True,
+        )
     if args.mode == "vulkan":
         library = out / "libgfxstream_android_compat.so"
         source = ROOT / "tools/gfxstream_android_compat.c"
@@ -142,7 +195,7 @@ def main():
             str(out),
             str(ROOT / "tools/android_probe_runner.c"),
             "-o",
-            str(out / "android-gpu-runner"),
+            str(executable),
         ],
         check=True,
     )
@@ -161,10 +214,20 @@ def main():
         for path in sources
         + list(out.glob("*.h"))
         + list(out.glob("*.so"))
-        + [out / "android-gles.cpio", out / "android-gpu-runner", out / "gfxstream-loader-probe"]
+        + [out / "android-gles.cpio", executable, out / "gfxstream-loader-probe"]
+        + ([out / "small-shmem-policy-probe"] if args.memory == 1536 else [])
     }
     (out / "build.json").write_text(
-        json.dumps({"mode": args.mode, "sha256": records}, indent=2) + "\n"
+        json.dumps(
+            {
+                "mode": args.mode,
+                "memory_mib": args.memory,
+                "boot_validated": False,
+                "sha256": records,
+            },
+            indent=2,
+        )
+        + "\n"
     )
     print(f"Built only: {out}. No device operation, VM launch or host setting change.")
 

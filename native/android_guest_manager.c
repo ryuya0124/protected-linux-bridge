@@ -28,7 +28,14 @@
 #if defined(PLB_ANDROID_MEMORY_POLICY) && !defined(PLB_ANDROID_MEMORY_PROBE)
 #error "The policy diagnostic requires the isolated Android memory profile"
 #endif
-#if defined(PLB_ANDROID_MEMORY_PROBE) && defined(PLB_ANDROID_GFXSTREAM_PROBE)
+#if defined(PLB_ANDROID_GPU_MEMORY_PROBE) &&                                                       \
+    (!defined(PLB_ANDROID_MEMORY_PROBE) || !defined(PLB_ANDROID_GFXSTREAM_PROBE) ||                \
+     !defined(PLB_ANDROID_MEMORY_POLICY) || PLB_ANDROID_MEMORY_MIB != 1536 ||                      \
+     defined(PLB_ANDROID_GFXSTREAM_VULKAN_PROBE))
+#error "The combined research build is restricted to the pinned 1536 MiB GLES profile"
+#endif
+#if defined(PLB_ANDROID_MEMORY_PROBE) && defined(PLB_ANDROID_GFXSTREAM_PROBE) &&                   \
+    !defined(PLB_ANDROID_GPU_MEMORY_PROBE)
 #error "Keep Android memory and GPU diagnostics independent"
 #endif
 #if defined(PLB_ANDROID_LARGE_PROFILE) &&                                                          \
@@ -36,7 +43,8 @@
 #error "Keep the integrated large profile separate from diagnostics"
 #endif
 #ifdef PLB_ANDROID_LARGE_PROFILE
-#define BASE FILES "/android-guests/cf17-1536"
+#include "../tools/android_large_config.h"
+#define BASE FILES "/android-guests/" PLB_LARGE_DIRECTORY
 #define CHECK_BASE FILES "/android-guests/cuttlefish17"
 #elif defined(PLB_ANDROID_MEMORY_PROBE)
 #ifndef PLB_ANDROID_MEMORY_MIB
@@ -47,7 +55,12 @@
 #endif
 #define PLB_STRINGIFY_INNER(value) #value
 #define PLB_STRINGIFY(value) PLB_STRINGIFY_INNER(value)
+#ifdef PLB_ANDROID_GPU_MEMORY_PROBE
+#include "../tools/android_gpu_memory_config.h"
+#define BASE FILES "/android-guests/" PLB_GPU_MEMORY_DIRECTORY
+#else
 #define BASE FILES "/android-guests/cf17-mem"
+#endif
 #elif defined(PLB_ANDROID_GFXSTREAM_PROBE)
 #define BASE FILES "/android-guests/cuttlefish17-gpu-probe"
 #else
@@ -80,9 +93,12 @@ static void stop(int signal) {
 
 #ifdef PLB_ANDROID_GFXSTREAM_PROBE
 #include <pthread.h>
+#ifndef PLB_ANDROID_MEMORY_PROBE
 #include "android_guest_adb.h"
 #include "android_guest_setup.generated.h"
+#endif
 #include "../tools/android_gpu_console.h"
+#ifndef PLB_ANDROID_GPU_MEMORY_PROBE
 /* Configure guest swap as soon as its original adbd is ready, independently
  * of Mac ADB reconnection delays. Identity is checked before any guest write. */
 static void *diagnostic_guest_setup(void *unused) {
@@ -115,6 +131,32 @@ static void *diagnostic_guest_setup(void *unused) {
     }
     free(output);
     return NULL;
+}
+#endif
+#endif
+
+#ifdef PLB_ANDROID_GPU_MEMORY_PROBE
+#include <sys/system_properties.h>
+#include <sys/utsname.h>
+static int gpu_memory_platform(void) {
+    char value[PROP_VALUE_MAX];
+    struct utsname kernel;
+    __system_property_get("ro.product.model", value);
+    if (strcmp(value, "SM-S948Q"))
+        return 0;
+    __system_property_get("ro.build.version.incremental", value);
+    if (strcmp(value, "S948QOPS1AZHL") || uname(&kernel) ||
+        strcmp(kernel.release, "6.12.30-android16-5-pd30ff70-abogkiS948QOPS1AZHL-4k"))
+        return 0;
+    __system_property_get("ro.build.version.sdk", value);
+    if (strcmp(value, "36"))
+        return 0;
+    int fd = open("/sys/fs/selinux/enforce", O_RDONLY | O_CLOEXEC);
+    char enforcing = 0;
+    ssize_t size = fd >= 0 ? read(fd, &enforcing, 1) : -1;
+    if (fd >= 0)
+        close(fd);
+    return size == 1 && enforcing == '1';
 }
 #endif
 
@@ -179,8 +221,8 @@ int main(int argc, char **argv) {
     uid_t app_uid = 0;
     int check_only = 0;
 #ifdef PLB_ANDROID_PROBE
-    (void)argv;
-    if (getuid() || argc != 1)
+    check_only = argc == 2 && !strcmp(argv[1], "--check");
+    if (getuid() || (!check_only && argc != 1))
         return 20;
 #else
     check_only = argc == 2 && !strcmp(argv[1], "--check");
@@ -197,6 +239,17 @@ int main(int argc, char **argv) {
     if ((!check_only && *end) || parsed < 10000 || parsed > 19999)
         return 20;
     app_uid = (uid_t)parsed;
+#endif
+#if defined(PLB_ANDROID_PROBE) || defined(PLB_ANDROID_LARGE_PROFILE)
+    /* Refuse even a preflight before inspecting/preparing a new disk profile. */
+    if (!plb_host_memory_healthy()) {
+        fprintf(stderr, "ANDROID_PROFILE_REJECTED host_memory_warning=1\n");
+        return 42;
+    }
+#endif
+#ifdef PLB_ANDROID_GPU_MEMORY_PROBE
+    if (!gpu_memory_platform())
+        return 39;
 #endif
     if (!private_file(KERNEL) ||
         !private_file(FILES "/android-guests/cuttlefish17/android-base.qcow2") ||
@@ -219,6 +272,14 @@ int main(int argc, char **argv) {
     const char *vmm_digest = "9b4d56db70be1d3d646a08da0cb3e6eb95637457e5f15cb3b1c627f348e3e847";
     if (!pinned_digest("/apex/com.android.virt/bin/crosvm", vmm_digest))
         return 31;
+#ifdef PLB_ANDROID_GPU_MEMORY_PROBE
+    /* --check is also used by the policy supervisor before its first write. */
+    if (!private_file(PLB_GPU_MEMORY_LIBRARY) ||
+        !pinned_digest(PLB_GPU_MEMORY_LIBRARY, PLB_ANDROID_MEMORY_LIBRARY_SHA256) ||
+        !private_file(FILES "/kernel-probes/crosvm-copy") ||
+        !pinned_digest(FILES "/kernel-probes/crosvm-copy", vmm_digest))
+        return 31;
+#endif
 #ifdef PLB_ANDROID_GFXSTREAM_VULKAN_PROBE
 #ifndef PLB_GFXSTREAM_COMPAT_SHA256
 #error "The Vulkan diagnostic compatibility library must be pinned by the build tool"
@@ -234,10 +295,6 @@ int main(int argc, char **argv) {
         return 31;
 #endif
 #endif
-#if defined(PLB_ANDROID_PROBE) || defined(PLB_ANDROID_LARGE_PROFILE)
-    if (!plb_host_memory_healthy())
-        return 42;
-#endif
 #ifdef PLB_ANDROID_LARGE_PROFILE
     if (!large_platform())
         return 39;
@@ -247,7 +304,9 @@ int main(int argc, char **argv) {
     if (check_only) {
         fprintf(stdout, "ANDROID_PROFILE_CHECK_OK memory_mib=%d\n",
 #ifdef PLB_ANDROID_LARGE_PROFILE
-                1536
+                PLB_ANDROID_LARGE_MEMORY_MIB
+#elif defined(PLB_ANDROID_MEMORY_PROBE)
+                PLB_ANDROID_MEMORY_MIB
 #else
                 512
 #endif
@@ -265,7 +324,7 @@ int main(int argc, char **argv) {
     fclose(info);
     if (available <
 #ifdef PLB_ANDROID_LARGE_PROFILE
-        2304ULL * 1024
+        PLB_LARGE_HEADROOM_KIB
 #elif defined(PLB_ANDROID_MEMORY_PROBE)
         (PLB_ANDROID_MEMORY_MIB + 768ULL) * 1024
 #else
@@ -323,7 +382,7 @@ int main(int argc, char **argv) {
         large_error = 40;
         goto large_startup_failed;
     }
-    if (android_prepare_available() < 2304UL * 1024) {
+    if (android_prepare_available() < PLB_LARGE_HEADROOM_KIB) {
         large_error = 23;
         goto large_startup_failed;
     }
@@ -360,13 +419,24 @@ int main(int argc, char **argv) {
 #ifndef PLB_ANDROID_MEMORY_LIBRARY_SHA256
 #error "Pin the diagnostic shared-memory library"
 #endif
-        const char *memory_library = FILES "/kernel-probes/libandroid_memory_backing_probe.so";
+        const char *memory_library =
+#ifdef PLB_ANDROID_GPU_MEMORY_PROBE
+            PLB_GPU_MEMORY_LIBRARY;
+#else
+            FILES "/kernel-probes/libandroid_memory_backing_probe.so";
+#endif
         if (!private_file(memory_library) ||
             !pinned_digest(memory_library, PLB_ANDROID_MEMORY_LIBRARY_SHA256) ||
             !pinned_digest(FILES "/kernel-probes/crosvm-copy",
                            "9b4d56db70be1d3d646a08da0cb3e6eb95637457e5f15cb3b1c627f348e3e847") ||
             setenv("LD_PRELOAD", memory_library, 1) ||
-            setenv("PLB_ANDROID_BACKING_PROBE", "shared-middle-refault", 1) ||
+            setenv("PLB_ANDROID_BACKING_PROBE",
+#ifdef PLB_ANDROID_GPU_MEMORY_PROBE
+                   "shared-middle-prefault",
+#else
+                   "shared-middle-refault",
+#endif
+                   1) ||
             setenv("LD_LIBRARY_PATH",
                    "/apex/com.android.virt/lib64:/system/lib64:/system_ext/lib64", 1))
             _exit(34);
@@ -378,7 +448,7 @@ int main(int argc, char **argv) {
             _exit(33);
         close(oom);
         if (setenv("LD_PRELOAD", PLB_LARGE_LIBRARY, 1) ||
-            setenv("PLB_ANDROID_LARGE_BACKING", "shared-middle-refault", 1) ||
+            setenv("PLB_ANDROID_LARGE_BACKING", "shared-middle-prefault", 1) ||
             setenv("LD_LIBRARY_PATH",
                    "/apex/com.android.virt/lib64:/system/lib64:/system_ext/lib64", 1))
             _exit(34);
@@ -400,7 +470,7 @@ int main(int argc, char **argv) {
             "32",
             "--mem",
 #ifdef PLB_ANDROID_LARGE_PROFILE
-            "size=1536",
+            PLB_LARGE_MEMORY_ARGUMENT,
 #elif defined(PLB_ANDROID_MEMORY_PROBE)
             "size=" PLB_STRINGIFY(PLB_ANDROID_MEMORY_MIB),
 #else
@@ -467,8 +537,12 @@ int main(int argc, char **argv) {
             "backend=gfxstream,context-types=gfxstream-gles:gfxstream-vulkan:gfxstream-composer,"
             "egl=true,gles=true,vulkan=true,glx=false,surfaceless=true,width=480,height=800",
 #elif defined(PLB_ANDROID_GFXSTREAM_PROBE)
+#ifdef PLB_ANDROID_GPU_MEMORY_PROBE
+            PLB_GPU_MEMORY_GPU_ARGUMENT,
+#else
             "backend=gfxstream,context-types=gfxstream-gles:gfxstream-composer,"
             "egl=true,gles=true,vulkan=false,glx=false,surfaceless=true,width=480,height=800",
+#endif
 #else
             "backend=2d,width=480,height=800",
 #endif
@@ -530,8 +604,10 @@ int main(int argc, char **argv) {
     struct gpu_console_context console_context = {&console, child};
     int console_started =
         !pthread_create(&console_thread, NULL, gpu_console_worker, &console_context);
+#ifndef PLB_ANDROID_GPU_MEMORY_PROBE
     pthread_t bootstrap;
     int bootstrap_started = !pthread_create(&bootstrap, NULL, diagnostic_guest_setup, NULL);
+#endif
 #endif
 #ifndef PLB_ANDROID_PROBE
     int display_started = android_display_start(app_uid) == 0;
@@ -586,8 +662,10 @@ int main(int argc, char **argv) {
 #endif
 #ifdef PLB_ANDROID_GFXSTREAM_PROBE
     stopping = 1;
+#ifndef PLB_ANDROID_GPU_MEMORY_PROBE
     if (bootstrap_started)
         pthread_join(bootstrap, NULL);
+#endif
     if (console_started)
         pthread_join(console_thread, NULL);
     sensor_close(&console, BASE "/early-console.sock");

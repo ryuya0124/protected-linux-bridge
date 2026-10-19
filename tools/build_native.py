@@ -87,39 +87,47 @@ subprocess.run(
     ],
     check=True,
 )
-large_library = out / "libandroid-memory.so"
-subprocess.run(
-    base
-    + [
-        "-shared",
-        "-fPIC",
-        "-DPLB_ANDROID_LARGE_BACKING=1",
-        str(root / "tools/memory_backing_probe.c"),
-        "-o",
-        str(large_library),
-    ],
-    check=True,
-)
-(temp / "android_large_build.generated.h").write_text(
-    "/* Generated from the bundled, scoped Android memory library. */\n"
-    + '#define PLB_LARGE_LIBRARY_SHA256 "'
-    + hashlib.sha256(large_library.read_bytes()).hexdigest()
-    + '"\n'
-)
-subprocess.run(
-    base
-    + [
-        "-I",
-        str(temp),
-        "-DPLB_ANDROID_LARGE_PROFILE=1",
-        "-fPIE",
-        "-pie",
-        "-o",
-        str(out / "android-large-bridge"),
-        str(root / "native/android_guest_manager.c"),
-    ],
-    check=True,
-)
+# Distinct manager/library identities and disks prevent cross-profile reuse.
+for memory in (1536, 1792):
+    suffix = "" if memory == 1536 else "1792"
+    large_library = out / f"libandroid-memory{suffix}.so"
+    profile_flags = [f"-DPLB_ANDROID_LARGE_MEMORY_MIB={memory}"]
+    subprocess.run(
+        base
+        + profile_flags
+        + [
+            "-shared",
+            "-fPIC",
+            "-DPLB_ANDROID_LARGE_BACKING=1",
+            str(root / "tools/memory_backing_probe.c"),
+            "-o",
+            str(large_library),
+        ],
+        check=True,
+    )
+    (temp / f"android_large{suffix}_build.generated.h").write_text(
+        "/* Generated from this profile's bundled, scoped memory library. */\n"
+        + '#define PLB_LARGE_LIBRARY_SHA256 "'
+        + hashlib.sha256(large_library.read_bytes()).hexdigest()
+        + '"\n'
+    )
+    executable = "android-large-bridge" if memory == 1536 else "android-large1792-bridge"
+    subprocess.run(
+        base
+        + profile_flags
+        + [
+            "-I",
+            str(temp),
+            "-DPLB_ANDROID_LARGE_PROFILE=1",
+            "-fPIE",
+            "-pie",
+            "-o",
+            str(out / executable),
+            str(root / "native/android_guest_manager.c"),
+        ],
+        check=True,
+    )
+
 fetch_gpu(root, out)
 build_clipboard(root, Path(a.sdk), out)
 agent = build_guest(root, Path(a.sdk))

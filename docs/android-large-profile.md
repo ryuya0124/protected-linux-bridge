@@ -1,6 +1,38 @@
-# Guarded Android 17 / 1.5 GiB app profile
+# Guarded Android 17 RAM profiles
 
-## Current preview.6 safety update
+## Preview.7: separate 1792 MiB selection
+
+The app now offers **1536 MiB, 1792 MiB (1.75 GiB), and 512 MiB**.
+1792 MiB is explicitly an **unverified experiment**. The earlier 1792 MiB write
+progress marker does not validate this configuration, full readback or Android
+boot. The prefault-only 1536 MiB runtime also remains unvalidated on a clean host.
+
+Each larger variant has its own executable, SHA-pinned backing library, ready
+marker and disk directory. `cf17-1536` is retained; the new `cf17-1792` starts from
+a verified offline copy of the original 512 MiB disks, not the sole 1536 MiB data.
+Data is independent after that initial copy. Both variants retain the exact host
+pins, common owner lock, 6 GiB preparation cap, 1536 MiB floor and policy guardian.
+The 1792 MiB VMM's main memfd is expected to be 1760 MiB after its 32 MiB SWIOTLB
+allowance; its initial/post-preparation headroom check is 2560 MiB. A different
+mapping size or software-GPU profile is rejected by its own backing library.
+
+The signed preview.7 APK was installed in place. On the current affected host,
+1792 MiB `--check` and the acknowledged start both return **42** before preparing
+a disk or allocating VM RAM; 1536 MiB preflight also returns 42. The 512 MiB
+preflight returns its exact success marker; this is not a new 512 MiB boot test.
+No 1792 MiB profile/preparation directory was created, all three policies stayed
+`never`, and the host boot/main system processes and unrelated VM were unchanged.
+The locked-device selector/viewer still needs a visible UI check.
+
+Validation: 131 Python/native checks, 29 JVM tests, release Lint and the signed
+release build pass. Artifact checks confirm distinct profile identities and no
+`ioctl` export in either app backing library. The GPU compile checks reject
+unconfigured RAM sizes, missing policy preparation and the combined Vulkan mode.
+
+[1536 MiB GPU research and current block](android-gpu1536-research.md) is separate
+from the APK. No working Android hardware-GPU toggle is claimed or enabled.
+
+## Preview.6 safety update (still retained in preview.7)
 
 The larger follow-up found host `Bad page cache` warnings in the mapped-hole-punch
 experiment. Preview.6 removes that operation from the production library and
@@ -48,7 +80,7 @@ long-term Android stability.
   Host-wide policy is disclosed before selecting the mode; no persistent opt-in
   or silent boot-time switch exists.
 - `tools/memory_backing_probe.c`, production build variant: retains the original
-  shared memfd and offsets, with 64 MiB base-page margins. It prefaults/refaults
+  shared memfd and offsets, with 64 MiB base-page margins. It prefaults
   only its own backing, checks complete middle-range THP flags before donation
   and refuses with exit 89 on incomplete coverage. Contiguous base pages alone
   never satisfy this gate. Diagnostic ioctl observation is excluded from the APK.

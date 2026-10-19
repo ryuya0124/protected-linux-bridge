@@ -165,3 +165,16 @@ prefault-only and does not include that helper. BAD_PAGE/OOPS taint or unreadabl
 health state refuses new diagnostic load and the guarded large app profile;
 never clear the host taint or bypass this guard to continue. See
 [memory-increase-2026-10-19.md](memory-increase-2026-10-19.md).
+
+
+### Preview.7 RAM identities and 1536 MiB GLES research
+
+`AndroidGuestProfile` maps the selector to 1536/1792/512 MiB without an unknown
+value silently falling back. `tools/android_large_config.h` provides separate
+native directories, marker strings, library names and mapping sizes. The build
+creates both SHA-pinned manager/library pairs. [Current app evidence](android-large-profile.md).
+
+`tools/build_android_gpu_probe.py --memory 1536 --mode gles` builds the isolated,
+prefault-only graphics/memory comparison. The 512 MiB GLES/Vulkan diagnostics
+remain separate, and the combined 1536 MiB Vulkan variant is deliberately rejected.
+[GPU investigation, safety gates and limitations](android-gpu1536-research.md).

@@ -1,0 +1,41 @@
+{
+  "date": "2026-10-19",
+  "version": "0.4.0-preview.7",
+  "version_code": 12,
+  "app_memory_choices_mib": [
+    1536,
+    1792,
+    512
+  ],
+  "android1792_boot_validated": false,
+  "current_prefault_only_android1536_boot_validated": false,
+  "gpu1536_boot_validated": false,
+  "host_bad_page_taint_present": true,
+  "large1792_preflight_exit": 42,
+  "large1792_acknowledged_start_exit": 42,
+  "large1536_preflight_exit": 42,
+  "fallback512_preflight_exit": 0,
+  "fallback512_exact_marker_verified": true,
+  "gpu1536_preflight_exit": 42,
+  "gpu1536_start_request_exit": 42,
+  "gpu1536_policy_supervisor_exit": 38,
+  "new_vm_started": false,
+  "new_pressure_allocation_started": false,
+  "new1792_profile_or_preparation_directory_created": false,
+  "new_gpu1536_profile_directory_created": false,
+  "host_shmem16_32_64_modes_after": [
+    "never",
+    "never",
+    "never"
+  ],
+  "host_boot_unchanged": true,
+  "host_main_system_processes_unchanged": true,
+  "unrelated_vm_unchanged": true,
+  "selinux_enforcing": true,
+  "visible_selector_ui_verified": false,
+  "android_hardware_gpu_rendered_home_verified": false,
+  "python_native_tests_passed": 131,
+  "jvm_tests_passed": 29,
+  "release_lint_passed": true,
+  "apk_sha256": "c9249cdb613ea9fab5e1534648e4ca05d731a592ae98da6003a921e48808d813"
+}

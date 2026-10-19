@@ -4,11 +4,19 @@
  * This library never changes a host policy, ioctl or protected VM type.
  * Private anonymous backing is diskless research only and rejects GPU, disks,
  * vsock, network and input. The separate Android variants accept only their
- * pinned 1.5/2 GiB software-GPU profiles and never replace shared RAM with it.
+ * pinned RAM/renderer profiles and never replace shared RAM with it.
  */
 #define _GNU_SOURCE
 #ifdef PLB_ANDROID_LARGE_BACKING
 #define PLB_ANDROID_SHARED_BACKING_PROBE 1
+#include "android_large_config.h"
+#endif
+#ifdef PLB_ANDROID_GPU_BACKING
+#define PLB_ANDROID_SHARED_BACKING_PROBE 1
+#include "android_gpu_memory_config.h"
+#endif
+#if defined(PLB_ANDROID_LARGE_BACKING) || defined(PLB_ANDROID_GPU_BACKING)
+#define PLB_PREFAULT_ONLY_BACKING 1
 #endif
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -26,7 +34,8 @@
 #include "backing_order_summary.h"
 #include "backing_page_order.h"
 #include "owned_page_summary.h"
-#ifndef PLB_ANDROID_LARGE_BACKING
+#include "host_memory_health.h"
+#ifndef PLB_PREFAULT_ONLY_BACKING
 #include "shmem_refault_probe.h"
 #endif
 #ifndef MADV_COLLAPSE
@@ -47,7 +56,7 @@ static size_t boot_safe_size;
 #define BOOT_BASE_PAGES (64UL * 1024 * 1024)
 #define BOOT_TAIL_PAGES (tail_safe ? BOOT_BASE_PAGES : 0)
 
-#ifndef PLB_ANDROID_LARGE_BACKING
+#ifndef PLB_PREFAULT_ONLY_BACKING
 struct observed_boot_config {
     uint64_t guest_phys_addr, size;
 };
@@ -103,7 +112,9 @@ static int approved_arguments(void) {
     int gpu = 0, disks = 0, vsock = 0, memory = 0, initrd = 0;
     const char *profile =
 #ifdef PLB_ANDROID_LARGE_BACKING
-        "/data/user/0/net.ryuya_dev.protectedlinux/files/android-guests/cf17-1536";
+        "/data/user/0/net.ryuya_dev.protectedlinux/files/android-guests/" PLB_LARGE_DIRECTORY;
+#elif defined(PLB_ANDROID_GPU_BACKING)
+        "/data/user/0/net.ryuya_dev.protectedlinux/files/android-guests/" PLB_GPU_MEMORY_DIRECTORY;
 #else
         "/data/user/0/net.ryuya_dev.protectedlinux/files/android-guests/cf17-mem";
 #endif
@@ -143,7 +154,13 @@ static int approved_arguments(void) {
 #ifdef PLB_ANDROID_SHARED_BACKING_PROBE
         const char *value = at + length + 1 < (size_t)size ? arg + length + 1 : "";
         if (!strcmp(arg, "--gpu")) {
-            if (strcmp(value, "backend=2d,width=480,height=800"))
+            if (strcmp(value,
+#ifdef PLB_ANDROID_GPU_BACKING
+                       PLB_GPU_MEMORY_GPU_ARGUMENT
+#else
+                       "backend=2d,width=480,height=800"
+#endif
+                       ))
                 return 0;
             gpu++;
         }
@@ -154,10 +171,14 @@ static int approved_arguments(void) {
         }
         if (!strcmp(arg, "--mem")) {
             if (
-#ifndef PLB_ANDROID_LARGE_BACKING
-                strcmp(value, "size=2048") &&
+#ifdef PLB_ANDROID_LARGE_BACKING
+                strcmp(value, PLB_LARGE_MEMORY_ARGUMENT)
+#elif defined(PLB_ANDROID_GPU_BACKING)
+                strcmp(value, PLB_GPU_MEMORY_ARGUMENT)
+#else
+                strcmp(value, "size=2048") && strcmp(value, "size=1536")
 #endif
-                strcmp(value, "size=1536"))
+            )
                 return 0;
             memory++;
         }
@@ -213,14 +234,19 @@ __attribute__((constructor)) static void initialize(void) {
     if (!mode)
         return;
 #ifdef PLB_ANDROID_SHARED_BACKING_PROBE
+#ifdef PLB_PREFAULT_ONLY_BACKING
+    if (strcmp(mode, "shared-middle-prefault"))
+#else
     if (strcmp(mode, "shared-middle-refault"))
+#endif
         _exit(79);
 #endif
     if ((strcmp(mode, "anonymous") && strcmp(mode, "anonymous-prefault") &&
          strcmp(mode, "shared-forward") && strcmp(mode, "shared-reverse") &&
          strcmp(mode, "shared-upper-huge") && strcmp(mode, "shared-upper-refault") &&
          strcmp(mode, "shared-upper-collapse") && strcmp(mode, "shared-middle-refault") &&
-         strcmp(mode, "shared-upper-locked") && strcmp(mode, "shared-middle-reverse-refault")) ||
+         strcmp(mode, "shared-upper-locked") && strcmp(mode, "shared-middle-reverse-refault") &&
+         strcmp(mode, "shared-middle-prefault")) ||
         getuid() || stat("/proc/self/exe", &actual) ||
         stat(
 #ifdef PLB_ANDROID_LARGE_BACKING
@@ -232,10 +258,13 @@ __attribute__((constructor)) static void initialize(void) {
         actual.st_dev != expected.st_dev || actual.st_ino != expected.st_ino ||
         !approved_arguments())
         _exit(79);
+    if (!plb_host_memory_healthy())
+        _exit(90);
     enabled = 1;
     lock_backing = !strcmp(mode, "shared-upper-locked");
-    tail_safe =
-        !strcmp(mode, "shared-middle-refault") || !strcmp(mode, "shared-middle-reverse-refault");
+    tail_safe = !strcmp(mode, "shared-middle-refault") ||
+                !strcmp(mode, "shared-middle-reverse-refault") ||
+                !strcmp(mode, "shared-middle-prefault");
     collapse_backing = !strcmp(mode, "shared-upper-collapse");
     refault_small =
         lock_backing || tail_safe || collapse_backing || !strcmp(mode, "shared-upper-refault");
@@ -387,7 +416,10 @@ static void *map_memory(void *address, size_t size, int prot, int flags, int fd,
         }
     }
 #ifdef PLB_ANDROID_LARGE_BACKING
-    if (replace && size != 1504UL * 1024 * 1024)
+    if (replace && size != PLB_LARGE_BACKING_BYTES)
+        _exit(79);
+#elif defined(PLB_ANDROID_GPU_BACKING)
+    if (replace && size != PLB_GPU_MEMORY_BACKING_BYTES)
         _exit(79);
 #endif
     if (replace && !shared_backing) {
@@ -468,7 +500,7 @@ static void *map_memory(void *address, size_t size, int prot, int flags, int fd,
             int suitable =
                 sample_order(boot_safe ? (char *)mapping + BOOT_BASE_PAGES : mapping,
                              boot_safe ? size - BOOT_BASE_PAGES - BOOT_TAIL_PAGES : size);
-#ifdef PLB_ANDROID_LARGE_BACKING
+#ifdef PLB_PREFAULT_ONLY_BACKING
             /* Do not hole-punch a mapped shmem folio. The diagnostic reverse
              * comparison exposed a host page-cache accounting failure. */
             if (!suitable) {

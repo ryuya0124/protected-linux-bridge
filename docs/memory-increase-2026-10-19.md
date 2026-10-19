@@ -79,3 +79,35 @@ that never deletes a still-mapped folio; it must preserve the host boundary.
 [Sanitized measurements](data/memory-increase-2026-10-19.json) ·
 [Earlier app integration](android-large-profile.md) ·
 [Host prohibitions](host-boundary.md)
+
+## Preview.7 follow-up: distinguish capacity from mapping granularity
+
+The new app selection is 1792 MiB, explicitly unverified, with separate data and
+an unchanged health refusal. No new RAM capacity has been demonstrated in the
+currently affected host boot. [Profile details](android-large-profile.md).
+
+Rechecking the sanitized folio counts gives these descriptive ratios:
+
+| Captured middle/backing snapshot | THP pages | Observed heads | THP KiB / observed head |
+| --- | ---: | ---: | ---: |
+| Successful 512/256 reverse-middle test | 90112 | 5632 | 64.00 |
+| Failed 3072/2048 forward-middle test | 745472 | 139173 | 21.43 |
+| Failed 3072/2048 reverse-middle test | 745472 | 109036 | 27.35 |
+
+The ratio uses 4 KiB per sampled page. It is a snapshot proxy, not an exact folio
+histogram, maximum allocatable RAM or a measurement of Gunyah's page-table pool.
+Mapping boundaries, migration races and unequal guest progress prevent a simple
+causal comparison. Nevertheless, full THP flag coverage at 3 GiB did **not** mean
+2 MiB folios: its observed head count was much larger than a 2 MiB-only layout
+would need. Improving coverage alone is therefore insufficient; the extent count,
+folio granularity and hypervisor mapping resources remain separate hypotheses.
+The reverse result also contains host-accounting damage and cannot establish
+that changing fault order improves a working configuration.
+
+Do not transplant DroidVM's broader cache-drop/compaction controls, additional
+THP settings or host reserve module into Bridge. Those remain outside the host
+boundary. The new [1536 MiB GLES comparison](android-gpu1536-research.md) uses a
+separate prefault-only library, requiring full observed coverage rather than
+reintroducing hole punching. It built, but the host health gate refused its
+on-device start before any policy change. A clean-session full readback is still
+required before claiming a capacity increase or testing a larger GPU workload.

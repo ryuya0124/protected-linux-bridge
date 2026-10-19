@@ -13,6 +13,12 @@ public final class AndroidProfileCheckTest {
         AndroidGuestRuntime.verifiedCheck(0, "ANDROID_PROFILE_CHECK_OK memory_mib=512\n", 512));
     assertTrue(
         AndroidGuestRuntime.verifiedCheck(0, "ANDROID_PROFILE_CHECK_OK memory_mib=1536\n", 1536));
+    assertTrue(
+        AndroidGuestRuntime.verifiedCheck(0, "ANDROID_PROFILE_CHECK_OK memory_mib=1792\n", 1792));
+    assertFalse(
+        AndroidGuestRuntime.verifiedCheck(0, "ANDROID_PROFILE_CHECK_OK memory_mib=1536\n", 1792));
+    assertFalse(
+        AndroidGuestRuntime.verifiedCheck(42, "ANDROID_PROFILE_CHECK_OK memory_mib=1792\n", 1792));
     assertFalse(
         AndroidGuestRuntime.verifiedCheck(0, "ANDROID_PROFILE_CHECK_OK memory_mib=512\n", 1536));
     assertFalse(

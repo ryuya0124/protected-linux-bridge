@@ -1,4 +1,4 @@
-/* MIT. The explicitly selected, pinned 1536 MiB Android profile.
+/* MIT. The explicitly selected, pinned Android RAM profiles.
  * Copy only offline owned regular files; retain the normal 512 MiB profile.
  * No kernel, partition, mount, SELinux or unrelated process changes. */
 #ifndef PLB_ANDROID_LARGE_PROFILE_H
@@ -8,7 +8,12 @@
 #include <sys/mman.h>
 #include <sys/statvfs.h>
 #include <dirent.h>
+#include "../tools/android_large_config.h"
+#if PLB_ANDROID_LARGE_MEMORY_MIB == 1792
+#include "android_large1792_build.generated.h"
+#else
 #include "android_large_build.generated.h"
+#endif
 #include "small_shmem_guard.h"
 #include "android_owned_process.h"
 #include "../tools/allocation_probe_limits.h"
@@ -16,8 +21,8 @@
 
 #define PLB_LARGE_RUNTIME FILES "/android-runtime"
 #define PLB_LARGE_VMM PLB_LARGE_RUNTIME "/crosvm"
-#define PLB_LARGE_LIBRARY PLB_LARGE_RUNTIME "/libandroid-memory.so"
-#define PLB_LARGE_LIBRARY_SOURCE FILES "/runtime/libandroid-memory.so"
+#define PLB_LARGE_LIBRARY PLB_LARGE_RUNTIME "/" PLB_LARGE_LIBRARY_NAME
+#define PLB_LARGE_LIBRARY_SOURCE FILES "/runtime/" PLB_LARGE_LIBRARY_NAME
 #define PLB_VMM_DIGEST "9b4d56db70be1d3d646a08da0cb3e6eb95637457e5f15cb3b1c627f348e3e847"
 
 static int large_platform(void) {
@@ -147,7 +152,7 @@ static int large_profile_files(uid_t app_uid) {
         ssize_t length = ready >= 0 ? read(ready, marker, sizeof(marker)) : -1;
         if (ready >= 0)
             close(ready);
-        const char expected[] = "plb-android-1536-v1\n";
+        const char expected[] = PLB_LARGE_READY_MARKER;
         return length == (ssize_t)(sizeof(expected) - 1) &&
                        !memcmp(marker, expected, sizeof(expected) - 1)
                    ? 0
@@ -201,7 +206,7 @@ static int large_profile_files(uid_t app_uid) {
     }
     int ready =
         open(BASE ".preparing/.ready", O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600);
-    const char marker[] = "plb-android-1536-v1\n";
+    const char marker[] = PLB_LARGE_READY_MARKER;
     if (ready < 0)
         return -1;
     int failed =

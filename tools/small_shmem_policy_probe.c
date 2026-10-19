@@ -23,6 +23,7 @@
 #define PLB_OWNER_LOCK_FILE FILES "/vm-owner.lock"
 #include "../native/profile_lock.h"
 #include "host_memory_health.h"
+#include "../native/android_owned_process.h"
 
 #ifdef PLB_POLICY_MOCK
 #define APPLY_OPTION "--run-mock"
@@ -191,15 +192,18 @@ int main(int argc, char **argv) {
             if (!strcmp(argv[2], vm_stages[i].option))
                 stage = &vm_stages[i];
     int android1536 = argc == 3 && !strcmp(argv[2], "--android-1536");
-    int android = android1536 || (argc == 3 && !strcmp(argv[2], "--android-2048"));
+    int android_gpu1536 = argc == 3 && !strcmp(argv[2], "--android-gpu1536-gles");
+    int android =
+        android1536 || android_gpu1536 || (argc == 3 && !strcmp(argv[2], "--android-2048"));
     int vm = stage != NULL || android;
     int refault = argc == 3 && !strcmp(argv[2], "--allocation-refault");
     if ((argc == 3 && !vm && !refault) || (!strcmp(argv[1], "--plan") && argc != 2))
         return 20;
-    const char *probe = android1536 ? FILES "/kernel-probes/android-memory1536-policy-runner"
-                        : android   ? FILES "/kernel-probes/android-memory-policy-runner"
-                        : vm        ? vm_probe
-                                    : allocation_probe;
+    const char *probe = android_gpu1536 ? FILES "/kernel-probes/android-gpu1536-gles-runner"
+                        : android1536   ? FILES "/kernel-probes/android-memory1536-policy-runner"
+                        : android       ? FILES "/kernel-probes/android-memory-policy-runner"
+                        : vm            ? vm_probe
+                                        : allocation_probe;
     /* Android retains its preallocated memory after policy restoration. Only
      * the first ten seconds use the approved host policy; observe boot later. */
     int controller_steps = android ? 100 : vm ? 320 : 120;
@@ -212,7 +216,8 @@ int main(int argc, char **argv) {
         fprintf(stderr, "PLB_POLICY_REJECTED host_memory_warning=1\n");
         return 38;
     }
-    if ((android || (stage && atoi(stage->backing) >= 6)) && strcmp(argv[1], "--plan")) {
+    if (((android && !android_gpu1536) || (stage && atoi(stage->backing) >= 6)) &&
+        strcmp(argv[1], "--plan")) {
         fprintf(stderr, "PLB_POLICY_REJECTED mapped_refault_retired=1\n");
         return 39;
     }
@@ -232,10 +237,10 @@ int main(int argc, char **argv) {
     }
     if (!strcmp(argv[1], "--plan"))
         return 0;
-    if (available_kib() < (android1536 ? 2304L
-                           : android   ? 2816L
-                           : vm        ? stage->headroom_mib
-                                       : 512L) *
+    if (available_kib() < ((android1536 || android_gpu1536) ? 2304L
+                           : android                        ? 2816L
+                           : vm                             ? stage->headroom_mib
+                                                            : 512L) *
                               1024)
         return 37;
     struct stat executable;
@@ -245,6 +250,38 @@ int main(int argc, char **argv) {
     int lock = profile_lock();
     if (lock < 0)
         return 28;
+    if (android_gpu1536) {
+        /* A developer launch must already be outside an app freezer group.
+         * With uid zero this helper accepts only the existing root group and
+         * refuses an app group; it never moves another task or changes policy. */
+        if (android_isolate_owned_controller(0))
+            return 41;
+        pid_t parent = getpid(), validator = fork();
+        if (!validator) {
+            if (prctl(PR_SET_PDEATHSIG, SIGKILL) || getppid() != parent)
+                _exit(31);
+            execl(probe, probe, "--check", (char *)NULL);
+            _exit(32);
+        }
+        if (validator < 0)
+            return 26;
+        int status = 0;
+        pid_t done = 0;
+        for (int i = 0; i < 100 && !interrupted; i++) {
+            done = sample(validator, &status);
+            if (done)
+                break;
+            usleep(100000);
+        }
+        if (!done) {
+            kill(validator, SIGKILL);
+            while (waitpid(validator, NULL, 0) < 0 && errno == EINTR) {
+            }
+            return 124;
+        }
+        if (done < 0 || !WIFEXITED(status) || WEXITSTATUS(status))
+            return 42;
+    }
     int alive[2];
     if (pipe2(alive, O_CLOEXEC))
         return 25;

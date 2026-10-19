@@ -1,5 +1,9 @@
 # Android guest display investigation
 
+Current app: **0.4.0-preview.7**, with a separate unverified 1792 MiB selection.
+[Current presets and on-device refusal checks](android-large-profile.md#preview7-separate-1792-mib-selection).
+The historical 1536 MiB screenshots below do not validate the current runtime.
+
 ## Preview.6 memory safety update
 
 Further large-memory trials exposed host `Bad page cache` warnings during mapped
@@ -231,3 +235,17 @@ separately from the new memory probe. Both variants compile, but no additional
 hardware-rendering success was established by the larger-memory tests above.
 The successful 1536 MiB screenshots use the software/2D path. No graphics loader shim is enabled in the ordinary APK. Its separately selected
 1.5 GiB mode uses only the guarded memory policy described above.
+
+
+## Preview.7 RAM selector and GPU research
+
+The integrated selector adds **1792 MiB (1.75 GiB, unverified)** beside 1536 MiB
+and 512 MiB. Each larger selection has independent writable disks and retains
+the prefault-only admission and current host-error refusal. The 1792 MiB mode
+has not booted or completed a guest readback test. See [profile identities and
+checks](android-large-profile.md#preview7-separate-1792-mib-selection).
+
+The separate [1536 MiB GLES diagnostic](android-gpu1536-research.md) now combines
+the graphics backend with a pinned, shared, prefault-only memory supply. It was
+built and its refusal was checked on-device; host BAD_PAGE taint blocks new VM
+load in this boot. Android GPU rendering has not been established.

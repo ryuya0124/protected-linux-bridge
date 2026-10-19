@@ -92,3 +92,14 @@ changes. Expected root O/W taints alone are not BAD_PAGE. No clean-session
 boot validation of the changed app path is claimed. Preserve the old result
 records as historical evidence, and record the failed large trials and warning
 separately; a 1792 MiB write marker is not successful full readback.
+
+
+## Experimental 1792 MiB / 1536 MiB GPU requests, 2026-10-19
+
+Keep the app's 1792 MiB selection explicitly unverified and separately stored.
+A historical 1792 MiB write-progress marker is not a successful RAM profile.
+The requested 1536 MiB GLES diagnostic must use a separate disk profile and
+prefault-only backing, retaining exact host/VMM/library pins and the common lock.
+These requests do not authorize bypassing the affected-boot health guard, loading
+a module, broadening host policy writes or rebooting Android. No additional VM
+or pressure trial is run in the current BAD_PAGE-tainted boot.

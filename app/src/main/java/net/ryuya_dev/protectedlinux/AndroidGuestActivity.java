@@ -213,10 +213,7 @@ public final class AndroidGuestActivity extends AppCompatActivity {
                   }
                   currentFrame = bitmap;
                   display.setImageBitmap(bitmap);
-                  status.setText(
-                      getString(
-                          R.string.android_guest_connected,
-                          memoryMib == 1536 ? "1.5 GiB" : "512 MiB"));
+                  status.setText(getString(R.string.android_guest_connected, memoryMib + " MiB"));
                 } finally {
                   applied.countDown();
                 }

@@ -32,7 +32,7 @@ final class AndroidGuestRuntime {
 
   static boolean verifiedCheck(int result, String output, int memoryMib) {
     return result == 0
-        && (memoryMib == 512 || memoryMib == 1536)
+        && AndroidGuestProfile.supported(memoryMib)
         && output != null
         && output.length() < 4096
         && output.trim().equals("ANDROID_PROFILE_CHECK_OK memory_mib=" + memoryMib);
@@ -49,7 +49,7 @@ final class AndroidGuestRuntime {
       case 39 -> R.string.android_guest_large_unsupported;
       case 40 -> R.string.android_guest_preparation_failed;
       case 41 -> R.string.android_guest_process_isolation_failed;
-      case 42 -> R.string.android_guest_host_memory_warning;
+      case 42, 90 -> R.string.android_guest_host_memory_warning;
       case 89 -> R.string.android_guest_fragmented;
       case 124 -> R.string.android_guest_session_ended;
       default -> R.string.android_guest_root_error;
@@ -60,11 +60,11 @@ final class AndroidGuestRuntime {
       throws Exception {
     if (android.os.Build.VERSION.SDK_INT != 36 || !android.os.Build.MODEL.equals("SM-S948Q"))
       throw new java.io.IOException(context.getString(R.string.android_guest_unsupported));
-    boolean large = memoryMib == 1536;
-    if ((memoryMib != 512 && !large) || (large && !policyAcknowledged))
+    boolean large = AndroidGuestProfile.guarded(memoryMib);
+    if (!AndroidGuestProfile.supported(memoryMib) || (large && !policyAcknowledged))
       throw new java.io.IOException(context.getString(R.string.android_guest_policy_consent));
-    if (large) install(context, "libandroid-memory.so");
-    File executable = install(context, large ? "android-large-bridge" : "android-bridge");
+    if (large) install(context, AndroidGuestProfile.library(memoryMib));
+    File executable = install(context, AndroidGuestProfile.executable(memoryMib));
     Process check =
         new ProcessBuilder("su", "-M", "-c", executable + " --check")
             .redirectErrorStream(true)

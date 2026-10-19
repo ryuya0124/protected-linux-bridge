@@ -20,6 +20,9 @@ static void *android_memory_observer(void *unused) {
                          "echo SYSTEMUI=$(pidof com.android.systemui)'";
     const char expected[] = "vsoc_arm64_only\ncutf_cvm\n16373615\n";
     int captured = 0, setup = 0;
+#ifdef PLB_ANDROID_GPU_MEMORY_PROBE
+    int renderer_observed = 0;
+#endif
     for (int tick = 0; tick < 1100 && !stopping; tick++) {
         if (tick % 50) {
             usleep(100000);
@@ -52,6 +55,18 @@ static void *android_memory_observer(void *unused) {
             continue;
         }
         if (!captured && strstr(uid, "BOOT=1\n")) {
+#ifdef PLB_ANDROID_GPU_MEMORY_PROBE
+            if (!renderer_observed) {
+                const char renderer[] = "exec:sh -c 'getprop ro.hardware.egl; "
+                                        "getprop ro.hardware.gltransport; "
+                                        "dumpsys SurfaceFlinger | grep -m 1 \"GLES:\"'";
+                if (!android_adb(renderer, output, &length) && length < 2048) {
+                    output[length] = 0;
+                    fprintf(stderr, "PLB_ANDROID_GPU_GUEST_RENDERER %s\n", output);
+                    renderer_observed = memmem(output, length, "GLES:", 5) != NULL;
+                }
+            }
+#endif
             const char home[] =
                 "exec:sh -c 'cmd power wakeup; wm dismiss-keyguard; input keyevent 3; sleep 2; "
                 "dumpsys activity activities | grep -E \"mResumedActivity|topResumedActivity\"'";

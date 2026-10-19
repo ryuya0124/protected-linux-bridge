@@ -894,7 +894,8 @@ public final class MainActivity extends AppCompatActivity {
               memory.setText(
                   getResources().getStringArray(R.array.android_guest_memories)[0], false);
               memory.setOnItemClickListener(
-                  (parent, item, position, id) -> selectedMemory[0] = position == 0 ? 1536 : 512);
+                  (parent, item, position, id) ->
+                      selectedMemory[0] = AndroidGuestProfile.memoryAt(position));
               android.widget.ScrollView scroll = new android.widget.ScrollView(this);
               scroll.addView(options);
               new MaterialAlertDialogBuilder(this)
@@ -910,7 +911,7 @@ public final class MainActivity extends AppCompatActivity {
                                       AndroidGuestActivity.EXTRA_MEMORY_MIB, selectedMemory[0])
                                   .putExtra(
                                       AndroidGuestActivity.EXTRA_POLICY_ACKNOWLEDGED,
-                                      selectedMemory[0] == 1536)))
+                                      AndroidGuestProfile.guarded(selectedMemory[0]))))
                   .show();
             });
   }
