@@ -12,12 +12,20 @@ cp /work/base.config "$output/.config"
 cd "$source"
 make ARCH=arm64 LLVM=-19 O="$output" olddefconfig
 scripts/kconfig/merge_config.sh -m -O "$output" "$output/.config" /recipe/android.fragment
+if [ "${PLB_SYSTEM_HEAP:-0}" = 1 ]; then
+    scripts/kconfig/merge_config.sh -m -O "$output" "$output/.config" /recipe/system-heap.fragment
+fi
 make ARCH=arm64 LLVM=-19 O="$output" olddefconfig
 for option in DRM_VIRTIO_GPU VIRTIO_BLK VIRTIO_PCI VIRTIO_CONSOLE VIRTIO_VSOCKETS F2FS_FS DM_DEFAULT_KEY DM_VERITY ANDROID_BINDER_IPC SECURITY_SELINUX; do
     grep -qx "CONFIG_${option}=y" "$output/.config"
 done
 grep -qx '# CONFIG_MODULES is not set' "$output/.config"
-grep -qx 'CONFIG_LOCALVERSION="-plb-android-gpu1"' "$output/.config"
+if [ "${PLB_SYSTEM_HEAP:-0}" = 1 ]; then
+    grep -qx 'CONFIG_LOCALVERSION="-plb-android-gpu2"' "$output/.config"
+    grep -qx 'CONFIG_DMABUF_HEAPS_SYSTEM=y' "$output/.config"
+else
+    grep -qx 'CONFIG_LOCALVERSION="-plb-android-gpu1"' "$output/.config"
+fi
 make ARCH=arm64 LLVM=-19 O="$output" -j4 Image
 cp "$output/arch/arm64/boot/Image" /work/Image-android17-dma-sync
 make -s ARCH=arm64 LLVM=-19 O="$output" kernelrelease >/work/kernel-release.txt

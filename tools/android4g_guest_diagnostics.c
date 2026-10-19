@@ -39,6 +39,16 @@ int main(int argc, char **argv) {
         ("exec:sh -c 'getprop sys.boot_completed; getprop ro.hardware.egl; "
          "getprop ro.hardware.gltransport; getprop ro.boot.hardware.gltransport; "
          "cat /proc/cmdline; cat /proc/modules; dumpsys SurfaceFlinger'"),
+        ("exec:sh -c 'uname -r; getenforce; "
+         "ps -A -o PID,NAME,ARGS | grep -E \"allocator|gralloc|mapper|surfaceflinger\"; "
+         "service list | grep -E \"graphics|allocator|mapper\"; "
+         "ls -lZ /dev/binder /dev/hwbinder /dev/vndbinder /dev/dri/*; "
+         "ls -lZ /dev/dma_heap; ls /sys/class/dma_heap'"),
+        ("exec:sh -c 'logcat -d -t 6000 -v brief | "
+         "grep -Ei \"binder.*(fail|denied|error)|transaction.*fail|FAILED_TRANSACTION|"
+         "avc:|parcel.*(fail|error)|allocat.*(fail|error)|mapper.*(fail|error)\" | tail -n 180'"),
+        ("exec:sh -c 'dmesg | grep -Ei \"binder|avc:|wrapfd|dma_buf|dma.heap|system_heap\" | tail "
+         "-n 100'"),
         "exec:logcat -d -b crash -t 200",
         "exec:logcat -d -t 500",
         ("exec:sh -c 'logcat -d -t 3000 -v brief | "

@@ -1,0 +1,4 @@
+# Guest-only allocator metadata backing; no host setting or SELinux change.
+CONFIG_LOCALVERSION="-plb-android-gpu2"
+CONFIG_DMABUF_HEAPS=y
+CONFIG_DMABUF_HEAPS_SYSTEM=y

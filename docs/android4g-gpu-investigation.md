@@ -350,3 +350,36 @@ just because `strerror(129)` says that, nor automatically as lack of RAM.
 Further diagnosis must capture the underlying Binder transaction status and
 allocator/mapper service logs in the actual guest; the current records do not
 yet isolate that call's failure source.
+
+
+## Trial 13: Binder failure is a denied metadata FD
+
+A focused read-only comparison kept trial 12's configuration. Android again
+reached BOOT=1, but SystemUI repeatedly crashed and no verified test frame was
+produced before the 160-second limit (124). The graphics allocator service was
+alive and registered. Binder reported `BR_FAILED_REPLY`, status **-1 (EPERM)**.
+Guest SELinux audits denied application `read/write` access to allocator-created
+`memfd_file` objects labelled `hal_graphics_allocator_default`. The decoded
+names identify gralloc's **reserved-region metadata**, including window and
+AHardwareBuffer allocations. This explains a concrete failed FD-transfer path;
+it does not prove that every graphics failure has the same cause.
+
+Android 17's [minigbm allocator source](https://android.googlesource.com/platform/external/minigbm/+/refs/heads/android17-release/cros_gralloc/cros_gralloc_driver.cc)
+first tries the DMA-BUF system heap for this metadata when built with
+`HAS_DMABUF_SYSTEM_HEAP`, then falls back to `memfd_create`. Its
+[build defaults](https://android.googlesource.com/platform/external/minigbm/+/refs/heads/android17-release/Android.bp)
+enable that feature for the generic platform. Both the original extracted
+configuration and our first custom guest disable `CONFIG_DMABUF_HEAPS_SYSTEM`,
+although the general heap framework is enabled.
+
+The next isolated guest-only kernel enables this driver, preserving the DMA
+sync fix and existing security configuration. This tests the intended allocator
+route rather than adding SELinux allow rules, changing labels or suppressing
+Binder errors. The guest's actual heap device, label/access, remaining denial
+logs, test readback and screenshot must still be checked. No success is inferred
+from the configuration change or compilation alone.
+
+Trial 13's host postflight again retained the same boot, core processes,
+unrelated trusted VM, original Android disk hashes, taint 4608, Enforcing and
+all six shmem policies at `never`. The public helper adds bounded read-only
+Binder/heap diagnostics and a fixed archive option for this failed comparison.

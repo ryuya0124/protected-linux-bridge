@@ -83,3 +83,20 @@ success. See [the measured trials](../../docs/android4g-gpu-investigation.md).
 The driver patch and Linux-derived build work follow GPL-2.0-only. First-party
 Python helpers retain the repository's MIT license. Kernel binaries and source
 archives are not committed or redistributed by this recipe.
+
+
+## Optional system-heap guest variant
+
+Pass `--system-heap` with a **new** output directory, for example
+`artifacts/android4g-gpu/guest-kernel-system-heap`. This applies
+`system-heap.fragment` after the base fragment, builds release
+`6.12.74-plb-android-gpu2`, and requires `CONFIG_DMABUF_HEAPS_SYSTEM=y`.
+The output Image keeps the same basename inside its separate directory; the
+original gpu1 build and Image are retained. The manifest records this selection
+and the final config/image identities, and the Android probe validates both.
+
+This driver provides the guest's normal DMA-BUF heap, including minigbm's
+preferred reserved metadata backing. It does not reserve host hugepages, modify
+the Android host kernel, change host/guest SELinux policy or establish GPU
+success by itself. The motivation and actual comparisons are recorded in the
+investigation document above.

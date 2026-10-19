@@ -25,6 +25,14 @@ if [ "$#" != 0 ]; then
         custom_guest=1
         archive_suffix=loader
         ;;
+    --archive-custom-binder-diagnosis)
+        custom_guest=1
+        archive_suffix=binder-diagnosis
+        ;;
+    --archive-custom-renderer-feature)
+        custom_guest=1
+        archive_suffix=renderer-feature
+        ;;
     --archive-normal-first) archive_suffix=normal-first ;;
     --archive-ascending) archive_suffix=ascending ;;
     --archive-medium-only) archive_suffix=medium-only ;;

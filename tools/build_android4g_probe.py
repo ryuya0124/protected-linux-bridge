@@ -111,7 +111,16 @@ def main():
             guest_record.get("kernel_sha256") != digest(args.guest_kernel)
             or guest_record.get("source_commit") != "3ec022196c4e9d5c1434599cdda63f622dd6f586"
             or guest_record.get("upstream_fix") != "598c1c3e895590f845e04455d5580ea28ffde666"
-            or guest_record.get("kernel_release") != "6.12.74-plb-android-gpu1"
+            or guest_record.get("kernel_release")
+            != (
+                "6.12.74-plb-android-gpu2"
+                if guest_record.get("system_heap")
+                else "6.12.74-plb-android-gpu1"
+            )
+            or (
+                guest_record.get("system_heap")
+                and "CONFIG_DMABUF_HEAPS_SYSTEM=y\n" not in config.read_text()
+            )
             or guest_record.get("config_sha256") != digest(config)
             or guest_record.get("patch_sha256")
             != digest(ROOT / "kernels/android-gpu/guest-bound-dma-sync.patch")

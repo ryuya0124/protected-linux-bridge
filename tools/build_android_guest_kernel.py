@@ -37,6 +37,11 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--builder-image", default="plb-android-gpu-kernel:clang19")
     parser.add_argument(
+        "--system-heap",
+        action="store_true",
+        help="Build the separate gpu2 guest variant with the DMA-BUF system heap",
+    )
+    parser.add_argument(
         "--resume",
         action="store_true",
         help="Verify/reuse only this output's owned failed Linux workspace",
@@ -110,6 +115,8 @@ def main():
         "4g",
         "-e",
         "PLB_RESUME_BUILD=" + ("1" if args.resume else "0"),
+        "-e",
+        "PLB_SYSTEM_HEAP=" + ("1" if args.system_heap else "0"),
         "--pids-limit",
         "1024",
         "--tmpfs",
@@ -163,6 +170,7 @@ def main():
         raise ValueError("Unexpected guest Image size")
     record = {
         "guest_only": True,
+        "system_heap": args.system_heap,
         "source_commit": COMMIT,
         "source_archive_sha256": ARCHIVE_SHA,
         "base_config_sha256": CONFIG_SHA,

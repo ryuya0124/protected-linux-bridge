@@ -18,7 +18,9 @@ int main(int argc, char **argv) {
                                !strcmp(argv[1], "--archive-custom-boot-complete") ||
                                !strcmp(argv[1], "--archive-custom-normal-first") ||
                                !strcmp(argv[1], "--archive-custom-capsets") ||
-                               !strcmp(argv[1], "--archive-custom-loader"));
+                               !strcmp(argv[1], "--archive-custom-loader") ||
+                               !strcmp(argv[1], "--archive-custom-renderer-feature") ||
+                               !strcmp(argv[1], "--archive-custom-binder-diagnosis"));
     int archive =
         argc == 2 &&
         (!strcmp(argv[1], "--archive-normal-first") || !strcmp(argv[1], "--archive-ascending") ||
