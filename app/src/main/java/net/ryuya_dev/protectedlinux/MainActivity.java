@@ -884,28 +884,39 @@ public final class MainActivity extends AppCompatActivity {
     button(R.string.android_guest_open, body)
         .setOnClickListener(
             view -> {
-              int[] selectedMemory = {1536};
+              int[] selectedMemory = {4096};
               LinearLayout options = column();
               options.setPadding(dp(24), dp(4), dp(24), 0);
-              options.addView(text(getString(R.string.android_guest_launch_conditions), 14));
+              TextView legacyConditions =
+                  text(getString(R.string.android_guest_launch_conditions), 14);
+              legacyConditions.setVisibility(View.GONE);
+              options.addView(legacyConditions);
               MaterialAutoCompleteTextView memory =
                   selection(
                       options, R.string.android_guest_memory_label, R.array.android_guest_memories);
               memory.setText(
-                  getResources().getStringArray(R.array.android_guest_memories)[0], false);
-              TextView gpuConditions = text(getString(R.string.android_guest_gpu_conditions), 14);
-              gpuConditions.setVisibility(View.GONE);
+                  getResources().getStringArray(R.array.android_guest_memories)[3], false);
+              TextView gpuConditions = text(getString(R.string.android_guest_gpu_summary), 14);
+              gpuConditions.setVisibility(View.VISIBLE);
               options.addView(gpuConditions);
               MaterialSwitch androidInternet = new MaterialSwitch(this);
               androidInternet.setText(R.string.android_guest_internet);
               androidInternet.setChecked(true);
-              androidInternet.setVisibility(View.GONE);
+              androidInternet.setVisibility(View.VISIBLE);
               options.addView(androidInternet);
+              MaterialSwitch gpuDisplay = new MaterialSwitch(this);
+              gpuDisplay.setText(R.string.android_guest_gpu_surface);
+              gpuDisplay.setChecked(true);
+              gpuDisplay.setVisibility(View.VISIBLE);
+              options.addView(gpuDisplay);
               memory.setOnItemClickListener(
                   (parent, item, position, id) -> {
                     selectedMemory[0] = AndroidGuestProfile.memoryAt(position);
+                    legacyConditions.setVisibility(
+                        selectedMemory[0] == 4096 ? View.GONE : View.VISIBLE);
                     gpuConditions.setVisibility(
                         selectedMemory[0] == 4096 ? View.VISIBLE : View.GONE);
+                    gpuDisplay.setVisibility(selectedMemory[0] == 4096 ? View.VISIBLE : View.GONE);
                     androidInternet.setVisibility(
                         selectedMemory[0] == 4096 ? View.VISIBLE : View.GONE);
                   });
@@ -920,18 +931,20 @@ public final class MainActivity extends AppCompatActivity {
                       (dialog, which) ->
                           confirmAndroidGuest(
                               selectedMemory[0],
-                              selectedMemory[0] == 4096 && androidInternet.isChecked()))
+                              selectedMemory[0] == 4096 && androidInternet.isChecked(),
+                              selectedMemory[0] == 4096 && gpuDisplay.isChecked()))
                   .show();
             });
   }
 
-  private void confirmAndroidGuest(int memoryMib, boolean internet) {
+  private void confirmAndroidGuest(int memoryMib, boolean internet, boolean gpuSurface) {
     Runnable launch =
         () ->
             startActivity(
                 new Intent(this, AndroidGuestActivity.class)
                     .putExtra(AndroidGuestActivity.EXTRA_MEMORY_MIB, memoryMib)
                     .putExtra(AndroidGuestActivity.EXTRA_INTERNET, internet)
+                    .putExtra(AndroidGuestActivity.EXTRA_GPU_SURFACE, gpuSurface)
                     .putExtra(
                         AndroidGuestActivity.EXTRA_POLICY_ACKNOWLEDGED,
                         AndroidGuestProfile.guarded(memoryMib)));
@@ -941,7 +954,11 @@ public final class MainActivity extends AppCompatActivity {
     }
     new MaterialAlertDialogBuilder(this)
         .setTitle(R.string.android_guest_gpu_title)
-        .setMessage(R.string.android_guest_gpu_conditions)
+        .setMessage(
+            getString(R.string.android_guest_gpu_conditions)
+                + (gpuSurface
+                    ? "\n\n" + getString(R.string.android_guest_gpu_surface_details)
+                    : ""))
         .setNegativeButton(android.R.string.cancel, null)
         .setPositiveButton(R.string.android_guest_open, (dialog, which) -> launch.run())
         .show();

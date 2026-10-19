@@ -70,5 +70,8 @@ static const char *const android4g_arguments[] = {
     "--serial", "hardware=virtio-console,num=3,type=sink", "--serial",
     "hardware=virtio-console,num=4,type=unix-stream,path=" PLB_ANDROID4G_BASE
     "/oemlock.sock,input-unix-stream=true",
+#ifdef PLB_SURFACE_PRODUCT
+    "--input", "multi-touch[path=" PLB_ANDROID4G_BASE "/touch.sock,width=480,height=800]",
+#endif
     "--initrd", INITRAMFS, GUEST_KERNEL, NULL};
 #endif

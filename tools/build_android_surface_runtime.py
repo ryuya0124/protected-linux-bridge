@@ -26,19 +26,30 @@ def main():
         type=Path,
         help="Read-only hashes of the verified offline source profile",
     )
+    parser.add_argument(
+        "--product-assets",
+        type=Path,
+        help="Build the explicitly selectable APK variant into this asset directory",
+    )
     args = parser.parse_args()
-    output = ROOT / "artifacts/android4g-gpu/surface-runtime"
+    product = args.product_assets is not None
+    output = ROOT / (
+        "app/build/native/android-surface" if product else "artifacts/android4g-gpu/surface-runtime"
+    )
     output.mkdir(parents=True, exist_ok=True)
     library = (
         ROOT
         / "artifacts/android4g-gpu/vmm-build/target/aarch64-linux-android/release/libplb_crosvm_surface.so"
     )
     probe = ROOT / "artifacts/android4g-gpu/surface-probe"
-    inputs = {
-        "LIBRARY": library,
-        "JNI": probe / "libsurface-probe.so",
-        "APK": probe / "build/outputs/apk/release/PlbSurfaceProbe-release.apk",
-    }
+    if product:
+        from build_android_surface_agent import build as build_agent
+
+        code, jni = build_agent(args.sdk, output, library)
+    else:
+        code = probe / "build/outputs/apk/release/PlbSurfaceProbe-release.apk"
+        jni = probe / "libsurface-probe.so"
+    inputs = {"LIBRARY": library, "JNI": jni, "APK": code}
     (output / "android_surface.generated.h").write_text(
         "".join(
             "#define PLB_SURFACE_" + name + '_SHA256 "' + digest(path) + '"\n'
@@ -62,6 +73,9 @@ def main():
         "-DPLB_ANDROID4G_NORMAL_FIRST=1",
         "-DPLB_ANDROID4G_LARGER_DMA_POOL=1",
     ]
+
+    if product:
+        modes.append("-DPLB_SURFACE_PRODUCT=1")
 
     def build(name, source, flags=()):
         subprocess.run(
@@ -105,7 +119,7 @@ def main():
         "guest_kernel_sha256": KERNEL,
         "guest_initramfs_sha256": RAMDISK,
         "build_starts_vm": False,
-        "session_seconds": 180,
+        "session_seconds": 1800 if product else 180,
         "inputs": {name: digest(path) for name, path in inputs.items()},
         "runtime": {
             name: digest(output / name)
@@ -141,6 +155,41 @@ def main():
         subprocess.run(
             base
             + [str(ROOT / "tools/android_surface_profile.c"), "-o", str(output / "profile-copy")],
+            check=True,
+        )
+    if product:
+        import shutil
+
+        assets = args.product_assets
+        assets.mkdir(parents=True, exist_ok=True)
+        payloads = {name: output / name for name in manifest["runtime"]}
+        payloads.update(
+            {
+                "guest.Image": assets / "gpu4g-guest.Image",
+                "libcrosvm-surface.so": library,
+                "libsurface-probe.so": jni,
+                "surface-agent.jar": code,
+                "network-controller": assets / "gpu4g-network-controller",
+            }
+        )
+        for name, source in payloads.items():
+            shutil.copyfile(source, assets / ("gpu4g-surface-" + name))
+        (output / "gpu4g_install.generated.h").write_text(
+            "static const struct gpu4g_artifact gpu4g_artifacts[] = {\n"
+            + "".join(
+                '{"gpu4g-surface-' + name + '", "' + name + '", "' + digest(source) + '"},\n'
+                for name, source in payloads.items()
+            )
+            + "};\n"
+        )
+        subprocess.run(
+            base
+            + [
+                "-DPLB_SURFACE_PRODUCT=1",
+                str(ROOT / "native/android_gpu4g_launcher.c"),
+                "-o",
+                str(assets / "android-gpu4g-surface-bridge"),
+            ],
             check=True,
         )
     print("Built separate Surface runtime; no device operation")

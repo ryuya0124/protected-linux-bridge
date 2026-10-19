@@ -23,7 +23,7 @@ Android標準の「ターミナル」から、Snapdragon / Gunyahの保護VM上�
 - クリップボードの手動共有、任意でバックグラウンド双方向共有
 - 有線・USB・Bluetooth音声の接続先選択（実物の周辺機器では未検証）
 - 既存Microdroidと、独立したディスクを使う実験用Linux 6.18ゲストの選択
-- Android 17ゲストの画面表示プレビュー。実験用4096MiBではAdreno GLES描画、それ以外は1536MiB／未検証1792MiB／従来512MiBのソフトウェア描画。タップ・スワイプ・解除ボタンで操作できます。画面転送は低速で、起動もまだ不安定です。構成ごとにデータを保存し、事前準備・root・起動時の確認が必要です。[使い方と制限](docs/android-guest-display.md#preview8-experimental-4-gib-adreno-profile)
+- Android 17ゲストの画面表示プレビュー。実験用4096MiBではAdreno GLES描画、それ以外は1536MiB／未検証1792MiB／従来512MiBのソフトウェア描画。タップ・スワイプ・解除ボタンで操作できます。4GiB構成ではGPUによる画面転送と任意のIPv4ネット接続も選べます。起動はまだ不安定です。構成ごとにデータを保存し、事前準備・root・起動時の確認が必要です。[使い方と制限](docs/android-guest-display.md#preview8-experimental-4-gib-adreno-profile)
 - Material 3の「ホーム」「画面」「連携」「設定」、root・Vectorの状態表示、VM停止
 
 Android上のchrootやPRootではなく、独立したカーネルの実行インスタンスを持つVMです。Android本体のカーネルは変更せず、端末に元からあるAVF用Microdroidカーネルファイルをゲストとして起動します。実験用プロファイルでは、専用領域のLinux 6.18.57-plb1をゲストとして起動します。AndroidのAVBと、ゲストカーネルの起動は別です。ただし、この経路は **pvmfwによる検証済み起動・アテステーションを提供しません**。通常の検証済みAVFゲストと同じ保証はありません。
@@ -180,7 +180,7 @@ plb-udp-forward 5353 1.1.1.1 53
 
 RAMの設定値は、安定して使える実メモリ容量の保証ではありません。大容量を実際に使うとGunyahのメモリ障害が起きる場合があり、現在も調査中です。[実機検証の範囲](docs/memory-working-set-probes.md)を公開しています。
 
-開発用の別VMMでは、保護Linux VMの4 GiB全バイト検査が2回成功しました。[Linuxの検証記録](docs/preallocated-vmm-validation.md)を公開しています。続く4 GiBのAndroid 17＋GPU試験では、実際のAdreno GLES読み戻しとAndroidホームの表示を確認しました。アプリにも独立した実験構成として追加しました。起動失敗が残り、滑らかな画面転送や長時間の安定性は未確認です。起動ごとに、最大6 GiBの準備用RAMとホスト全体の16〜512 KiBの6種類の一時shmem設定について確認を表示します。既存の構成とデータは維持します。[Android／GPUの調査記録](docs/android4g-gpu-investigation.md)を参照してください。
+開発用の別VMMでは、保護Linux VMの4 GiB全バイト検査が2回成功しました。[Linuxの検証記録](docs/preallocated-vmm-validation.md)を公開しています。続く4 GiBのAndroid 17＋GPU試験では、実際のAdreno GLES読み戻しとAndroidホームの表示を確認しました。アプリにも独立した実験構成として追加しました。GPUの画面出力と、ホームへ移動してからビューアを開き直した際の復帰を確認しました。起動失敗が残り、60fps・ゼロコピー・長時間の安定性は未確認です。起動ごとに、最大6 GiBの準備用RAMとホスト全体の16〜512 KiBの6種類の一時shmem設定について確認を表示します。既存の構成とデータは維持します。[Android／GPUの調査記録](docs/android4g-gpu-investigation.md)を参照してください。
 
 標準のディスク設定はこの専用ディスクに適用できないため無効にしています。LinuxパッケージのインストールはVMの中だけで行われます。
 
@@ -198,4 +198,13 @@ RAMの設定値は、安定して使える実メモリ容量の保証ではあ�
 
 本プロジェクトはMITです。libxposed、AndroidX、Material、xterm.js、musl、compiler-rt、noVNC、virglrenderer、libepoxy、Hev SOCKS5 tunnelと依存ライブラリーなどのライセンスをアプリ内と `third_party/` に収録しています。noVNCのMPL-2.0対象ソースは未改変で収録しています。
 
-Androidのホストカーネル、crosvm、標準ターミナルAPK、Debianイメージは同梱しません。別配布のLinuxゲストカーネルはGPL-2.0で、同じリリースに対応ソースと設定を用意します。ホスト用のユーザー空間GPUライブラリーはAPKに収録します。DebianのGUI・MesaパッケージはAPKに含めず、ユーザーがVM内でDebianの配布元から取得します。
+Androidのホストカーネル、標準ターミナルAPK、Debianイメージは同梱しません。Android GPU実験用のビルドは、別起動するソースビルド版crosvmを含みます。端末に元からあるcrosvmは交換しません。別配布のLinuxゲストカーネルはGPL-2.0で、同じリリースに対応ソースと設定を用意します。ホスト用のユーザー空間GPUライブラリーはAPKに収録します。DebianのGUI・MesaパッケージはAPKに含めず、ユーザーがVM内でDebianの配布元から取得します。
+
+
+## AndroidゲストのGPU表示とネット接続
+
+「設定」→「Androidゲストを開く」で4096 MiBを選ぶと、「GPUによる画面転送（実験）」と「Androidゲストのインターネット」を選べます。初期選択は4GiB構成とGPU表示です。この表示では非圧縮・PNGによる画面取得を行わず、低速な従来表示へ自動で切り替えることもありません。GPU表示を手動でオフにすると従来表示を選べます。起動前の確認後にVMを起動します。先に従来の4GiB構成を一度準備してください。GPU表示を初めて使うと、そのゲストをオフラインで別コピーし、以後のデータは独立して保存します。通常の表示へ戻すと元の4GiBデータを使います。アンインストールによる切り替えは不要です。
+
+GPU表示はスクリーンショットを繰り返し送らず、gfxstreamの描画先をアプリのGPUテクスチャへ接続します。表示中のタッチは指を離す前からゲストへ送り、複数指にも対応します。解除・戻る・ホームのボタンも使えます。Android本体のホームへ移動するだけなら表示先を保持します。「閉じる」でゲストを終了します。60fpsやゼロコピーは保証していません。[表示方式と測定記録](docs/android-display-transport.md)に検証範囲を分けて記載しています。
+
+ネット接続はゲスト内の通常のネットワークとしてIPv4 TCP・UDP・DNSを中継します。追加アプリのプロキシ設定は不要で、ホスト側のルートやVPN設定は変更しません。ゲストAndroidによる実際のHTTPS接続・接続検証を確認しています。[通信の対応範囲](docs/android-guest-network.md)も参照してください。Aurora Storeなどの第三者APKはBridgeに同梱しません。

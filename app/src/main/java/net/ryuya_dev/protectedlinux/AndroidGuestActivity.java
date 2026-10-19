@@ -25,22 +25,24 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /** Separate experimental Android display. Debian's terminal sessions remain separate. */
 public final class AndroidGuestActivity extends AppCompatActivity {
+  static final String EXTRA_GPU_SURFACE = "android_guest_gpu_surface";
   static final String EXTRA_INTERNET = "android_guest_internet";
   static final String EXTRA_MEMORY_MIB = "android_memory_mib";
   static final String EXTRA_POLICY_ACKNOWLEDGED = "android_small_shmem_acknowledged";
   private final ExecutorService worker = Executors.newSingleThreadExecutor();
-  private final ArrayBlockingQueue<byte[]> commands = new ArrayBlockingQueue<>(12);
-  private volatile boolean closed, resumed;
+  private AndroidGuestCommands commands = new AndroidGuestCommands(false);
+  private final AndroidGuestPointers pointers = new AndroidGuestPointers();
+  private volatile boolean closed, resumed, inputReady;
   private volatile LocalSocket connection;
   private volatile Process manager;
   private TextView status, networkStatus;
   private ImageView display;
+  private AndroidGuestGpuSurface gpuSurface;
   private Bitmap currentFrame;
   private int memoryMib;
   private volatile int runtimeFailure;
@@ -71,9 +73,50 @@ public final class AndroidGuestActivity extends AppCompatActivity {
     display.setScaleType(ImageView.ScaleType.FIT_CENTER);
     display.setBackgroundColor(android.graphics.Color.BLACK);
     display.setContentDescription(getString(R.string.android_guest_title));
-    page.addView(display, new LinearLayout.LayoutParams(-1, 0, 1));
-    display.setOnTouchListener(
+    android.widget.FrameLayout frame = new android.widget.FrameLayout(this);
+    frame.setBackgroundColor(android.graphics.Color.BLACK);
+    frame.addView(display, new android.widget.FrameLayout.LayoutParams(-1, -1));
+    page.addView(frame, new LinearLayout.LayoutParams(-1, 0, 1));
+    if (memoryMib == 4096 && getIntent().getBooleanExtra(EXTRA_GPU_SURFACE, false)) {
+      try {
+        gpuSurface = new AndroidGuestGpuSurface(this, frame);
+        commands = new AndroidGuestCommands(true);
+      } catch (IOException busy) {
+        status.setText(busy.getMessage());
+        setContentView(page);
+        return;
+      }
+    }
+    View touchTarget = gpuSurface == null ? display : gpuSurface.view;
+    touchTarget.setOnTouchListener(
         (view, event) -> {
+          if (!inputReady || closed) {
+            pointers.cancel();
+            touch.cancel();
+            return true;
+          }
+          if (gpuSurface != null) {
+            int count = event.getPointerCount();
+            int[] ids = new int[count];
+            float[] x = new float[count], y = new float[count];
+            for (int i = 0; i < count; i++) {
+              ids[i] = event.getPointerId(i);
+              x[i] = event.getX(i);
+              y[i] = event.getY(i);
+            }
+            byte[] sample =
+                pointers.sample(
+                    event.getActionMasked(),
+                    event.getActionIndex(),
+                    ids,
+                    x,
+                    y,
+                    view.getWidth(),
+                    view.getHeight());
+            if (sample != null) enqueue(sample);
+            if (event.getActionMasked() == MotionEvent.ACTION_UP) view.performClick();
+            return true;
+          }
           if (event.getPointerCount() != 1
               || event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
             touch.cancel();
@@ -81,16 +124,16 @@ public final class AndroidGuestActivity extends AppCompatActivity {
             touch.begin(
                 event.getX(),
                 event.getY(),
-                display.getWidth(),
-                display.getHeight(),
+                view.getWidth(),
+                view.getHeight(),
                 event.getEventTime());
           } else if (event.getActionMasked() == MotionEvent.ACTION_UP) {
             int[] gesture =
                 touch.end(
                     event.getX(),
                     event.getY(),
-                    display.getWidth(),
-                    display.getHeight(),
+                    view.getWidth(),
+                    view.getHeight(),
                     event.getEventTime(),
                     ViewConfiguration.get(this).getScaledTouchSlop());
             if (gesture != null) enqueue(packet(gesture.length == 2 ? 'T' : 'S', gesture));
@@ -125,7 +168,11 @@ public final class AndroidGuestActivity extends AppCompatActivity {
   }
 
   private void enqueue(byte[] command) {
-    if (!commands.offer(command)) status.setText(R.string.android_guest_input_busy);
+    if (!inputReady || closed) return;
+    if (!commands.offer(command)) {
+      pointers.cancel();
+      status.setText(R.string.android_guest_input_busy);
+    }
   }
 
   private static byte[] packet(char command, int... values) {
@@ -149,7 +196,10 @@ public final class AndroidGuestActivity extends AppCompatActivity {
     try {
       Process process =
           AndroidGuestRuntime.start(
-              this, memoryMib, getIntent().getBooleanExtra(EXTRA_POLICY_ACKNOWLEDGED, false));
+              this,
+              memoryMib,
+              getIntent().getBooleanExtra(EXTRA_POLICY_ACKNOWLEDGED, false),
+              gpuSurface != null);
       manager = process;
       Thread logs =
           new Thread(
@@ -213,17 +263,21 @@ public final class AndroidGuestActivity extends AppCompatActivity {
           || number(input) != 800
           || number(input) != 0)
         throw new IOException(getString(R.string.android_guest_start_failed));
+      inputReady = true;
+      boolean networkPending = false;
+      long networkCheckDue = 0;
       if (memoryMib == 4096 && getIntent().getBooleanExtra(EXTRA_INTERNET, false)) {
         output.write('N');
         int result = input.read();
         if (result < 0) throw new EOFException();
+        networkPending = result == 2;
+        if (!networkPending) networkResult(result);
+      }
+      if (gpuSurface != null)
         runOnUiThread(
             () ->
-                networkStatus.setText(
-                    result == 0
-                        ? R.string.android_guest_network_ready
-                        : R.string.android_guest_network_failed));
-      }
+                status.setText(
+                    getString(R.string.android_guest_gpu_connected, memoryMib + " MiB")));
       boolean rawFrames = true;
       byte[] rawFrame = new byte[AndroidGuestFrame.SIZE];
       byte[] pendingCommand = null;
@@ -245,7 +299,18 @@ public final class AndroidGuestActivity extends AppCompatActivity {
           }
           command = count < 11 ? commands.poll() : null;
         }
-        if (!resumed) {
+        long networkNow = android.os.SystemClock.elapsedRealtime();
+        if (networkPending && networkNow >= networkCheckDue) {
+          output.write('n');
+          int result = input.read();
+          if (result < 0) throw new EOFException();
+          if (result != 2) {
+            networkPending = false;
+            networkResult(result);
+          }
+          networkCheckDue = networkNow + 1000;
+        }
+        if (!resumed || gpuSurface != null) {
           output.write('P');
           if (input.read() != 'P') throw new IOException("ping");
           pendingCommand = commands.poll(1000, java.util.concurrent.TimeUnit.MILLISECONDS);
@@ -336,6 +401,7 @@ public final class AndroidGuestActivity extends AppCompatActivity {
         }
       }
     } catch (Exception error) {
+      inputReady = false;
       android.util.Log.w("ProtectedLinuxAndroid", "SESSION_STOPPED", error);
       int failure = runtimeFailure;
       Process process = manager;
@@ -356,11 +422,25 @@ public final class AndroidGuestActivity extends AppCompatActivity {
                   : error.getMessage();
       runOnUiThread(
           () -> {
-            if (!closed) status.setText(getString(R.string.android_guest_error, detail));
+            if (!closed) {
+              status.setText(getString(R.string.android_guest_error, detail));
+              if (networkStatus.getVisibility() == View.VISIBLE)
+                networkStatus.setText(R.string.android_guest_network_stopped);
+            }
           });
     } finally {
+      inputReady = false;
       disconnect();
     }
+  }
+
+  private void networkResult(int result) {
+    runOnUiThread(
+        () ->
+            networkStatus.setText(
+                result == 0
+                    ? R.string.android_guest_network_ready
+                    : R.string.android_guest_network_failed));
   }
 
   private void disconnect() {
@@ -382,6 +462,8 @@ public final class AndroidGuestActivity extends AppCompatActivity {
   @Override
   protected void onPause() {
     resumed = false;
+    byte[] cancel = pointers.cancel();
+    if (cancel != null) enqueue(cancel);
     super.onPause();
   }
 
@@ -392,6 +474,7 @@ public final class AndroidGuestActivity extends AppCompatActivity {
     worker.shutdownNow();
     display.setImageDrawable(null);
     currentFrame = null;
+    if (gpuSurface != null) gpuSurface.close();
     super.onDestroy();
   }
 }

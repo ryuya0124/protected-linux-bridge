@@ -57,10 +57,12 @@ final class AndroidGuestRuntime {
     };
   }
 
-  static Process start(Context context, int memoryMib, boolean policyAcknowledged)
+  static Process start(
+      Context context, int memoryMib, boolean policyAcknowledged, boolean gpuSurface)
       throws Exception {
     if (android.os.Build.VERSION.SDK_INT != 36 || !android.os.Build.MODEL.equals("SM-S948Q"))
       throw new java.io.IOException(context.getString(R.string.android_guest_unsupported));
+    if (gpuSurface && memoryMib != 4096) throw new java.io.IOException("GPU Surface profile");
     boolean large = AndroidGuestProfile.guarded(memoryMib);
     if (!AndroidGuestProfile.supported(memoryMib) || (large && !policyAcknowledged))
       throw new java.io.IOException(context.getString(R.string.android_guest_policy_consent));
@@ -84,7 +86,33 @@ final class AndroidGuestRuntime {
         throw new java.io.IOException(context.getString(R.string.android_guest_gpu_bundle_missing));
       }
     } else if (large) install(context, AndroidGuestProfile.library(memoryMib));
-    File executable = install(context, AndroidGuestProfile.executable(memoryMib));
+    if (gpuSurface) {
+      try {
+        for (String name :
+            new String[] {
+              "crosvm",
+              "guest.Image",
+              "adopt-vmm",
+              "manager",
+              "policy",
+              "allocation-probe",
+              "pressure-check",
+              "network-controller",
+              "libcrosvm-surface.so",
+              "libsurface-probe.so",
+              "surface-agent.jar"
+            }) install(context, "gpu4g-surface-" + name);
+      } catch (java.io.FileNotFoundException missing) {
+        throw new java.io.IOException(context.getString(R.string.android_guest_gpu_bundle_missing));
+      }
+    }
+    File executable =
+        install(
+            context,
+            gpuSurface
+                ? "android-gpu4g-surface-bridge"
+                : AndroidGuestProfile.executable(memoryMib));
+
     Process check =
         new ProcessBuilder("su", "-M", "-c", executable + " --check")
             .redirectErrorStream(true)

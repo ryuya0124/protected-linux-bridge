@@ -144,9 +144,28 @@ static void *android_display_worker(void *unused) {
             continue;
         }
 #ifdef PLB_ANDROID4G_INTERACTIVE
+        if (command == 'n') {
+            unsigned char reply = (unsigned char)android_network_status();
+            if (android_io(client, &reply, 1, 1))
+                break;
+            continue;
+        }
         if (command == 'N') {
-            unsigned char reply = android_network_start(display_uid) ? 1 : 0;
+            unsigned char reply = (unsigned char)android_network_start(display_uid);
             fprintf(stderr, "ANDROID_NETWORK_SETUP result=%u\n", reply);
+            if (android_io(client, &reply, 1, 1))
+                break;
+            continue;
+        }
+#endif
+#ifdef PLB_SURFACE_PRODUCT
+        if (command == 'V') {
+            uint32_t points, values[PLB_TOUCH_MAX_POINTS * 4];
+            if (android_io(client, &points, sizeof(points), 0) || !points ||
+                points > PLB_TOUCH_MAX_POINTS ||
+                android_io(client, values, points * 4 * sizeof(*values), 0))
+                break;
+            unsigned char reply = android_touch_send(points, values) ? 1 : 0;
             if (android_io(client, &reply, 1, 1))
                 break;
             continue;
@@ -184,6 +203,9 @@ static void *android_display_worker(void *unused) {
         }
     }
 done:
+#ifdef PLB_SURFACE_PRODUCT
+    android_touch_release();
+#endif
     if (client >= 0) {
         atomic_store(&display_client, -1);
         close(client);

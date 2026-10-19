@@ -15,9 +15,9 @@
 #include <unistd.h>
 #include "network_fd_boundary.h"
 #include "stream_relay.h"
-#define PLB_OWNER_LOCK_FILE "/data/user/0/net.ryuya_dev/protectedlinux/files/vm-owner.lock"
-#include "../tools/diagnostic_owner_lock.h"
 #define FILES "/data/user/0/net.ryuya_dev.protectedlinux/files"
+#define PLB_OWNER_LOCK_FILE FILES "/vm-owner.lock"
+#include "../tools/diagnostic_owner_lock.h"
 static volatile sig_atomic_t stopping;
 static void stop(int value) {
     (void)value;
@@ -46,8 +46,14 @@ int main(int argc, char **argv) {
     if (setenv(PLB_DIAGNOSTIC_OWNER_ENV, argv[2], 1))
         return 21;
     int owner_lock = diagnostic_owner_lock();
-    if (owner_lock < 3 || plb_network_close_inherited(owner_lock))
+    if (owner_lock < 3) {
+        fprintf(stderr, "PLB_ANDROID_NETWORK_REFUSED gate=owner-lock errno=%d\n", errno);
         return 21;
+    }
+    if (plb_network_close_inherited(owner_lock)) {
+        fprintf(stderr, "PLB_ANDROID_NETWORK_REFUSED gate=descriptor-boundary errno=%d\n", errno);
+        return 21;
+    }
     // plb_start_proxy closes everything except its listener before dropping
     // privilege, including this lock and any future controller descriptors.
     pid_t owner = getppid();

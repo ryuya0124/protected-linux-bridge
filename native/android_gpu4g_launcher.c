@@ -19,9 +19,17 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #define FILES "/data/user/0/net.ryuya_dev.protectedlinux/files"
+#ifdef PLB_SURFACE_PRODUCT
+#define RUNTIME FILES "/android-gpu4g-surface-runtime"
+#define PROFILE FILES "/android-guests/cf17-gpu4096-surface"
+#define ORIGINAL FILES "/android-guests/cf17-gpu4096"
+#define ORIGINAL_RAMDISK_SHA "4ef88a3ce9fdda207e0bfabe1d28ae24319848dcedf613d60ba61e0936f620d5"
+#else
 #define RUNTIME FILES "/android-gpu4g-runtime"
 #define PROFILE FILES "/android-guests/cf17-gpu4096"
 #define ORIGINAL FILES "/android-guests/cuttlefish17"
+#define ORIGINAL_RAMDISK_SHA "7e0c04dd3f3b9b92398c1e5ac0161e93d78c450e857d530d55012a6a550315e2"
+#endif
 #include "profile_lock.h"
 #include "../tools/host_memory_health.h"
 #include "android_gpu4g_files.h"
@@ -72,7 +80,11 @@ static int artifacts(uid_t uid, int install) {
 }
 
 static int profile(void) {
+#ifdef PLB_SURFACE_PRODUCT
+    const char marker[] = "plb-surface-offline-copy-v1\n";
+#else
     const char marker[] = "plb-android17-gpu4096-v1\n";
+#endif
     struct stat st;
     if (!lstat(PROFILE, &st)) {
         if (owned_directory(PROFILE, 0) || !private_file(PROFILE "/.ready"))
@@ -108,10 +120,10 @@ static int profile(void) {
             return -1;
     }
     const char *ramdisk = PROFILE ".preparing/android-lowram.cpio";
-    if (!pinned_digest(ORIGINAL "/android-lowram.cpio",
-                       "7e0c04dd3f3b9b92398c1e5ac0161e93d78c450e857d530d55012a6a550315e2") ||
+    if (!pinned_digest(ORIGINAL "/android-lowram.cpio", ORIGINAL_RAMDISK_SHA) ||
         owned_copy(ORIGINAL "/android-lowram.cpio", ramdisk, 0400, 0))
         return -1;
+#ifndef PLB_SURFACE_PRODUCT
     int tail = open(RUNTIME "/ramdisk-tail.cpio", O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
     int merged = open(ramdisk, O_WRONLY | O_APPEND | O_CLOEXEC | O_NOFOLLOW);
     if (tail < 0 || merged < 0) {
@@ -136,6 +148,11 @@ static int profile(void) {
     if (merge_failed ||
         !pinned_digest(ramdisk, "4ef88a3ce9fdda207e0bfabe1d28ae24319848dcedf613d60ba61e0936f620d5"))
         return -1;
+#endif
+#ifdef PLB_SURFACE_PRODUCT
+    if (!pinned_digest(ramdisk, ORIGINAL_RAMDISK_SHA))
+        return -1;
+#endif
     int fd = open(PROFILE ".preparing/.ready", O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW,
                   0600);
     if (fd < 0)
@@ -176,12 +193,11 @@ int main(int argc, char **argv) {
         return 21;
     if (artifacts(app.st_uid, 0))
         return 31;
-    if (!private_file(ORIGINAL "/android-base.qcow2") ||
+    if (!private_file(FILES "/android-guests/cuttlefish17/android-base.qcow2") ||
         !private_file(ORIGINAL "/android-work.qcow2") ||
         !private_file(ORIGINAL "/android-misc.raw") || !private_file(ORIGINAL "/android-frp.raw") ||
         !private_file(ORIGINAL "/android-lowram.cpio") ||
-        !pinned_digest(ORIGINAL "/android-lowram.cpio",
-                       "7e0c04dd3f3b9b92398c1e5ac0161e93d78c450e857d530d55012a6a550315e2"))
+        !pinned_digest(ORIGINAL "/android-lowram.cpio", ORIGINAL_RAMDISK_SHA))
         return 21;
     if (check) {
         puts("ANDROID_PROFILE_CHECK_OK memory_mib=4096");

@@ -38,7 +38,8 @@ public final class ProbeActivity extends Activity {
     surface = new GLSurfaceView(this);
     surface.setEGLContextClientVersion(2);
     surface.setEGLConfigChooser(8, 8, 8, 8, 0, 0);
-    surface.setRenderer(new PatternRenderer(nonce));
+    surface.setRenderer(
+        new PatternRenderer(nonce, getIntent().getBooleanExtra("plb_motion", false)));
     setContentView(surface);
     surface.post(
         () -> {
@@ -52,6 +53,27 @@ public final class ProbeActivity extends Activity {
           finish();
         },
         20000);
+  }
+
+  private int inputSamples;
+
+  @Override
+  public boolean dispatchTouchEvent(android.view.MotionEvent event) {
+    if (getIntent().getBooleanExtra("plb_input", false)) {
+      if (inputSamples++ < 256)
+        Log.i(
+            TAG,
+            "PLB_GPU_INPUT nonce="
+                + getIntent().getStringExtra("plb_nonce")
+                + " action="
+                + event.getActionMasked()
+                + " pointers="
+                + event.getPointerCount()
+                + " device="
+                + event.getDeviceId());
+      return true;
+    }
+    return super.dispatchTouchEvent(event);
   }
 
   @Override
@@ -74,6 +96,9 @@ public final class ProbeActivity extends Activity {
 
   private final class PatternRenderer implements GLSurfaceView.Renderer {
     private final String nonce;
+    private final boolean motion;
+    private long measuredAt;
+    private int measuredFrames;
     private final FloatBuffer vertices =
         ByteBuffer.allocateDirect(24)
             .order(ByteOrder.nativeOrder())
@@ -91,8 +116,9 @@ public final class ProbeActivity extends Activity {
     private String renderer;
     private String version;
 
-    PatternRenderer(String nonce) {
+    PatternRenderer(String nonce, boolean motion) {
       this.nonce = nonce;
+      this.motion = motion;
       vertices.position(0);
     }
 
@@ -194,12 +220,33 @@ public final class ProbeActivity extends Activity {
         int phase = frame < 12 ? 0 : 1;
         GLES20.glUseProgram(program);
         GLES20.glUniform2f(GLES20.glGetUniformLocation(program, "size"), width, height);
-        GLES20.glUniform1f(GLES20.glGetUniformLocation(program, "phase"), phase);
+        float colorPhase = motion ? (float) (0.5 + 0.5 * Math.sin(frame * 0.05)) : phase;
+        GLES20.glUniform1f(GLES20.glGetUniformLocation(program, "phase"), colorPhase);
         GLES20.glUniform1i(GLES20.glGetUniformLocation(program, "nonceTexture"), 0);
         GLES20.glVertexAttribPointer(0, 2, GLES20.GL_FLOAT, false, 0, vertices);
         GLES20.glEnableVertexAttribArray(0);
         GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 3);
-        if (frame == 2 || frame == 22) {
+        if (motion) {
+          reported = true;
+          measuredFrames++;
+          long now = android.os.SystemClock.elapsedRealtime();
+          if (measuredAt == 0) measuredAt = now;
+          if (now - measuredAt >= 5000) {
+            Log.i(
+                TAG,
+                "PLB_GPU_MOTION nonce="
+                    + nonce
+                    + " frames="
+                    + measuredFrames
+                    + " elapsed_ms="
+                    + (now - measuredAt)
+                    + " renderer="
+                    + bounded(renderer));
+            measuredAt = now;
+            measuredFrames = 0;
+          }
+        }
+        if (!motion && (frame == 2 || frame == 22)) {
           GLES20.glFinish();
           boolean okay = readback(phase);
           if (frame == 2) firstReadback = okay;

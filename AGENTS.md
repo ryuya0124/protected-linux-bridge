@@ -290,3 +290,20 @@ is inside 4096 MiB; normal protected LEND and host boundaries are unchanged.
 The app's initial 4 GiB launch showed a real guest lock screen. Input repair
 forwards bounded swipes instead of converting every gesture into a tap; do not
 disable falsing/security policy or send guest unlock commands to host Android.
+
+
+## GPU Surface default requested after integrated validation, 2026-10-20
+
+The user explicitly requested GPU direct display as the initial selection, with
+slow PNG capture disabled by default. The launch dialog now initially selects
+4096 MiB and the GPU Surface switch, retaining the explicit launch action and
+full per-launch six-key acknowledgment. The GPU branch issues no raw/PNG capture
+requests and must not silently fall back to capture. The old viewer remains an
+explicit manual choice. This does not authorize automatic VM start, a broader
+host policy change or removal of host-health/artifact/RAM/guardian guards.
+
+The integrated versionCode 18 session reached BOOT=1, two-contact virtio input
+and actual validated guest Internet. Texture update counts are not proof of
+60 presented fps or zero-copy. Details, negative trials and limits remain in
+docs/android-display-transport.md. Android guest audio/camera are not yet
+implemented; Debian's audio relay is not an Android HAL.

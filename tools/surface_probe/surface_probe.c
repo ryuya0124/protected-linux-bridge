@@ -92,9 +92,11 @@ static plb_vmm_entry load_vmm(JNIEnv *env, jobject descriptor) {
         (file.st_mode & 0777) != 0500 || file.st_size < 1024 || file.st_size > 32 * 1024 * 1024)
         return NULL;
     android_dlextinfo options = {.flags = ANDROID_DLEXT_USE_LIBRARY_FD, .library_fd = fd};
-    void *library = android_dlopen_ext(
-        "/data/user/0/net.ryuya_dev.protectedlinux/files/kernel-probes/libcrosvm-surface.so",
-        RTLD_NOW | RTLD_LOCAL, &options);
+#ifndef PLB_SURFACE_VMM_LIBRARY
+#define PLB_SURFACE_VMM_LIBRARY                                                                    \
+    "/data/user/0/net.ryuya_dev/protectedlinux/files/kernel-probes/libcrosvm-surface.so"
+#endif
+    void *library = android_dlopen_ext(PLB_SURFACE_VMM_LIBRARY, RTLD_NOW | RTLD_LOCAL, &options);
     if (!library) {
         printf("PLB_SURFACE_VMM_LOAD_FAILED %s\n", dlerror());
         return NULL;

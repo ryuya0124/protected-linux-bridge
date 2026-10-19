@@ -16,7 +16,7 @@ android {
     applicationId = "net.ryuya_dev.protectedlinux"
     minSdk = 36
     targetSdk = 36
-    versionCode = 14
+    versionCode = 19
     versionName = "0.4.0-preview.9"
   }
   signingConfigs {
@@ -59,6 +59,13 @@ val buildNative =
     inputs.file(rootProject.file("third_party/hev/sources.json"))
     inputs.dir(rootProject.file("native"))
     inputs.dir(rootProject.file("tools"))
+    inputs
+      .file(
+        rootProject.file(
+          "artifacts/android4g-gpu/vmm-build/target/aarch64-linux-android/release/libplb_crosvm_surface.so"
+        )
+      )
+      .optional()
     // Optional measured GPU inputs invalidate a prior legacy-only build.
     inputs.files(
       rootProject.fileTree("artifacts/android4g-gpu/guest-kernel-system-heap") {

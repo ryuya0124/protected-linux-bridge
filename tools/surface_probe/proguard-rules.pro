@@ -4,3 +4,5 @@
 -keep class net.ryuya_dev.protectedlinux.surfaceprobe.RootVmmLoadProbe { *; }
 -keep class net.ryuya_dev.protectedlinux.surfaceprobe.RootSurfaceVmm { *; }
 -keep class net.ryuya_dev.protectedlinux.surfaceprobe.RootSurfaceSnapshot { *; }
+
+-keep class net.ryuya_dev.protectedlinux.surfaceprobe.RootHostTouchProbe { *; }

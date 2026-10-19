@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
-import argparse, subprocess, stat, platform, hashlib, json, shlex
+import argparse, subprocess, stat, platform, hashlib, json, shlex, sys
 from build_guest_runtime import build as build_guest
 from fetch_gpu_runtime import fetch as fetch_gpu
 from build_clipboard_worker import build as build_clipboard
@@ -25,6 +25,7 @@ identity_files = (
     + list((root / "tools").glob("*.c"))
     + list((root / "tools").glob("*.h"))
     + [p for p in (root / "tools/android_guest_network").rglob("*") if p.is_file()]
+    + [p for p in (root / "tools/surface_probe").glob("*") if p.suffix in (".c", ".java")]
     + [root / "third_party/hev/sources.json"]
 )
 identity = hashlib.sha256(b"".join(p.read_bytes() for p in sorted(identity_files))).hexdigest()[:20]
@@ -132,6 +133,27 @@ for memory in (1536, 1792):
 
 tunnel = build_tun(root, Path(a.sdk))
 build_android_gpu4g(root, Path(a.sdk), out, clang)
+# Optional measured Surface VMM: omitted rather than substituted on missing input.
+surface_library = (
+    root
+    / "artifacts/android4g-gpu/vmm-build/target/aarch64-linux-android/release/libplb_crosvm_surface.so"
+)
+if surface_library.is_file():
+    subprocess.run(
+        [
+            sys.executable,
+            str(root / "tools/build_android_surface_runtime.py"),
+            "--sdk",
+            a.sdk,
+            "--product-assets",
+            str(out),
+        ],
+        check=True,
+    )
+else:
+    for obsolete in out.glob("gpu4g-surface-*"):
+        obsolete.unlink()
+    (out / "android-gpu4g-surface-bridge").unlink(missing_ok=True)
 
 fetch_gpu(root, out)
 build_clipboard(root, Path(a.sdk), out)

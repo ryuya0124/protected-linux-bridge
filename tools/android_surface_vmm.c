@@ -58,11 +58,18 @@ int main(int argc, char **argv) {
     for (size_t i = 0; i < expected; i++)
         if (strcmp(argv[i], android4g_arguments[i]))
             return 21;
-    if (!pinned(FILES "/kernel-probes/libcrosvm-surface.so", PLB_SURFACE_LIBRARY_SHA256) ||
-        !pinned(FILES "/kernel-probes/libsurface-probe.so", PLB_SURFACE_JNI_SHA256) ||
-        !pinned(FILES "/kernel-probes/surface-probe.apk", PLB_SURFACE_APK_SHA256))
+#ifdef PLB_SURFACE_PRODUCT
+#define SURFACE_FILES PLB_ANDROID4G_RUNTIME "/"
+#define SURFACE_CODE "surface-agent.jar"
+#else
+#define SURFACE_FILES FILES "/kernel-probes/"
+#define SURFACE_CODE "surface-probe.apk"
+#endif
+    if (!pinned(SURFACE_FILES "libcrosvm-surface.so", PLB_SURFACE_LIBRARY_SHA256) ||
+        !pinned(SURFACE_FILES "libsurface-probe.so", PLB_SURFACE_JNI_SHA256) ||
+        !pinned(SURFACE_FILES SURFACE_CODE, PLB_SURFACE_APK_SHA256))
         return 22;
-    if (setenv("CLASSPATH", FILES "/kernel-probes/surface-probe.apk", 1))
+    if (setenv("CLASSPATH", SURFACE_FILES SURFACE_CODE, 1))
         return 23;
     char *java[168] = {"/system/bin/app_process", "-Xmx64m", "/system/bin",
                        "net.ryuya_dev.protectedlinux.surfaceprobe.RootSurfaceVmm"};

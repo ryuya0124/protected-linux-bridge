@@ -8,3 +8,4 @@ tools/crosvm_preallocated_ram.patch whitespace=-blank-at-eol
 tools/crosvm_android_headless.patch whitespace=-blank-at-eol,-blank-at-eof
 tools/crosvm_gpu_diagnostics.patch whitespace=-blank-at-eol
 kernels/android-gpu/guest-bound-dma-sync.patch whitespace=-blank-at-eol,-blank-at-eof
+tools/crosvm_android_surface.patch whitespace=-blank-at-eol

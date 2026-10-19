@@ -1,6 +1,6 @@
 # Android guest display transport
 
-## Implemented: raw capture instead of PNG plus a fixed wait
+## Earlier capture mode: raw frames instead of PNG plus a fixed wait
 
 Preview.8 initially used one `screencap -p` over the fixed guest-vsock ADB
 endpoint per frame, then slept for 1500 ms. It decoded a PNG and allocated a new
@@ -83,7 +83,8 @@ prerequisite. It does **not** connect guest gfxstream output, measure VM frame
 rate, establish zero-copy buffer sharing, or validate a 60 fps session.
 
 The requested final target is **60 actually presented frames per second**.
-Implementation proceeds through these separately verified steps:
+The initial roadmap below records the order of investigation; the later sections
+document the completed Surface connection and live input:
 
 1. Retain the validated raw/PNG fallback and its 10 capture requests/s ceiling.
    Later idle five-second windows reached about 9.8 fps; interactive observations
@@ -157,8 +158,8 @@ path, not a CPU screenshot playback path, but zero-copy and actual cadence must
 still be measured. Trial 3 failed during guest startup with Gunyah page-fault
 `attempt=-12`, before this lifecycle change could be evaluated; it is not a
 successful rendering result. Host taint remained 4608, SELinux Enforcing and all
-six policy values returned to `never` after these trials. The probe is bounded
-to three minutes and is not enabled in the normal APK.
+six policy values returned to `never` after these trials. This developer trial was bounded
+to three minutes; the subsequent APK integration is described below.
 
 
 Trial 4 then completed guest startup in the retained-texture variant. PixelCopy
@@ -171,3 +172,127 @@ GPU output into the app's texture queue, including one two-second background /
 reopen cycle. It does not establish arbitrary process-death recovery, fullscreen
 rotation handling, long-term stability, zero-copy or 60 fps. The separate test
 window still expires after three minutes; that expiry is not a rendering fault.
+
+
+## APK integration and default display
+
+The measured library is an optional APK build input with an exact SHA-256 pin.
+The 4 GiB launch dialog exposes GPU transfer as a separate switch. Following the
+user's explicit preference, 4 GiB and GPU transfer are initially selected. Raw
+and PNG capture are disabled on that path, with no automatic capture fallback.
+Turning GPU transfer off explicitly selects the older capture viewer. The
+per-launch acknowledgment and launch button still precede every VM start. Its
+root-only provider transfers only the currently selected viewer's
+Surface; it is not exported and accepts only UID 0 and the fixed `surface`
+method. The fixed root launcher DEX is source-built and contains no upload or
+arbitrary-command endpoint. Its JNI and VMM library are separately pinned by
+the native wrapper and installed under the dedicated root-owned runtime.
+
+The native launcher keeps the same per-launch six-key acknowledgment and common
+owner lock. Its new profile is a verified offline copy of the prepared 4 GiB
+profile; existing original and Debian disks are retained. The viewer's GPU path
+only handles input and control pings, issuing no `R`/`F` capture requests. Its
+TextureView retains the producer queue through backgrounding; explicit close
+ends the VM and releases it. A new viewer process cannot restore a dead session.
+The production path has the existing 30-minute cap; only the developer probe
+has the three-minute cap.
+
+`GPU_TEXTURE_STATS` counts texture updates, not physical display presentations.
+The diagnostic guest APK has an explicit, nonce/guest-identity-gated 20-second
+motion mode for measuring continuous GLES output. Its normal two-phase readback
+mode remains unchanged. No 60 fps claim follows merely from smooth observation.
+
+
+## Live touch and multi-touch
+
+The GPU APK variant adds exactly one fixed `--input multi-touch[...]` device.
+The retained guest kernel already enables VIRTIO_INPUT and INPUT_EVDEV; neither
+a guest kernel rebuild nor host input-device access is needed. The manager
+creates a root-private socket under this profile, accepts only the owned VMM
+PID/UID and writes the standard eight-byte little-endian virtio input events.
+Host pointer IDs map to ten stable virtual slots. All moved fingers share one
+SYN_REPORT, allowing ordinary Android multi-touch recognition. Gesture edges
+remain ordered; only adjacent MOVE samples are coalesced. Releasing/canceling
+contacts and ending the session clear active slots. It does not replay a swipe
+only after finger-up or start an ADB shell command for each touch sample.
+
+The legacy viewer keeps its bounded tap/swipe commands. Input before guest
+readiness and after session failure is ignored, preserving the failure message
+instead of filling a dead worker's queue. Communication setup runs in an owned
+child and reports pending/ready/failure without blocking input on a 30-second
+setup wait. Native event encoding, reordered IDs, ten contacts, cancellation,
+queue overflow and prompt wakeup of a waiting input worker have regression tests.
+Hardware/multi-finger end-to-end checks and physical presentation latency are
+recorded separately from those unit checks.
+
+
+## Integrated APK validation, 2026-10-20
+
+The signed, non-debuggable versionCode 18 APK started the separate Surface
+profile and reached Android BOOT=1. The guest reported the real Crosvm Virtio
+Multitouch Touchscreen. A root test driver injected input only into Bridge's
+focused viewer UID, and the guest diagnostic logged DOWN, POINTER_DOWN with two
+contacts, multiple two-contact MOVE events, POINTER_UP and UP, followed by two
+taps. A canceled host contact was released as a guest UP; this is not a claim
+that Android ACTION_CANCEL is reproduced. The test driver's redundant final
+cancel was refused after the completed gesture; its cleanup was corrected.
+The live path delivers DOWN and MOVE before UP, rather than replaying the
+gesture after finger-up. Ten-contact mapping and overflow are unit-tested;
+only two-contact injection has end-to-end device evidence.
+
+Guest GLES motion windows produced about 59–60 frames/s. The app's texture
+update windows recorded about 54–59 updates/s for that workload. These counts
+measure different stages. SurfaceFlinger latency sampling did not provide a
+usable isolated presentation series after backgrounding, so neither 60 actual
+presented fps nor input-to-photon latency is established. A diagnostic host
+screenshot visually showed the guest GLES pattern after returning to the
+viewer. It is evidence only, not the transport used by the app. A diagnostic
+Activity start that omitted profile extras was discarded from the lifecycle
+test; ordinary host Home/reopen had already passed in Surface trial 4.
+
+The guest's actual connectivity service selected network 100 and reported
+INTERNET/VALIDATED, with validated Private DNS. Network setup ran asynchronously
+while the same session accepted multi-touch. A wrong runtime helper selection
+and a misspelled owner-lock path had caused earlier setup failures and were
+fixed before this validation. There is no automatic Internet-success spoof.
+
+VersionCode 19 updates the launch and connected-state wording to match the
+GPU default, retaining the full six-key warning before launch. Startup remains
+unreliable: previous integrated trials failed with Gunyah page-fault -12.
+No retries are automatic, and smooth rendering is not a fix for that failure.
+
+Normal viewer close completed guest-requested VMM shutdown and network guest
+cleanup (`result=0`), leaving no owned VMM/relay. All six policies were `never`,
+host taint remained 4608 with SELinux Enforcing, and the host boot/core-process
+identities were unchanged. All four original 4 GiB profile file hashes matched
+the pre-Surface baseline after the test. The signed versionCode 19 update was
+then installed; its launch dialog showed 4 GiB and GPU transfer selected, and
+canceling the dialog did not start a VM. 190 Python/native tests and 40 JVM
+tests, Release Lint and the signed release build passed.
+
+## Build the separate Surface VMM without launching a VM
+
+Use dedicated ignored directories, the pinned source revisions and captured
+link libraries described in [the VMM build recipe](preallocated-vmm-validation.md#reproduce-builds-without-launching-a-vm).
+For the Surface build, add both `--android-gpu` and
+`--android-surface-library` to `tools/build_preallocated_vmm.py`, use a separate
+source checkout, and select `artifacts/android4g-gpu/vmm-build` as output. This
+produces `target/aarch64-linux-android/release/libplb_crosvm_surface.so` plus
+`surface-vmm-build.json`; it does not execute a VM. The pinned crosvm revision is
+`8a4abfbaea5567de24e49cc43874c820098987d0`, with minijail
+`c6fe710936b84753b99e6d0e9ea634109272f307`.
+
+`tools/crosvm_android_surface.patch` adds the library entry, native-window setup
+and Android resource-flush dispatch on top of the existing prepared-RAM and
+headless-GPU patches. The measured library SHA-256 is
+`3e709c50a002e480c887aa2c337b067b850069f58ee05d72732654fb8b509e13`.
+`tools/build_android_surface_agent.py` verifies that pin before producing the
+root-launcher DEX/JNI; it never starts a device process. A different rebuilt
+hash requires review and separate validation, not removal of the check.
+
+The normal Gradle native-asset build detects that optional measured library and
+stages the product Surface bundle through
+`tools/build_android_surface_runtime.py --product-assets`. The separate guest
+Image and original initramfs must match the published kernel/ramdisk pins.
+Build without those private inputs produces a legacy-only APK and an explicit
+missing-runtime error if GPU mode is requested, never a silent capture fallback.

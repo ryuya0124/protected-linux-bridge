@@ -180,6 +180,7 @@ plb-udp-forward 5353 1.1.1.1 53 でゲストのlocalhost:5353を指定したUDP�
   <string name="android_guest_open">Androidゲストを開く</string>
   <string name="android_guest_starting">Android 17ゲストを起動中… 初回は数分かかる場合があります。</string>
   <string name="android_guest_connected">Android 17・実験用・%1$s・低速な画面取得</string>
+  <string name="android_guest_gpu_connected">Android 17・実験用・%1$s・GPUテクスチャ表示</string>
   <string name="android_guest_unsupported">このAndroidゲストはSM-S948Q／Android 16のみで確認しています。</string>
   <string name="android_guest_root_error">rootを利用できません。root管理アプリでProtected Linux Bridgeを許可してください。</string>
   <string name="android_guest_missing">ゲスト用ファイルが未配置、または権限を確認できません。リポジトリの手順でAndroidプロファイルを準備してください。</string>
@@ -207,9 +208,13 @@ plb-udp-forward 5353 1.1.1.1 53 でゲストのlocalhost:5353を指定したUDP�
   <string name="android_guest_gpu_title">Android 17・4GiB GPU実験</string>
   <string name="android_guest_gpu_bundle_missing">このAPKには検証対象のAndroid GPU実行環境が含まれていません。GPU対応のリリース版を使用してください。従来の構成は引き続き利用できます。</string>
   <string name="android_guest_gpu_allocation_failed">GunyahがゲストRAMを割り当てられませんでした。空きRAMが十分でも発生する既知の起動失敗です。自動再試行せず、このVMを停止しました。従来の構成を選ぶか、後で手動で再試行してください。Androidの再起動は行っていません。</string>
-  <string name="android_guest_gpu_conditions">独立したAndroid 17の構成です。ホーム画面表示とAdreno GLES描画の読み戻しに成功していますが、起動は不安定でGunyahのENOMEMエラーになる場合があります。通信は選択制で、IPv4のTCP・UDPをBridgeアプリ経由で中継します。Vulkan・音声・USBは未対応です。表示転送はCPUでの画面取得（非圧縮・PNG予備経路）のため、GPU描画に成功しても滑らかな表示やゼロコピーにはなりません。\n\n起動のたびに、ホスト全体の16／32／64／128／256／512KiB shmem THPを一時的にadviseへ変更することを許可します。RAMの準備完了後すぐ元のneverへ戻し、異常時は独立した監視プロセスが40秒の期限で復元を試みます。この間、巨大ページを要求する他のアプリにも影響します。準備で最大6GiBのRAMを使用し、バックグラウンドアプリが終了する場合があります。カーネルやハイパーバイザーの障害でAndroidが停止し、一時rootを失う可能性は残ります。ホストのページ管理エラーを検出すると起動しません。\n\nゲストの総RAMは4096MiBで、128MiBの共有DMA領域を含みます。専用ゲストカーネル・VMMと、新しい永続ディスクをアプリ専用領域へ保存します。既存のDebian・Android構成は保持します。画面を閉じるとこのVMだけを停止します。上限30分。自動再試行やホスト再起動は行いません。</string>
+  <string name="android_guest_gpu_conditions">独立したAndroid 17の構成です。ホーム画面表示とAdreno GLES描画の読み戻しに成功していますが、起動は不安定でGunyahのENOMEMエラーになる場合があります。通信は選択制で、IPv4のTCP・UDPをBridgeアプリ経由で中継します。Vulkan・音声・USBは未対応です。初期選択はGPUテクスチャによる表示で、スクリーンショット取得は行いません。GPU表示を手動でオフにした場合のみ、低速な非圧縮・PNG取得を使います。ゼロコピー・実表示60fpsは未確認です。\n\n起動のたびに、ホスト全体の16／32／64／128／256／512KiB shmem THPを一時的にadviseへ変更することを許可します。RAMの準備完了後すぐ元のneverへ戻し、異常時は独立した監視プロセスが40秒の期限で復元を試みます。この間、巨大ページを要求する他のアプリにも影響します。準備で最大6GiBのRAMを使用し、バックグラウンドアプリが終了する場合があります。カーネルやハイパーバイザーの障害でAndroidが停止し、一時rootを失う可能性は残ります。ホストのページ管理エラーを検出すると起動しません。\n\nゲストの総RAMは4096MiBで、128MiBの共有DMA領域を含みます。専用ゲストカーネル・VMMと、新しい永続ディスクをアプリ専用領域へ保存します。既存のDebian・Android構成は保持します。画面を閉じるとこのVMだけを停止します。上限30分。自動再試行やホスト再起動は行いません。</string>
   <string name="android_guest_internet">Androidゲストのインターネット（IPv4・TCP・UDP）</string>
   <string name="android_guest_network_preparing">ゲストの通信を準備しています…</string>
   <string name="android_guest_network_ready">ゲスト回線を構成しました・接続可否はAndroidが確認します</string>
   <string name="android_guest_network_failed">通信の準備に失敗しました・VMはオフラインで利用できます</string>
+  <string name="android_guest_gpu_surface">GPUによる画面転送（実験）</string>
+  <string name="android_guest_gpu_surface_details">準備済み4GiBゲストの別コピーを使います。先に従来の4GiB構成を準備してください。スクリーンショット転送を使わずGPUのテクスチャで表示します。60fps・ゼロコピーは未確認です。ビューアを閉じるとVMが終了します。従来の表示方式も引き続き選べます。</string>
+  <string name="android_guest_gpu_summary">4096MiB RAMとAdreno GLESを使う独立したAndroid 17です。GPU転送は別コピーのディスクを使います。GunyahのENOMEMで起動に失敗する場合があります。次の画面で、一時的なホスト全体の設定と起動準備に使うRAMを確認してから起動します。</string>
+  <string name="android_guest_network_stopped">VMの終了に伴い通信も停止しました</string>
 </resources>

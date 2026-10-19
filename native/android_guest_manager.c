@@ -127,6 +127,9 @@ static void stop(int signal) {
     stopping = 1;
 }
 
+#ifdef PLB_SURFACE_PRODUCT
+#include "android_virtio_touch.h"
+#endif
 #include "android_guest_display.h"
 #ifdef PLB_ANDROID4G_INTERACTIVE
 #include "android_vmm_log.h"
@@ -492,6 +495,10 @@ int main(int argc, char **argv) {
         return 24;
     signal(SIGPIPE, SIG_IGN);
 #endif
+#ifdef PLB_SURFACE_PRODUCT
+    if (android_touch_listen())
+        return 24;
+#endif
     pid_t parent = getpid(), child = fork();
     if (!child) {
 #ifdef PLB_ANDROID4G_INTERACTIVE
@@ -707,6 +714,9 @@ int main(int argc, char **argv) {
 #endif /* PLB_ANDROID_ADOPTED_PROBE */
         _exit(26);
     }
+#ifdef PLB_SURFACE_PRODUCT
+    android_touch_vmm = child;
+#endif
     if (child < 0) {
 #ifdef PLB_ANDROID_LARGE_PROFILE
         large_error = 27;
@@ -764,7 +774,7 @@ int main(int argc, char **argv) {
 #endif
     int status = 0;
     pid_t done = 0;
-#ifdef PLB_ANDROID4G_SURFACE_INTERACTIVE
+#if defined(PLB_ANDROID4G_SURFACE_INTERACTIVE) && !defined(PLB_SURFACE_PRODUCT)
     const int ticks = 1800; /* Separate developer Surface session: at most three minutes. */
 #elif defined(PLB_ANDROID4G_INTERACTIVE)
     const int ticks = 18000;
@@ -886,6 +896,9 @@ int main(int argc, char **argv) {
         }
 #ifdef PLB_ANDROID4G_INTERACTIVE
         gpu_console_finish_worker(console_thread, console_started, &console);
+#ifdef PLB_SURFACE_PRODUCT
+        android_touch_close();
+#endif
         if (vmm_log_started)
             android_vmm_log_stop(&vmm_log);
         if (interactive_failure)
@@ -902,6 +915,9 @@ int main(int argc, char **argv) {
     }
 #ifdef PLB_ANDROID4G_INTERACTIVE
     gpu_console_finish_worker(console_thread, console_started, &console);
+#ifdef PLB_SURFACE_PRODUCT
+    android_touch_close();
+#endif
     if (vmm_log_started)
         android_vmm_log_stop(&vmm_log);
     if (interactive_failure)
@@ -927,6 +943,9 @@ large_startup_failed:
     sensor_close(&control, BASE "/sensor-control.sock");
     sensor_close(&data, BASE "/sensor-data.sock");
     sensor_close(&oemlock, BASE "/oemlock.sock");
+#ifdef PLB_SURFACE_PRODUCT
+    android_touch_close();
+#endif
     close(lock);
     return large_error;
 #endif

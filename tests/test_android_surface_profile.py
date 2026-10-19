@@ -37,7 +37,11 @@ class AndroidSurfaceProfileTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             binary = Path(directory) / "args"
             profiles = []
-            for modes in [COMMON, COMMON + ["PLB_ANDROID4G_SURFACE_INTERACTIVE"]]:
+            for modes in [
+                COMMON,
+                COMMON + ["PLB_ANDROID4G_SURFACE_INTERACTIVE"],
+                COMMON + ["PLB_ANDROID4G_SURFACE_INTERACTIVE", "PLB_SURFACE_PRODUCT"],
+            ]:
                 result = self.compile(binary, modes)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 args = subprocess.check_output([str(binary)], text=True).splitlines()
@@ -45,7 +49,13 @@ class AndroidSurfaceProfileTest(unittest.TestCase):
                 self.assertEqual(args[args.index("--mem") + 1], "size=4096")
                 self.assertEqual(args[args.index("--swiotlb") + 1], "128")
                 profiles.append(args)
-            baseline, surface = profiles
+            baseline, surface, product = profiles
+            position = product.index("--input")
+            self.assertEqual(
+                product[position + 1],
+                "multi-touch[path=/owned/app/android-guests/cf17-gpu4096-surface/touch.sock,width=480,height=800]",
+            )
+            self.assertEqual(product[:position] + product[position + 2 :], surface)
             baseline_blocks = {
                 baseline[i + 1] for i, value in enumerate(baseline) if value == "--block"
             }
