@@ -5,6 +5,7 @@
 #include <sys/reboot.h>
 #include <sys/sysinfo.h>
 #include <sys/auxv.h>
+#include <sys/resource.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -54,9 +55,11 @@ int main(void) {
     fclose(options);
     const char *option = strstr(cmdline, " plb.pressuremib=");
     int mib = option ? atoi(option + strlen(" plb.pressuremib=")) : 0;
+    option = strstr(cmdline, " plb.rounds=");
+    int rounds = option ? atoi(option + strlen(" plb.rounds=")) : 1;
     struct sysinfo info;
-    if (mib < 64 || mib > 1024 || sysinfo(&info) ||
-        (uint64_t)info.freeram * info.mem_unit < ((uint64_t)mib + 48) * 1048576) {
+    if (mib < 64 || mib > 1024 || rounds < 1 || rounds > 8 || mib * rounds > 3072 ||
+        sysinfo(&info) || (uint64_t)info.freeram * info.mem_unit < ((uint64_t)mib + 48) * 1048576) {
         puts("PLB_MEMORY_TARGET_REJECTED");
         finish();
     }
@@ -71,22 +74,37 @@ int main(void) {
         finish();
     }
     printf("PLB_MEMORY_BEGIN mib=%d guest_page=%ld\n", mib, sysconf(_SC_PAGESIZE));
-    /* Touch one byte of every 4KiB, also suitable for a 16KiB guest kernel. */
-    for (size_t offset = 0; offset < bytes; offset += 4096) {
-        memory[offset] = (unsigned char)((offset / 4096) % 251 + 1);
-        if ((offset + 4096) % (64 * 1048576) == 0) {
-            printf("PLB_MEMORY_TOUCHED mib=%zu\n", (offset + 4096) / 1048576);
-            /* Bound allocation rate and allow the parent to observe its own VMM. */
-            struct timespec step = {0, 200000000};
-            nanosleep(&step, NULL);
+    printf("PLB_MEMORY_WORKLOAD rounds=%d unique_mib=%d\n", rounds, mib);
+    unsigned errors = 0;
+    /* Every round reuses the same resident allocation, without discard/unmap.
+     * A guest without disks/swap cannot turn repeated coverage into a larger
+     * working set. Fault counters make accidental new allocation observable. */
+    for (int round = 1; round <= rounds; round++) {
+        for (size_t offset = 0; offset < bytes; offset += 4096) {
+            memory[offset] = (unsigned char)((offset / 4096 + (size_t)round) % 251 + 1);
+            if ((offset + 4096) % (64 * 1048576) == 0) {
+                printf("PLB_MEMORY_PROGRESS round=%d mib=%zu\n", round, (offset + 4096) / 1048576);
+                struct timespec step = {0, 200000000};
+                nanosleep(&step, NULL);
+            }
+        }
+        for (size_t offset = 0; offset < bytes; offset += 4096)
+            if (memory[offset] != (unsigned char)((offset / 4096 + (size_t)round) % 251 + 1))
+                errors++;
+        struct rusage usage;
+        if (getrusage(RUSAGE_SELF, &usage)) {
+            puts("PLB_MEMORY_USAGE_FAILED");
+            finish();
+        }
+        printf("PLB_MEMORY_ROUND round=%d errors=%u minor_faults=%ld major_faults=%ld "
+               "maxrss_kib=%ld\n",
+               round, errors, usage.ru_minflt, usage.ru_majflt, usage.ru_maxrss);
+        if (errors) {
+            puts("PLB_MEMORY_FAILED");
+            finish();
         }
     }
-    if (mib % 64)
-        printf("PLB_MEMORY_TOUCHED mib=%d\n", mib);
-    unsigned errors = 0;
-    for (size_t offset = 0; offset < bytes; offset += 4096)
-        if (memory[offset] != (unsigned char)((offset / 4096) % 251 + 1))
-            errors++;
+    printf("PLB_MEMORY_TOUCHED mib=%d\n", mib);
     printf("PLB_MEMORY_READBACK errors=%u\n", errors);
     struct timespec hold = {5, 0};
     nanosleep(&hold, NULL); /* Allow the host to sample only this VMM's private mappings. */

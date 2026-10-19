@@ -28,6 +28,32 @@ class MemoryProbeResult(unittest.TestCase):
             PROBE.assess_probe(0, self.success, "exiting with success", 256)["complete"]
         )
 
+    def repeated_log(self, rounds):
+        return (
+            "".join(
+                f"PLB_MEMORY_ROUND round={value} errors=0 minor_faults=98304 "
+                "major_faults=0 maxrss_kib=393216\n"
+                for value in rounds
+            )
+            + self.success
+        )
+
+    def test_all_repeated_rounds_required(self):
+        self.assertTrue(
+            PROBE.assess_probe(0, self.repeated_log(range(1, 9)), "", 256, 8)["complete"]
+        )
+        for rounds in ([1, 2], [2, 1, 3], [1, 2, 2, 3], []):
+            self.assertFalse(
+                PROBE.assess_probe(0, self.repeated_log(rounds), "", 256, 3)["complete"]
+            )
+
+    def test_error_in_an_earlier_round_is_failure(self):
+        log = self.repeated_log([1, 2]).replace("round=1 errors=0", "round=1 errors=1")
+        self.assertFalse(PROBE.assess_probe(0, log, "", 256, 2)["complete"])
+
+    def test_extra_round_is_not_the_requested_workload(self):
+        self.assertFalse(PROBE.assess_probe(0, self.repeated_log([1, 2]), "", 256, 1)["complete"])
+
     def test_observed_zero_exit_vcpu_crash(self):
         guest = "PLB_MEMORY_TOUCHED mib=448\n"
         vmm = "unknown gh exit reason: 3\nvcpu crashed\nexiting with success\n"
@@ -54,6 +80,23 @@ class MemoryProbeResult(unittest.TestCase):
     def test_completion_before_readback_is_failure(self):
         guest = "PLB_MEMORY_COMPLETE\nPLB_MEMORY_TOUCHED mib=256\nPLB_MEMORY_READBACK errors=0\n"
         self.assertFalse(PROBE.assess_probe(0, guest, "", 256)["complete"])
+
+
+class WorkloadBoundsTest(unittest.TestCase):
+    def test_large_reservation_is_not_a_large_resident_workload(self):
+        self.assertEqual(PROBE.workload_budget_mib(4096, 64, 1), 576)
+        self.assertEqual(PROBE.workload_budget_mib(4096, 256, 1), 768)
+        for keywords in ({"private_backing": True}, {"hugepages": True}):
+            with self.assertRaises(ValueError):
+                PROBE.workload_budget_mib(4096, 64, 1, **keywords)
+        with self.assertRaises(ValueError):
+            PROBE.workload_budget_mib(4096, 512, 1)
+
+    def test_repeated_workload_fits_watchdog(self):
+        self.assertEqual(PROBE.workload_budget_mib(768, 384, 8), 768)
+        for memory, touch, rounds in ((1024, 768, 8), (768, 384, 9), (512, 500, 1)):
+            with self.assertRaises(ValueError):
+                PROBE.workload_budget_mib(memory, touch, rounds)
 
 
 class CapturedFdtTest(unittest.TestCase):

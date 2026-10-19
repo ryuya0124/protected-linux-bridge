@@ -24,7 +24,7 @@ static void stop(int signal) {
 static int number(const char *text) {
     char *end;
     long value = strtol(text, &end, 10);
-    return *text && !*end && value >= 0 && value <= 2048 ? (int)value : -1;
+    return *text && !*end && value >= 0 && value <= 4096 ? (int)value : -1;
 }
 static int safe_log(const char *path) {
     struct stat st;
@@ -48,7 +48,25 @@ static void sample(pid_t child, int elapsed_ms) {
             fputs(line, stdout);
     }
     fclose(input);
+    snprintf(path, sizeof(path), "/proc/%ld/status", (long)child);
+    input = fopen(path, "re");
+    if (input) {
+        while (fgets(line, sizeof(line), input))
+            if (!strncmp(line, "VmSize:", 7) || !strncmp(line, "VmLck:", 6) ||
+                !strncmp(line, "VmPin:", 6) || !strncmp(line, "VmRSS:", 6) ||
+                !strncmp(line, "VmSwap:", 7))
+                fputs(line, stdout);
+        fclose(input);
+    }
     if (elapsed_ms == 1000) {
+        snprintf(path, sizeof(path), "/proc/%ld/limits", (long)child);
+        input = fopen(path, "re");
+        if (input) {
+            while (fgets(line, sizeof(line), input))
+                if (!strncmp(line, "Max locked memory", 17))
+                    fputs(line, stdout);
+            fclose(input);
+        }
         snprintf(path, sizeof(path), "/proc/%ld/maps", (long)child);
         input = fopen(path, "re");
         if (input) {
@@ -69,7 +87,7 @@ static pid_t poll_child(pid_t child, int *status) {
     return result;
 }
 int main(int argc, char **argv) {
-    if (getuid() != 0 || (argc != 5 && argc != 6 && argc != 7))
+    if (getuid() != 0 || (argc < 5 || argc > 8))
         return 20;
     const char *kernel = !strcmp(argv[1], "linux618")    ? FILES "/kernels/linux-6.18.57-plb1/Image"
                          : !strcmp(argv[1], "sdk37-16k") ? FILES "/kernels/android37-sdk16k/Image"
@@ -79,10 +97,12 @@ int main(int argc, char **argv) {
                              : NULL;
     int mem = number(argv[2]), touch = number(argv[3]), huge = number(argv[4]);
     int anonymous = argc >= 6 ? number(argv[5]) : 0;
-    int dump_fdt = argc == 7 ? number(argv[6]) : 0;
-    if (!kernel || (mem != 512 && mem != 768 && mem != 1024) || touch < 64 || touch > mem - 64 ||
-        huge < 0 || huge > 1 || anonymous < 0 || anonymous > 2 || dump_fdt < 0 || dump_fdt > 1 ||
-        (dump_fdt && anonymous))
+    int dump_fdt = argc >= 7 ? number(argv[6]) : 0;
+    int rounds = argc == 8 ? number(argv[7]) : 1;
+    if (!kernel || (mem != 512 && mem != 768 && mem != 1024 && mem != 4096) || touch < 64 ||
+        touch > mem - 64 || huge < 0 || huge > 1 || anonymous < 0 || anonymous > 2 ||
+        dump_fdt < 0 || dump_fdt > 1 || (dump_fdt && anonymous) || rounds < 1 || rounds > 8 ||
+        touch * rounds > 3072 || (mem == 4096 && (touch > 256 || anonymous || huge)))
         return 21;
     if (anonymous) {
         struct stat library, copy;
@@ -102,6 +122,8 @@ int main(int argc, char **argv) {
         return 22;
     if (dump_fdt && safe_log(FILES "/kernel-probes/memory-last.dtb"))
         return 22;
+    printf("PLB_RUNNER_START memory_mib=%d touch_mib=%d rounds=%d\n", mem, touch, rounds);
+    fflush(stdout);
     signal(SIGTERM, stop);
     signal(SIGINT, stop);
     pid_t parent = getpid(), child = fork();
@@ -116,12 +138,18 @@ int main(int argc, char **argv) {
              setenv("LD_LIBRARY_PATH",
                     "/apex/com.android.virt/lib64:/system/lib64:/system_ext/lib64", 1)))
             _exit(27);
+        /* Prefer reclaiming the diagnostic VMM over ordinary Android apps.
+         * This is per-process, not a host memory-policy change. */
+        int oom = open("/proc/self/oom_score_adj", O_WRONLY | O_CLOEXEC);
+        if (oom < 0 || write(oom, "1000", 4) != 4)
+            _exit(30);
+        close(oom);
         char memory[32], options[256];
         snprintf(memory, sizeof(memory), "size=%d", mem);
         snprintf(options, sizeof(options),
                  "console=ttyS0 8250.nr_uarts=1 rdinit=/init panic=0 quiet loglevel=3 "
-                 "plb.pressuremib=%d",
-                 touch);
+                 "plb.pressuremib=%d plb.rounds=%d",
+                 touch, rounds);
         const char *args[] = {"crosvm",
                               "run",
                               "--name",

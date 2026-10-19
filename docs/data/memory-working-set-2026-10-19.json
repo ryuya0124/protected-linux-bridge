@@ -1,0 +1,242 @@
+{
+  "date": "2026-10-19",
+  "device_model": "SM-S948Q",
+  "host_android": 16,
+  "host_kernel": "6.12.30-4K",
+  "guest_kernel": "6.18.57-plb1",
+  "guest_page_bytes": 4096,
+  "kernel_sha256": "95fe64403ffd031ce1ba8965098eed3073ae6db38be017801d1d77117f966dbc",
+  "installed_crosvm_sha256": "9b4d56db70be1d3d646a08da0cb3e6eb95637457e5f15cb3b1c627f348e3e847",
+  "guest_probe_initramfs_sha256": "86da837114f2ff90dc38a4d17e03a41c4561df885810291a8307ee0e4d447888",
+  "vm_type": "protected-vm-without-firmware",
+  "backing": "original shared memfd",
+  "persistent_disks_attached": false,
+  "gpu_attached": false,
+  "network_attached": false,
+  "host_settings_changed": false,
+  "tests": [
+    {
+      "memory_mib": 768,
+      "touch_mib": 384,
+      "rounds": 8,
+      "complete": true,
+      "vmm_exit": 0,
+      "vcpu_failure": false,
+      "last_progress_mib": 384,
+      "host_boundary_unchanged": true,
+      "guest_rounds": [
+        {
+          "round": 1,
+          "errors": 0,
+          "minor_faults": 98314,
+          "major_faults": 0,
+          "maxrss_kib": 393216
+        },
+        {
+          "round": 2,
+          "errors": 0,
+          "minor_faults": 98314,
+          "major_faults": 0,
+          "maxrss_kib": 393216
+        },
+        {
+          "round": 3,
+          "errors": 0,
+          "minor_faults": 98314,
+          "major_faults": 0,
+          "maxrss_kib": 393216
+        },
+        {
+          "round": 4,
+          "errors": 0,
+          "minor_faults": 98314,
+          "major_faults": 0,
+          "maxrss_kib": 393216
+        },
+        {
+          "round": 5,
+          "errors": 0,
+          "minor_faults": 98314,
+          "major_faults": 0,
+          "maxrss_kib": 393216
+        },
+        {
+          "round": 6,
+          "errors": 0,
+          "minor_faults": 98314,
+          "major_faults": 0,
+          "maxrss_kib": 393216
+        },
+        {
+          "round": 7,
+          "errors": 0,
+          "minor_faults": 98314,
+          "major_faults": 0,
+          "maxrss_kib": 393216
+        },
+        {
+          "round": 8,
+          "errors": 0,
+          "minor_faults": 98314,
+          "major_faults": 0,
+          "maxrss_kib": 393216
+        }
+      ],
+      "vmm_sampled_maxima": {
+        "AnonHugePages_max_kib": 0,
+        "ShmemPmdMapped_max_kib": 0
+      }
+    },
+    {
+      "memory_mib": 4096,
+      "touch_mib": 64,
+      "rounds": 1,
+      "complete": true,
+      "vmm_exit": 0,
+      "vcpu_failure": false,
+      "last_progress_mib": 64,
+      "host_boundary_unchanged": true,
+      "guest_rounds": [
+        {
+          "round": 1,
+          "errors": 0,
+          "minor_faults": 16394,
+          "major_faults": 0,
+          "maxrss_kib": 65536
+        }
+      ],
+      "vmm_sampled_maxima": {
+        "AnonHugePages_max_kib": 0,
+        "ShmemPmdMapped_max_kib": 0
+      }
+    },
+    {
+      "memory_mib": 4096,
+      "touch_mib": 256,
+      "rounds": 1,
+      "complete": true,
+      "vmm_exit": 0,
+      "vcpu_failure": false,
+      "last_progress_mib": 256,
+      "host_boundary_unchanged": true,
+      "guest_rounds": [
+        {
+          "round": 1,
+          "errors": 0,
+          "minor_faults": 65546,
+          "major_faults": 0,
+          "maxrss_kib": 262144
+        }
+      ],
+      "vmm_sampled_maxima": {
+        "AnonHugePages_max_kib": 0,
+        "ShmemPmdMapped_max_kib": 0
+      }
+    },
+    {
+      "memory_mib": 1024,
+      "touch_mib": 768,
+      "rounds": 1,
+      "complete": false,
+      "vmm_exit": 0,
+      "vcpu_failure": true,
+      "last_progress_mib": 448,
+      "host_boundary_unchanged": true,
+      "guest_rounds": [],
+      "vmm_sampled_maxima": {
+        "AnonHugePages_max_kib": 0,
+        "ShmemPmdMapped_max_kib": 0
+      }
+    },
+    {
+      "memory_mib": 4096,
+      "touch_mib": 256,
+      "rounds": 2,
+      "complete": true,
+      "vmm_exit": 0,
+      "vcpu_failure": false,
+      "last_progress_mib": 256,
+      "host_boundary_unchanged": true,
+      "guest_rounds": [
+        {
+          "round": 1,
+          "errors": 0,
+          "minor_faults": 65546,
+          "major_faults": 0,
+          "maxrss_kib": 262144
+        },
+        {
+          "round": 2,
+          "errors": 0,
+          "minor_faults": 65546,
+          "major_faults": 0,
+          "maxrss_kib": 262144
+        }
+      ],
+      "vmm_sampled_maxima": {
+        "VmLck_max_kib": 473036,
+        "VmPin_max_kib": 0,
+        "VmRSS_max_kib": 494648,
+        "VmSwap_max_kib": 0,
+        "AnonHugePages_max_kib": 0,
+        "ShmemPmdMapped_max_kib": 0
+      },
+      "vmm_memlock_limit_bytes": 65536
+    },
+    {
+      "memory_mib": 1024,
+      "touch_mib": 768,
+      "rounds": 1,
+      "complete": false,
+      "vmm_exit": 0,
+      "vcpu_failure": true,
+      "last_progress_mib": 448,
+      "host_boundary_unchanged": true,
+      "guest_rounds": [],
+      "vmm_sampled_maxima": {
+        "VmLck_max_kib": 568328,
+        "VmPin_max_kib": 0,
+        "VmRSS_max_kib": 612448,
+        "VmSwap_max_kib": 0,
+        "AnonHugePages_max_kib": 0,
+        "ShmemPmdMapped_max_kib": 0
+      },
+      "vmm_memlock_limit_bytes": 65536
+    },
+    {
+      "memory_mib": 512,
+      "touch_mib": 256,
+      "rounds": 1,
+      "complete": true,
+      "vmm_exit": 0,
+      "vcpu_failure": false,
+      "last_progress_mib": 256,
+      "host_boundary_unchanged": true,
+      "guest_rounds": [
+        {
+          "round": 1,
+          "errors": 0,
+          "minor_faults": 65547,
+          "major_faults": 0,
+          "maxrss_kib": 262144
+        }
+      ],
+      "vmm_sampled_maxima": {
+        "VmLck_max_kib": 329240,
+        "VmPin_max_kib": 0,
+        "VmRSS_max_kib": 351644,
+        "VmSwap_max_kib": 0,
+        "AnonHugePages_max_kib": 0,
+        "ShmemPmdMapped_max_kib": 0
+      },
+      "vmm_memlock_limit_bytes": 65536
+    }
+  ],
+  "excluded_launches": [
+    {
+      "reason": "Older runner rejected new arguments before starting a VM",
+      "exit": 20
+    }
+  ],
+  "limitation": "One byte written/read per 4-KiB page. Repeated coverage is not independent allocated capacity or a memory-bandwidth measurement."
+}

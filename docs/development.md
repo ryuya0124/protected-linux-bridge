@@ -143,3 +143,13 @@ Read-only GPU diagnostics: `python3 tools/build_gpu_probe.py --sdk ANDROID_SDK_P
 [Disk management](storage.md) documents the separate offline resize/compaction path, retained previous disk, cancellation socket, usage protocol and crash recovery. Shrink is now explicitly requested; the previous expansion-only preference is superseded. No host mutation exceptions were added. [Host boundary](host-boundary.md) is the exhaustive prohibition list.
 
 First-party source is expanded consistently across Java, C, Python, Gradle, XML, shell and HTML. Test C is in `tests/fixtures/` instead of compressed embedded literals. See [code style and reproducible formatting](code-style.md). Upstream dependency code and wrappers retain their original form.
+
+
+## Memory diagnostics, 2026-10-19
+
+The [working-set probes](memory-working-set-probes.md) separate configured RAM,
+resident page coverage, repeated reuse and VMM accounting. A diskless protected
+4 GiB configuration boots with small workloads; the large newly mapped workload
+still fails. These are developer helpers, not a change to APK memory admission
+or released stability claims. Sanitized results are checked in; raw logs stay in
+ignored artifacts. The host boundary and suspended policy proposal are unchanged.

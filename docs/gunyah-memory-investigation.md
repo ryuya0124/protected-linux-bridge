@@ -6,7 +6,10 @@ The [measured follow-up](memory-provisioning-followup.md) now separates a succes
 4 GiB Android-process allocation from failed 2 MiB folio allocation, verifies the
 short-collapse no-op, tests local tmpfs sealing compatibility, and captures the
 installed crosvm's actual 1 GiB RAM / 30 GiB Gunyah address-layout configuration.
-It does not establish a working 4 GiB protected VM or fix the historical map failure.
+The subsequent [working-set probes](memory-working-set-probes.md) booted a
+4 GiB-configured protected VM and passed 256 MiB of marker coverage. Reusing the
+same 384 MiB eight times passed; a new 768 MiB allocation still failed. Full
+4 GiB residency and a fix for the historical map failure remain unverified.
 
 The [DroidVM HugePage comparison](droidvm-hugepage-comparison.md) now traces the
 app, modified VMM and reserve-module paths separately. It includes a read-only

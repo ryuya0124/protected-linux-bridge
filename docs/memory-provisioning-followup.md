@@ -2,7 +2,9 @@
 
 Measured on the selected Galaxy on 2026-10-19, following the
 [DroidVM comparison](droidvm-hugepage-comparison.md). **A 4 GiB host-process
-allocation passed. A 4 GiB protected VM is still not working or verified.**
+allocation passed. Subsequently, a 4 GiB-configured protected VM booted and
+passed a 256 MiB page-marker workload. Full 4 GiB resident operation remains
+unverified:** see the [working-set probes](memory-working-set-probes.md).
 The historical Gunyah map failure remains unresolved. The released APK and normal
 VM settings have not been changed by these developer diagnostics.
 
@@ -162,7 +164,9 @@ Its selected properties describe:
 
 The guest completed the 64 MiB touch/readback with zero errors, emitted its
 completion marker and shut down. This verifies configuration and a small touched
-workload, **not** the previously failing 768 MiB workload or a 4 GiB guest.
+workload, **not** the previously failing 768 MiB workload. The subsequent
+[4 GiB configuration experiment](memory-working-set-probes.md) is recorded
+separately and still does not establish full resident operation.
 No DTB size property was changed. A 512 MiB layout cap does not explain this
 captured configuration. A larger IPA range is not a larger allocator budget.
 
