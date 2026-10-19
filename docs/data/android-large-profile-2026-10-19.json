@@ -1,0 +1,70 @@
+{
+  "date": "2026-10-19",
+  "app_version": "0.4.0-preview.5",
+  "device_model": "SM-S948Q",
+  "host_android": 16,
+  "guest_android": 17,
+  "guest_build": "16373615",
+  "configured_guest_memory_mib": 1536,
+  "vcpus": 2,
+  "display": [480, 800],
+  "renderer": "software-2d",
+  "evidence_scope": "Signed APK native runtime, exercised with an app-UID authenticated test client; locked-device app screen validation pending.",
+  "completed_native_sessions": [
+    {
+      "preparation_touched_mib": 6080,
+      "readback_errors": 0,
+      "middle_sampled_pages": 352256,
+      "middle_thp_pages": 352256,
+      "middle_flag_errors": 0,
+      "valid_png_frames": 8,
+      "guest_home_image_visually_verified": true,
+      "guest_orderly_shutdown_observed": true,
+      "controller_policy_restored": true,
+      "guardian_policy_restored": true
+    },
+    {
+      "preparation_touched_mib": 6016,
+      "readback_errors": 0,
+      "middle_sampled_pages": 352256,
+      "middle_thp_pages": 352256,
+      "middle_flag_errors": 0,
+      "valid_png_frames": 8,
+      "guest_home_image_visually_verified": false,
+      "guest_orderly_shutdown_observed": true,
+      "controller_policy_restored": true,
+      "guardian_policy_restored": true
+    }
+  ],
+  "startup_cancel": {
+    "client_closed_before_greeting": true,
+    "controller_exit": 40,
+    "host_policy_was_enabled": false,
+    "three_original_modes_verified": true
+  },
+  "old_android_writable_disks_unchanged_during_large_profile_tests": true,
+  "host_boot_identity_unchanged": true,
+  "host_selinux_enforcing": true,
+  "unrelated_trusted_vm_unchanged": true,
+  "policy_sizes_kib": [16, 32, 64],
+  "policy_normal_restore_seconds": 10,
+  "policy_guardian_deadline_seconds": 40,
+  "preparation_cap_mib": 6112,
+  "overall_trial_cap_mib": 6144,
+  "preparation_available_floor_mib": 1536,
+  "python_native_tests": 121,
+  "jvm_tests": 27,
+  "release_lint_passed": true,
+  "resident_4g_goal_achieved": false,
+  "hardware_gpu_verified": false,
+  "network_audio_usb_supported": false,
+  "app_ui_verified": false,
+  "fallback_native_test": {
+    "memory_mib": 512,
+    "guest_setup_ready": true,
+    "valid_png_frames": 8,
+    "guest_home_verified": false,
+    "host_policy_change": false,
+    "guest_orderly_shutdown_observed": true
+  }
+}

@@ -43,7 +43,7 @@ python3 -m unittest discover -s tests -v
 ./gradlew :app:assembleRelease :app:testDebugUnitTest :app:lintRelease
 ```
 
-`tools/build_native.py` compiles Android manager/proxy, freestanding guest init and a static musl guest agent. First build downloads the pinned musl 1.2.5 source and the pinned Termux Android GPU user-space package, verifies their SHA256 values and builds only libc/user-space. The GPU package is extracted selectively; it never installs or updates Termux or a kernel. NDK compiler-rt builtins are linked. The ordinary APK build does not download/build a kernel; the separate `kernels/` recipe does. Raw cpio is used because this existing guest kernel has no gzip-initramfs support.
+`tools/build_native.py` compiles Android manager/proxy, freestanding guest init and a static musl guest agent. First build downloads the pinned musl 1.2.5 source and the pinned Termux Android GPU user-space package, verifies their SHA256 values and builds only libc/user-space. The GPU package is extracted selectively; it never installs or updates Termux or a kernel. NDK compiler-rt builtins are linked. The guarded Android 1.5 GiB manager/backing variant is bundled separately; see [its implementation and validation](android-large-profile.md). The ordinary APK build does not download/build a kernel; the separate `kernels/` recipe does. Raw cpio is used because this existing guest kernel has no gzip-initramfs support.
 
 Set `PROTECTED_LINUX_SIGNING_PROPERTIES` to a private properties file with `storeFile`, `storePassword`, `keyAlias`, `keyPassword` for a signed release. Never commit the file/key. Without it, the release APK is unsigned. The output is `app/build/outputs/apk/release/app-release.apk`.
 
@@ -152,4 +152,6 @@ resident page coverage, repeated reuse and VMM accounting. A diskless protected
 4 GiB configuration boots with small workloads; the large newly mapped workload
 still fails. These are developer helpers, not a change to APK memory admission
 or released stability claims. Sanitized results are checked in; raw logs stay in
-ignored artifacts. The host boundary and suspended policy proposal are unchanged.
+ignored artifacts. The host boundary remains in force; the later narrow small-shmem
+trial approval and guarded app integration are documented separately in
+[the Android 1.5 GiB record](android-large-profile.md).

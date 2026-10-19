@@ -1,5 +1,45 @@
 # Android guest display investigation
 
+## Integrated 1.5 GiB selection (0.4.0-preview.5)
+
+Settings → Android 17 guest → Open now offers **1.5 GiB** and the previous
+**512 MiB** configuration. OS images must already be prepared as described below;
+they are not included in the APK. The 1.5 GiB launch is experimental and requires
+an explicit selection after the startup conditions are displayed.
+
+The larger configuration uses two CPUs and software rendering at 480×800. It first
+allocates/releases bounded ordinary RAM (at most 6112 MiB, within the 6 GiB trial
+budget), stopping new batches below 1536 MiB MemAvailable. Background Android apps
+may be reclaimed. It then temporarily changes **only the host-wide 16/32/64 KiB
+shmem THP policies** from `never` to `advise`. Normal restoration is after ten
+seconds; a separate guardian attempts restoration on controller loss or at a
+40-second deadline. A host kernel/hypervisor hang can prevent that restoration.
+The app never changes another THP policy, compaction control, kernel, partition,
+SELinux policy, protection mechanism or host reboot state.
+
+The exact Galaxy model, Android build, host kernel and installed VMM must match
+the verified preset. Unknown versions refuse this mode. Before donation, every
+sampled middle-backing page must be present, readable and flagged THP; otherwise
+the VM is refused with a specific error. This snapshot cannot pin pages or
+promise later Gunyah stability. If it fails, use 512 MiB or retry later; the app
+does not silently reduce the guard or raise the memory cap.
+
+On first launch, the app copies the offline Android working/misc/FRP disks and
+ramdisk into private `files/android-guests/cf17-1536/`, verifies the copies, and
+promotes the new profile only after completion. Both profiles share the immutable
+factory base; their subsequent writable data is **independent**. Returning to
+512 MiB opens its older data, not the changes made in the larger profile. Debian's
+persistent disks remain separate. Only one owned VM/allocation operation runs
+at a time. Closing the viewer cancels startup or requests that owned guest's
+shutdown; a session lasts at most 30 minutes.
+
+The successful diagnostic screenshots described below use 1.5 GiB, but do not
+establish a stable Android desktop. Networking, audio, physical USB and hardware
+GPU rendering are not supported by this Android preset. No additional Vector
+scope is needed. Watch `ProtectedLinuxAndroid` for preparation, coverage refusal,
+restoration and guest transport messages. See the [implementation record](android-large-profile.md)
+for current app validation and safety limits.
+
 ## Larger-memory diagnostic, 2026-10-19
 
 An isolated **1536 MiB Android 17 Cuttlefish guest** now reached
@@ -29,7 +69,8 @@ kernel and protection settings were not modified.
 The writable Android qcow2/misc/FRP files are offline copies in a separate private
 profile. Original writable-file SHA256 values matched before/after. Existing
 Debian and the ordinary 512 MiB Android profile remain preserved; the released
-APK does not apply these host settings or expose this diagnostic as stable.
+APK now offers the guarded, explicitly selected mode above; it does not expose
+this diagnostic as stable.
 Build-only entry: `tools/build_android_memory_probe.py`. Measurements and limits:
 [approved small-shmem trials](small-shmem-policy-proposal.md),
 [aggregate data](data/small-shmem-trials-2026-10-19.json).
@@ -167,8 +208,8 @@ cancellation and the original concatenated ramdisk's preservation.
 
 A separate 640 MiB Android probe reproduced the Gunyah address-map failure within
 about ten seconds, before an interactive screen. Host boot ID remained unchanged,
-SELinux stayed Enforcing, and the unrelated trusted VM was untouched. The release
-therefore keeps 512 MiB and does not expose larger values as working. This limitation
+SELinux stayed Enforcing, and the unrelated trusted VM was untouched. The preview.4 release therefore kept 512 MiB. Preview.5 adds the separately guarded
+1.5 GiB selection described above, after subsequent successful diagnostics. This limitation
 is investigated in [the memory report](gunyah-memory-investigation.md).
 
 ## Separate GPU research sources
@@ -178,5 +219,5 @@ with their own private profile, early guest console/bootstrap and a tightly
 scoped process-local loader comparison. These research sources are retained
 separately from the new memory probe. Both variants compile, but no additional
 hardware-rendering success was established by the larger-memory tests above.
-The successful 1536 MiB screenshots use the software/2D path. No loader shim or
-experimental memory policy is enabled in the ordinary APK build.
+The successful 1536 MiB screenshots use the software/2D path. No graphics loader shim is enabled in the ordinary APK. Its separately selected
+1.5 GiB mode uses only the guarded memory policy described above.

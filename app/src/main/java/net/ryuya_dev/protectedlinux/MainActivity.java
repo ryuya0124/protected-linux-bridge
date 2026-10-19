@@ -883,16 +883,36 @@ public final class MainActivity extends AppCompatActivity {
     body.addView(text(getString(R.string.android_guest_description), 14));
     button(R.string.android_guest_open, body)
         .setOnClickListener(
-            view ->
-                new MaterialAlertDialogBuilder(this)
-                    .setTitle(R.string.android_guest_title)
-                    .setMessage(R.string.android_guest_description)
-                    .setNegativeButton(android.R.string.cancel, null)
-                    .setPositiveButton(
-                        R.string.android_guest_open,
-                        (dialog, which) ->
-                            startActivity(new Intent(this, AndroidGuestActivity.class)))
-                    .show());
+            view -> {
+              int[] selectedMemory = {1536};
+              LinearLayout options = column();
+              options.setPadding(dp(24), dp(4), dp(24), 0);
+              options.addView(text(getString(R.string.android_guest_launch_conditions), 14));
+              MaterialAutoCompleteTextView memory =
+                  selection(
+                      options, R.string.android_guest_memory_label, R.array.android_guest_memories);
+              memory.setText(
+                  getResources().getStringArray(R.array.android_guest_memories)[0], false);
+              memory.setOnItemClickListener(
+                  (parent, item, position, id) -> selectedMemory[0] = position == 0 ? 1536 : 512);
+              android.widget.ScrollView scroll = new android.widget.ScrollView(this);
+              scroll.addView(options);
+              new MaterialAlertDialogBuilder(this)
+                  .setTitle(R.string.android_guest_title)
+                  .setView(scroll)
+                  .setNegativeButton(android.R.string.cancel, null)
+                  .setPositiveButton(
+                      R.string.android_guest_open,
+                      (dialog, which) ->
+                          startActivity(
+                              new Intent(this, AndroidGuestActivity.class)
+                                  .putExtra(
+                                      AndroidGuestActivity.EXTRA_MEMORY_MIB, selectedMemory[0])
+                                  .putExtra(
+                                      AndroidGuestActivity.EXTRA_POLICY_ACKNOWLEDGED,
+                                      selectedMemory[0] == 1536)))
+                  .show();
+            });
   }
 
   private void resourcesCard(LinearLayout page) {

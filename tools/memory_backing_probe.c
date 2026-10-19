@@ -1,13 +1,15 @@
-/* MIT. Development-only, strictly scoped guest-RAM backing diagnostics.
- *
- * Never installed in production launch flags. Never changes the host kernel,
- * Gunyah ioctls, global memory policy or protected VM type. Private anonymous
- * memory is unsuitable for external backends which receive shared-memory FDs;
- * the default guard therefore refuses GPU, disks, vsock, network and input.
- * A separately compiled Android-only variant accepts just the fixed isolated
- * 1.5/2 GiB software-GPU profile and never replaces its shared backing with anonymous RAM.
+/* MIT. Process-scoped guest-RAM backing; diagnostic variants remain separate.
+ * The explicitly selected Android app variant keeps the original shared memfd
+ * contract and requires complete middle-range THP observations before donation.
+ * This library never changes a host policy, ioctl or protected VM type.
+ * Private anonymous backing is diskless research only and rejects GPU, disks,
+ * vsock, network and input. The separate Android variants accept only their
+ * pinned 1.5/2 GiB software-GPU profiles and never replace shared RAM with it.
  */
 #define _GNU_SOURCE
+#ifdef PLB_ANDROID_LARGE_BACKING
+#define PLB_ANDROID_SHARED_BACKING_PROBE 1
+#endif
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
@@ -42,6 +44,7 @@ static size_t boot_safe_size;
 #define BOOT_BASE_PAGES (64UL * 1024 * 1024)
 #define BOOT_TAIL_PAGES (tail_safe ? BOOT_BASE_PAGES : 0)
 
+#ifndef PLB_ANDROID_LARGE_BACKING
 struct observed_boot_config {
     uint64_t guest_phys_addr, size;
 };
@@ -81,6 +84,7 @@ int ioctl(int fd, int request, ...) {
     errno = saved_errno;
     return result;
 }
+#endif
 
 static int approved_arguments(void) {
     char args[8192];
@@ -94,7 +98,12 @@ static int approved_arguments(void) {
     int named = 0, protected = 0, no_balloon = 0, no_sandbox = 0;
 #ifdef PLB_ANDROID_SHARED_BACKING_PROBE
     int gpu = 0, disks = 0, vsock = 0, memory = 0, initrd = 0;
-    const char *profile = "/data/user/0/net.ryuya_dev.protectedlinux/files/android-guests/cf17-mem";
+    const char *profile =
+#ifdef PLB_ANDROID_LARGE_BACKING
+        "/data/user/0/net.ryuya_dev.protectedlinux/files/android-guests/cf17-1536";
+#else
+        "/data/user/0/net.ryuya_dev.protectedlinux/files/android-guests/cf17-mem";
+#endif
 #endif
     const char *allowed[] = {
         "--name",       "--disable-sandbox",
@@ -113,7 +122,9 @@ static int approved_arguments(void) {
         size_t length = strlen(arg);
         if (!strcmp(arg, "--name") && at + length + 1 < (size_t)size &&
             !strcmp(arg + length + 1,
-#ifdef PLB_ANDROID_SHARED_BACKING_PROBE
+#ifdef PLB_ANDROID_LARGE_BACKING
+                    "plb-android17-large"
+#elif defined(PLB_ANDROID_SHARED_BACKING_PROBE)
                     "plb-android17-probe"
 #else
                     "plb-memory-probe"
@@ -139,7 +150,11 @@ static int approved_arguments(void) {
             vsock++;
         }
         if (!strcmp(arg, "--mem")) {
-            if (strcmp(value, "size=2048") && strcmp(value, "size=1536"))
+            if (
+#ifndef PLB_ANDROID_LARGE_BACKING
+                strcmp(value, "size=2048") &&
+#endif
+                strcmp(value, "size=1536"))
                 return 0;
             memory++;
         }
@@ -183,7 +198,9 @@ static int approved_arguments(void) {
 
 __attribute__((constructor)) static void initialize(void) {
     const char *mode = getenv(
-#ifdef PLB_ANDROID_SHARED_BACKING_PROBE
+#ifdef PLB_ANDROID_LARGE_BACKING
+        "PLB_ANDROID_LARGE_BACKING"
+#elif defined(PLB_ANDROID_SHARED_BACKING_PROBE)
         "PLB_ANDROID_BACKING_PROBE"
 #else
         "PLB_DISKLESS_BACKING_PROBE"
@@ -202,8 +219,13 @@ __attribute__((constructor)) static void initialize(void) {
          strcmp(mode, "shared-upper-collapse") && strcmp(mode, "shared-middle-refault") &&
          strcmp(mode, "shared-upper-locked")) ||
         getuid() || stat("/proc/self/exe", &actual) ||
-        stat("/data/user/0/net.ryuya_dev.protectedlinux/files/kernel-probes/crosvm-copy",
-             &expected) ||
+        stat(
+#ifdef PLB_ANDROID_LARGE_BACKING
+            "/data/user/0/net.ryuya_dev.protectedlinux/files/android-runtime/crosvm",
+#else
+            "/data/user/0/net.ryuya_dev.protectedlinux/files/kernel-probes/crosvm-copy",
+#endif
+            &expected) ||
         actual.st_dev != expected.st_dev || actual.st_ino != expected.st_ino ||
         !approved_arguments())
         _exit(79);
@@ -222,15 +244,16 @@ __attribute__((constructor)) static void initialize(void) {
     unsetenv("LD_PRELOAD");
     unsetenv("PLB_DISKLESS_BACKING_PROBE");
     unsetenv("PLB_ANDROID_BACKING_PROBE");
+    unsetenv("PLB_ANDROID_LARGE_BACKING");
 }
 
 /* Before donation only. These are migration-racy snapshots of this mapping,
  * not pins, compound-folio measurements or hypervisor allocator statistics. */
-static void sample_order(void *mapping, size_t size) {
+static int sample_order(void *mapping, size_t size) {
     int input = open("/proc/self/pagemap", O_RDONLY | O_CLOEXEC);
     if (input < 0) {
         dprintf(STDERR_FILENO, "PLB_BACKING_ORDER_UNAVAILABLE\n");
-        return;
+        return 0;
     }
     uint64_t entries[512];
     size_t pages = size / 4096;
@@ -245,7 +268,7 @@ static void sample_order(void *mapping, size_t size) {
             if (flags_fd >= 0)
                 close(flags_fd);
             dprintf(STDERR_FILENO, "PLB_BACKING_ORDER_UNAVAILABLE\n");
-            return;
+            return 0;
         }
         for (size_t i = 0; i < count; i++) {
             plb_backing_order_observe(&summary, entries[i]);
@@ -271,6 +294,7 @@ static void sample_order(void *mapping, size_t size) {
             folios.compound_tails, folios.flag_errors,
             !((uintptr_t)mapping & ((2UL * 1024 * 1024) - 1)),
             ((uintptr_t)mapping & ((2UL * 1024 * 1024) - 1)) ? 0 : folios.sampled_2m_folios);
+    return plb_page_all_thp(&folios, pages);
 }
 
 static long long monotonic_millis(void) {
@@ -341,6 +365,10 @@ static void *map_memory(void *address, size_t size, int prot, int flags, int fd,
             replace = !strcmp(name, "/memfd:crosvm_guest (deleted)");
         }
     }
+#ifdef PLB_ANDROID_LARGE_BACKING
+    if (replace && size != 1504UL * 1024 * 1024)
+        _exit(79);
+#endif
     if (replace && !shared_backing) {
         flags = (flags & ~MAP_SHARED) | MAP_PRIVATE | MAP_ANONYMOUS;
         fd = -1;
@@ -422,7 +450,15 @@ static void *map_memory(void *address, size_t size, int prot, int flags, int fd,
                 size_t upper_size = size - BOOT_BASE_PAGES - BOOT_TAIL_PAGES;
                 if (plb_refault_owned_shmem(fd, upper, upper_size, BOOT_BASE_PAGES, 4))
                     _exit(82);
-                sample_order(upper, upper_size);
+                int suitable = sample_order(upper, upper_size);
+#ifdef PLB_ANDROID_LARGE_BACKING
+                if (!suitable) {
+                    dprintf(STDERR_FILENO, "ANDROID_BACKING_UNSUITABLE\n");
+                    _exit(89);
+                }
+#else
+                (void)suitable;
+#endif
             }
         }
     }

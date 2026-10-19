@@ -174,10 +174,10 @@ plb-udp-forward 5353 1.1.1.1 53 forwards guest localhost:5353 to the specified U
   <string name="storage_no_space">Not enough Android free space for the working and final copies.</string>
   <string name="storage_failed">Disk operation did not complete. The original is retained. Check private storage logs before retrying; an interrupted promotion is recovered at next start.</string>
   <string name="android_guest_title">Android 17 guest · experimental</string>
-  <string name="android_guest_description">Separate Cuttlefish VM: 512 MB RAM, 2 CPUs, 480 × 800. The low memory limit causes severe slowdowns and app failures. Prepared guest files are required; no OS images are bundled. Debian is stopped before launch and its disks are preserved. Closing the viewer stops only this VM. Maximum session: 30 minutes. No guest network, audio, physical USB or accelerated graphics yet.</string>
+  <string name="android_guest_description">Run a separate Android 17 VM with 1.5 GiB or the original 512 MiB. Two CPUs, 480 × 800, software rendering. Short 1.5 GiB boot and home-screen tests passed, but startup depends on available memory backing. Prepared OS images are required.</string>
   <string name="android_guest_open">Open Android guest</string>
   <string name="android_guest_starting">Starting Android 17 guest… First boot may take several minutes.</string>
-  <string name="android_guest_connected">Android 17 · experimental · 512 MB · slow frame capture</string>
+  <string name="android_guest_connected">Android 17 · experimental · %1$s · slow frame capture</string>
   <string name="android_guest_unsupported">This Android guest profile is verified only on SM-S948Q / Android 16.</string>
   <string name="android_guest_root_error">Root is unavailable. Allow Protected Linux Bridge in your root manager.</string>
   <string name="android_guest_missing">Guest files are missing or have unsafe permissions. Prepare the pinned Android profile using the repository guide.</string>
@@ -190,4 +190,15 @@ plb-udp-forward 5353 1.1.1.1 53 forwards guest localhost:5353 to the specified U
   <string name="android_guest_close">Close</string>
   <string name="android_guest_integrity">The guest kernel or ramdisk hash does not match the tested profile. Launch was refused.</string>
   <string name="android_guest_headroom">Not enough free host memory to launch this VM safely. Close other apps and retry.</string>
+  <string name="android_guest_launch_conditions">The 1.5 GiB mode temporarily uses up to 6 GiB of RAM during preparation. Background apps may be reclaimed. Startup changes the host-wide 16/32/64 KiB shmem THP settings to advise for about 10 seconds, then restores them. An independent guardian attempts restoration at its 40-second deadline on failure.\n\nOn first use, the existing Android disks are copied. Later data is stored separately from the 512 MiB profile. Debian is stopped and its disks are preserved. Closing this viewer stops only this VM. Maximum session: 30 minutes. Guest networking, audio, physical USB and hardware graphics are not supported.</string>
+  <string name="android_guest_memory_label">Android guest memory</string>
+  <string name="android_guest_preparing">Preparing Android guest memory… (maximum allocation budget: 6 GiB)</string>
+  <string name="android_guest_profile_copy_failed">Could not prepare the 1.5 GiB disk copy. The original 512 MiB disks are retained. Check available storage and logs.</string>
+  <string name="android_guest_policy_failed">The THP setting state or restoration could not be verified. Startup was stopped. Check ProtectedLinuxAndroid logs.</string>
+  <string name="android_guest_large_unsupported">The 1.5 GiB mode requires the tested SM-S948Q / S948QOPS1AZHL host environment. Select 512 MiB on this environment.</string>
+  <string name="android_guest_preparation_failed">Memory preparation was interrupted or failed. Startup stopped before changing host THP settings.</string>
+  <string name="android_guest_fragmented">Suitable larger memory pages could not be verified, so the VM was not started. Close other apps and retry, or select 512 MiB.</string>
+  <string name="android_guest_policy_consent">Review the startup conditions and launch from the Android guest screen in this app.</string>
+  <string name="android_guest_process_isolation_failed">Cannot isolate the VM controller from the cached-app freezer. The guarded VM was not started.</string>
+  <string name="android_guest_session_ended">The Android guest session ended. Open it again to start a new session.</string>
 </resources>

@@ -21,6 +21,8 @@ temp.mkdir(parents=True, exist_ok=True)
 identity_files = (
     [p for p in (root / "native").rglob("*") if p.is_file()]
     + list((root / "tools").glob("*.py"))
+    + list((root / "tools").glob("*.c"))
+    + list((root / "tools").glob("*.h"))
     + [root / "third_party/hev/sources.json"]
 )
 identity = hashlib.sha256(b"".join(p.read_bytes() for p in sorted(identity_files))).hexdigest()[:20]
@@ -81,6 +83,39 @@ subprocess.run(
         "-pie",
         "-o",
         str(out / "android-bridge"),
+        str(root / "native/android_guest_manager.c"),
+    ],
+    check=True,
+)
+large_library = out / "libandroid-memory.so"
+subprocess.run(
+    base
+    + [
+        "-shared",
+        "-fPIC",
+        "-DPLB_ANDROID_LARGE_BACKING=1",
+        str(root / "tools/memory_backing_probe.c"),
+        "-o",
+        str(large_library),
+    ],
+    check=True,
+)
+(temp / "android_large_build.generated.h").write_text(
+    "/* Generated from the bundled, scoped Android memory library. */\n"
+    + '#define PLB_LARGE_LIBRARY_SHA256 "'
+    + hashlib.sha256(large_library.read_bytes()).hexdigest()
+    + '"\n'
+)
+subprocess.run(
+    base
+    + [
+        "-I",
+        str(temp),
+        "-DPLB_ANDROID_LARGE_PROFILE=1",
+        "-fPIE",
+        "-pie",
+        "-o",
+        str(out / "android-large-bridge"),
         str(root / "native/android_guest_manager.c"),
     ],
     check=True,

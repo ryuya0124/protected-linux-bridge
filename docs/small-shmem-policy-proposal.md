@@ -215,8 +215,11 @@ sample was nonresident, so on-fault locking of only the owned mapping is a
 separate prepared comparison, not an established fix. No memory from another
 process is pinned or altered by that mode.
 
-**4 GiB resident guest use remains unachieved.** No released APK applies these
-host-wide settings, and the ordinary Android guest configuration remains 512 MiB.
+**4 GiB resident guest use remains unachieved.** This describes the standalone
+trials. Preview.5 now includes a separately selected 1.5 GiB Android mode with
+explicit disclosure, a complete sampled-THP admission gate and independent
+restoration guardian; the existing 512 MiB configuration remains available. See
+[app integration](android-large-profile.md).
 
 ### Process-local locking comparison
 

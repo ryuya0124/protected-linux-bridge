@@ -67,4 +67,8 @@
     <item>Terminal</item>
     <item>Protected Linux Bridge</item>
   </string-array>
+  <string-array name="android_guest_memories">
+    <item>1.5 GiB (experimental; preparation up to 6 GiB)</item>
+    <item>512 MiB (original profile)</item>
+  </string-array>
 </resources>

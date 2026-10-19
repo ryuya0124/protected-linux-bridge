@@ -174,10 +174,10 @@ plb-udp-forward 5353 1.1.1.1 53 でゲストのlocalhost:5353を指定したUDP�
   <string name="storage_no_space">作業用と新規ディスクの作成に必要なAndroidの空き容量が足りません。</string>
   <string name="storage_failed">ディスク処理は完了しませんでした。元のディスクは保持しています。再試行前に専用ログを確認してください。切り替え中に中断した場合は次回起動時に復旧します。</string>
   <string name="android_guest_title">Android 17ゲスト（実験用）</string>
-  <string name="android_guest_description">独立したCuttlefish VM：メモリ512MB、2 CPU、480 × 800。メモリ不足による大きな遅延やアプリの起動失敗があります。事前にゲスト用ファイルの配置が必要です。OSイメージは同梱していません。起動前にDebianを停止し、ディスクは保持します。画面を閉じるとこのVMだけを停止します。1回の上限は30分です。ゲストの通信・音声・物理USB・GPU描画は未対応です。</string>
+  <string name="android_guest_description">独立したAndroid 17 VMを1.5GiBまたは従来の512MiBで起動します。2 CPU、480 × 800、ソフトウェア描画です。1.5GiBは起動・ホーム表示まで短時間確認済みですが、メモリの状態によって起動できない場合があります。OSイメージの事前配置が必要です。</string>
   <string name="android_guest_open">Androidゲストを開く</string>
   <string name="android_guest_starting">Android 17ゲストを起動中… 初回は数分かかる場合があります。</string>
-  <string name="android_guest_connected">Android 17・実験用・512MB・低速な画面取得</string>
+  <string name="android_guest_connected">Android 17・実験用・%1$s・低速な画面取得</string>
   <string name="android_guest_unsupported">このAndroidゲストはSM-S948Q／Android 16のみで確認しています。</string>
   <string name="android_guest_root_error">rootを利用できません。root管理アプリでProtected Linux Bridgeを許可してください。</string>
   <string name="android_guest_missing">ゲスト用ファイルが未配置、または権限を確認できません。リポジトリの手順でAndroidプロファイルを準備してください。</string>
@@ -190,4 +190,15 @@ plb-udp-forward 5353 1.1.1.1 53 でゲストのlocalhost:5353を指定したUDP�
   <string name="android_guest_close">閉じる</string>
   <string name="android_guest_integrity">ゲストカーネルまたは起動用ファイルのハッシュが検証済み構成と一致しません。起動を中止しました。</string>
   <string name="android_guest_headroom">安全に起動するためのホスト空きメモリが不足しています。ほかのアプリを閉じて再度お試しください。</string>
+  <string name="android_guest_launch_conditions">1.5GiBでは、起動準備で一時的に最大6GiBのRAMを使用します。バックグラウンドのアプリが終了する場合があります。起動時にホスト全体の16／32／64KiB shmem THPを約10秒間だけadviseに変更して戻します。異常時は独立した監視プロセスが40秒の期限で復元を試みます。\n\n初回は既存Androidディスクのコピーを作り、以後のデータは512MiB構成と独立して保存します。Debianは停止しますが、ディスクは保持します。画面を閉じるとこのVMだけを停止します。上限30分。通信・音声・物理USB・GPU描画は未対応です。</string>
+  <string name="android_guest_memory_label">Androidゲストのメモリ</string>
+  <string name="android_guest_preparing">Android起動用のメモリを準備中…（確保枠は最大6GiB）</string>
+  <string name="android_guest_profile_copy_failed">1.5GiB用ディスクの準備を完了できませんでした。既存の512MiB用ディスクは保持されています。空き容量とログを確認してください。</string>
+  <string name="android_guest_policy_failed">THP設定の状態または復元を確認できないため、起動を停止しました。ProtectedLinuxAndroidのログを確認してください。</string>
+  <string name="android_guest_large_unsupported">1.5GiB構成はSM-S948Q／S948QOPS1AZHLの検証済みホスト環境でのみ使用できます。現在の環境では512MiB構成を選んでください。</string>
+  <string name="android_guest_preparation_failed">メモリ準備が中断または失敗しました。ホストのTHP設定を変更する前に停止しました。</string>
+  <string name="android_guest_fragmented">必要な大きさのメモリページを確認できないため、VMを起動しませんでした。ほかのアプリを閉じて再試行するか、512MiB構成を選んでください。</string>
+  <string name="android_guest_policy_consent">起動条件を確認し、アプリ内のAndroidゲスト画面から開始してください。</string>
+  <string name="android_guest_process_isolation_failed">VM起動処理をアプリのバックグラウンド凍結対象から分離できないため、起動を中止しました。</string>
+  <string name="android_guest_session_ended">Androidゲストのセッションが終了しました。もう一度開くと、新しいセッションを開始します。</string>
 </resources>

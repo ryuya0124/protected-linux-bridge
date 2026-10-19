@@ -18,3 +18,15 @@ Maintain the locked bootloader and the existing temporary-root method. Do not us
 Guest-only ARM64 kernels, modules, initramfs, DTB, rootfs and independent virtual disks may be built/added/changed **only in this app's private data**. Do not overwrite the installed Microdroid guest-kernel file. Keep that mode and the existing Debian disk available. Android guests must have separate disks and configuration. Guest changes still carry VMM/driver/hypervisor defect risk; host failure is not assumed impossible.
 
 Only terminate tracked processes belonging to this app's VM or its bounded maintenance/probe. Never kill unrelated VM processes. If an operation requires a prohibited host change, report that limitation and leave the feature unavailable.
+
+## Narrow, explicit memory exception
+
+On 2026-10-19 the owner approved bounded changes only to the host's 16/32/64 KiB
+`shmem_enabled` nodes, `never` → `advise` with restoration, then requested the
+successful 1.5 GiB Android configuration in the app. Preview.5 displays this
+host-wide effect and RAM preparation before each explicit launch. Normal restore
+is at ten seconds; an independent guardian attempts restore on controller loss or
+a forty-second deadline. No other memory policy or prohibited host change is
+authorized. See [implementation and measured limits](android-large-profile.md).
+The root controller may move only itself out of the launching app's cached-app
+freezer cgroup; it does not change freezer policies or any other process.

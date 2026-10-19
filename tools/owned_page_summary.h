@@ -72,4 +72,10 @@ static void plb_page_observe(struct plb_page_summary *summary, int present, int 
         summary->sampled_2m_folios++;
     }
 }
+/* Complete pre-donation observation, not a pin or an assurance of VM stability.
+ * Base-page contiguity cannot satisfy this admission check. */
+static inline int plb_page_all_thp(const struct plb_page_summary *summary, size_t expected) {
+    return expected && summary->samples == expected && summary->present == expected &&
+           !summary->unknown_pfn && !summary->flag_errors && summary->thp_pages == expected;
+}
 #endif

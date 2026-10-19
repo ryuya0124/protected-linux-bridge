@@ -14,6 +14,55 @@ static _Atomic int display_client = -1;
 static uid_t display_uid;
 static int android_identity_ready;
 static pthread_t display_thread;
+static int display_thread_started;
+
+static int android_display_listen(uid_t uid) {
+    display_uid = uid;
+    display_listener = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
+    struct sockaddr_un address = {.sun_family = AF_UNIX};
+    memcpy(address.sun_path + 1, ANDROID_DISPLAY_SOCKET, sizeof(ANDROID_DISPLAY_SOCKET) - 1);
+    socklen_t size = offsetof(struct sockaddr_un, sun_path) + sizeof(ANDROID_DISPLAY_SOCKET);
+    if (display_listener < 0 || bind(display_listener, (struct sockaddr *)&address, size) ||
+        listen(display_listener, 1))
+        return -1;
+    return 0;
+}
+
+static int android_display_accept(void) {
+    int client = accept4(display_listener, NULL, NULL, SOCK_CLOEXEC);
+    if (client < 0)
+        return -1;
+    struct ucred peer;
+    socklen_t length = sizeof(peer);
+    if (getsockopt(client, SOL_SOCKET, SO_PEERCRED, &peer, &length) || peer.uid != display_uid) {
+        close(client);
+        return -1;
+    }
+    return client;
+}
+
+#ifdef PLB_ANDROID_LARGE_PROFILE
+static int android_display_client_alive(void) {
+    int client = atomic_load(&display_client);
+    if (client < 0)
+        return 0;
+    unsigned char byte;
+    ssize_t size = recv(client, &byte, 1, MSG_PEEK | MSG_DONTWAIT);
+    return size > 0 || (size < 0 && (errno == EAGAIN || errno == EINTR));
+}
+
+static int android_display_wait_for_client(void) {
+    for (int i = 0; i < 100 && !stopping; i++) {
+        int client = android_display_accept();
+        if (client >= 0) {
+            atomic_store(&display_client, client);
+            return 0;
+        }
+        usleep(100000);
+    }
+    return -1;
+}
+#endif
 
 static int android_bootstrap(unsigned char *output) {
     size_t length;
@@ -56,19 +105,11 @@ static void *android_display_worker(void *unused) {
         stopping = 1;
         return NULL;
     }
-    int client = -1;
-    for (int tries = 0; tries < 300 && !stopping; tries++) {
-        client = accept4(display_listener, NULL, NULL, SOCK_CLOEXEC);
+    int client = atomic_load(&display_client);
+    for (int tries = 0; client < 0 && tries < 300 && !stopping; tries++) {
+        client = android_display_accept();
         if (client < 0) {
             usleep(100000);
-            continue;
-        }
-        struct ucred peer;
-        socklen_t length = sizeof(peer);
-        if (getsockopt(client, SOL_SOCKET, SO_PEERCRED, &peer, &length) ||
-            peer.uid != display_uid) {
-            close(client);
-            client = -1;
             continue;
         }
         break;
@@ -144,15 +185,10 @@ done:
 }
 
 static int android_display_start(uid_t uid) {
-    display_uid = uid;
-    display_listener = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
-    struct sockaddr_un address = {.sun_family = AF_UNIX};
-    memcpy(address.sun_path + 1, ANDROID_DISPLAY_SOCKET, sizeof(ANDROID_DISPLAY_SOCKET) - 1);
-    socklen_t size = offsetof(struct sockaddr_un, sun_path) + sizeof(ANDROID_DISPLAY_SOCKET);
-    if (display_listener < 0 || bind(display_listener, (struct sockaddr *)&address, size) ||
-        listen(display_listener, 1) ||
+    if ((display_listener < 0 && android_display_listen(uid)) || display_uid != uid ||
         pthread_create(&display_thread, NULL, android_display_worker, NULL))
         return -1;
+    display_thread_started = 1;
     fprintf(stderr, "ANDROID_MANAGER_READY\n");
     return 0;
 }
@@ -176,7 +212,15 @@ static void android_display_stop(void) {
     int client = atomic_load(&display_client);
     if (client >= 0)
         shutdown(client, SHUT_RDWR);
-    pthread_join(display_thread, NULL);
-    close(display_listener);
+    if (display_thread_started)
+        pthread_join(display_thread, NULL);
+    else if (client >= 0) {
+        close(client);
+        atomic_store(&display_client, -1);
+    }
+    if (display_listener >= 0)
+        close(display_listener);
+    display_listener = -1;
+    display_thread_started = 0;
 }
 #endif

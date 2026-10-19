@@ -20,4 +20,8 @@
     <item>標準ターミナル</item>
     <item>Protected Linux Bridge</item>
   </string-array>
+  <string-array name="android_guest_memories">
+    <item>1.5GiB（実験・準備は最大6GiB）</item>
+    <item>512MiB（従来の構成）</item>
+  </string-array>
 </resources>

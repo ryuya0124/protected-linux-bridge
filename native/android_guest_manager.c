@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stddef.h>
+#include <stdatomic.h>
 
 #define FILES "/data/user/0/net.ryuya_dev.protectedlinux/files"
 #if defined(PLB_ANDROID_GFXSTREAM_VULKAN_PROBE) && !defined(PLB_ANDROID_GFXSTREAM_PROBE)
@@ -30,7 +31,14 @@
 #if defined(PLB_ANDROID_MEMORY_PROBE) && defined(PLB_ANDROID_GFXSTREAM_PROBE)
 #error "Keep Android memory and GPU diagnostics independent"
 #endif
-#ifdef PLB_ANDROID_MEMORY_PROBE
+#if defined(PLB_ANDROID_LARGE_PROFILE) &&                                                          \
+    (defined(PLB_ANDROID_PROBE) || defined(PLB_ANDROID_GFXSTREAM_PROBE))
+#error "Keep the integrated large profile separate from diagnostics"
+#endif
+#ifdef PLB_ANDROID_LARGE_PROFILE
+#define BASE FILES "/android-guests/cf17-1536"
+#define CHECK_BASE FILES "/android-guests/cuttlefish17"
+#elif defined(PLB_ANDROID_MEMORY_PROBE)
 #ifndef PLB_ANDROID_MEMORY_MIB
 #define PLB_ANDROID_MEMORY_MIB 2048
 #endif
@@ -45,6 +53,9 @@
 #else
 #define BASE FILES "/android-guests/cuttlefish17"
 #endif
+#ifndef CHECK_BASE
+#define CHECK_BASE BASE
+#endif
 #define KERNEL FILES "/kernels/android17-cuttlefish/Image"
 #define PLB_OWNER_LOCK_FILE FILES "/vm-owner.lock"
 #ifdef PLB_ANDROID_MEMORY_PROBE
@@ -55,7 +66,7 @@
 
 #include "android_sensor_transport.h"
 
-static volatile sig_atomic_t stopping;
+static volatile _Atomic sig_atomic_t stopping;
 static void stop(int signal) {
     (void)signal;
     stopping = 1;
@@ -143,6 +154,11 @@ static int pinned_digest(const char *path, const char *expected) {
            !memcmp(result, expected, 64) && result[64] == ' ';
 }
 
+#ifdef PLB_ANDROID_LARGE_PROFILE
+#include "android_large_profile.h"
+#include "android_memory_prepare.h"
+#endif
+
 static int clear_log(const char *path) {
     struct stat info;
     if (lstat(path, &info))
@@ -167,7 +183,13 @@ int main(int argc, char **argv) {
         return 20;
 #else
     check_only = argc == 2 && !strcmp(argv[1], "--check");
-    if (getuid() || argc != 2 || (!check_only && strlen(argv[1]) != 5))
+    if (getuid() ||
+#ifdef PLB_ANDROID_LARGE_PROFILE
+        (!check_only && (argc != 3 || strcmp(argv[2], "--ack-small-shmem"))) ||
+#else
+        argc != 2 ||
+#endif
+        (!check_only && strlen(argv[1]) != 5))
         return 20;
     char *end;
     unsigned long parsed = check_only ? 10000 : strtoul(argv[1], &end, 10);
@@ -177,12 +199,14 @@ int main(int argc, char **argv) {
 #endif
     if (!private_file(KERNEL) ||
         !private_file(FILES "/android-guests/cuttlefish17/android-base.qcow2") ||
-        !private_file(BASE "/android-work.qcow2") || !private_file(BASE "/android-lowram.cpio") ||
-        !private_file(BASE "/android-misc.raw") || !private_file(BASE "/android-frp.raw"))
+        !private_file(CHECK_BASE "/android-work.qcow2") ||
+        !private_file(CHECK_BASE "/android-lowram.cpio") ||
+        !private_file(CHECK_BASE "/android-misc.raw") ||
+        !private_file(CHECK_BASE "/android-frp.raw"))
         return 21;
     if (!pinned_digest(KERNEL,
                        "f722bdd809bfd3485917a564b053b8a6d4938408734091f420c3297a8e3b20c8") ||
-        !pinned_digest(BASE "/android-lowram.cpio",
+        !pinned_digest(CHECK_BASE "/android-lowram.cpio",
 #ifdef PLB_ANDROID_GFXSTREAM_PROBE
                        "ebf7141a7d287fdd877065109b5e68dfa9339a5a460c8d5795ff7355a36dd143"
 #else
@@ -209,8 +233,22 @@ int main(int argc, char **argv) {
         return 31;
 #endif
 #endif
-    if (check_only)
+#ifdef PLB_ANDROID_LARGE_PROFILE
+    if (!large_platform())
+        return 39;
+    if (!plb_shmem_original())
+        return 38;
+#endif
+    if (check_only) {
+        fprintf(stdout, "ANDROID_PROFILE_CHECK_OK memory_mib=%d\n",
+#ifdef PLB_ANDROID_LARGE_PROFILE
+                1536
+#else
+                512
+#endif
+        );
         return 0;
+    }
     FILE *info = fopen("/proc/meminfo", "re");
     if (!info)
         return 22;
@@ -221,7 +259,9 @@ int main(int argc, char **argv) {
             break;
     fclose(info);
     if (available <
-#ifdef PLB_ANDROID_MEMORY_PROBE
+#ifdef PLB_ANDROID_LARGE_PROFILE
+        2304ULL * 1024
+#elif defined(PLB_ANDROID_MEMORY_PROBE)
         (PLB_ANDROID_MEMORY_MIB + 768ULL) * 1024
 #else
         1280ULL * 1024
@@ -237,6 +277,18 @@ int main(int argc, char **argv) {
     if (lock < 0)
         return 28;
     umask(077);
+    signal(SIGTERM, stop);
+    signal(SIGINT, stop);
+    signal(SIGCHLD, SIG_DFL);
+#ifdef PLB_ANDROID_LARGE_PROFILE
+    if (android_isolate_owned_controller(app_uid))
+        return 41;
+    if (large_profile_files(app_uid) || !private_file(BASE "/android-work.qcow2") ||
+        !private_file(BASE "/android-misc.raw") || !private_file(BASE "/android-frp.raw") ||
+        !pinned_digest(BASE "/android-lowram.cpio",
+                       "7e0c04dd3f3b9b92398c1e5ac0161e93d78c450e857d530d55012a6a550315e2"))
+        return 35;
+#endif
     if (clear_log(BASE "/android-console.log")
 #ifdef PLB_ANDROID_MEMORY_PROBE
         || clear_log(BASE "/android-memory-frame.png")
@@ -255,10 +307,29 @@ int main(int argc, char **argv) {
 #endif
     signal(SIGTERM, stop);
     signal(SIGINT, stop);
+#ifdef PLB_ANDROID_LARGE_PROFILE
+    struct plb_shmem_guard policy = {.guardian = -1, .alive_write = -1};
+    int large_error = 0;
+    if (android_display_listen(app_uid) || android_display_wait_for_client()) {
+        large_error = 30;
+        goto large_startup_failed;
+    }
+    if (android_prepare_memory() || stopping) {
+        large_error = 40;
+        goto large_startup_failed;
+    }
+    if (android_prepare_available() < 2304UL * 1024) {
+        large_error = 23;
+        goto large_startup_failed;
+    }
+    if (plb_shmem_begin(&policy, lock)) {
+        large_error = 38;
+        goto large_startup_failed;
+    }
+#endif
     pid_t parent = getpid(), child = fork();
     if (!child) {
-        prctl(PR_SET_PDEATHSIG, SIGKILL);
-        if (getppid() != parent)
+        if (prctl(PR_SET_PDEATHSIG, SIGKILL) || getppid() != parent)
             _exit(25);
         unsetenv("LD_PRELOAD");
         unsetenv("LD_LIBRARY_PATH");
@@ -296,11 +367,26 @@ int main(int argc, char **argv) {
             _exit(34);
 #endif
 #endif
+#ifdef PLB_ANDROID_LARGE_PROFILE
+        int oom = open("/proc/self/oom_score_adj", O_WRONLY | O_CLOEXEC);
+        if (oom < 0 || write(oom, "1000", 4) != 4)
+            _exit(33);
+        close(oom);
+        if (setenv("LD_PRELOAD", PLB_LARGE_LIBRARY, 1) ||
+            setenv("PLB_ANDROID_LARGE_BACKING", "shared-middle-refault", 1) ||
+            setenv("LD_LIBRARY_PATH",
+                   "/apex/com.android.virt/lib64:/system/lib64:/system_ext/lib64", 1))
+            _exit(34);
+#endif
         const char *base_args[] = {
             "crosvm",
             "run",
             "--name",
+#ifdef PLB_ANDROID_LARGE_PROFILE
+            "plb-android17-large",
+#else
             "plb-android17-probe",
+#endif
             "--disable-sandbox",
             "--no-balloon",
             "--no-usb",
@@ -308,7 +394,9 @@ int main(int argc, char **argv) {
             "--swiotlb",
             "32",
             "--mem",
-#ifdef PLB_ANDROID_MEMORY_PROBE
+#ifdef PLB_ANDROID_LARGE_PROFILE
+            "size=1536",
+#elif defined(PLB_ANDROID_MEMORY_PROBE)
             "size=" PLB_STRINGIFY(PLB_ANDROID_MEMORY_MIB),
 #else
             "size=512",
@@ -410,20 +498,28 @@ int main(int argc, char **argv) {
             args[n++] = "--serial";
             args[n++] = serial[port];
         }
-#ifdef PLB_ANDROID_MEMORY_POLICY
+#if defined(PLB_ANDROID_MEMORY_POLICY) || defined(PLB_ANDROID_LARGE_PROFILE)
         args[n++] = "--hugepages";
 #endif
         args[n++] = KERNEL;
         args[n] = NULL;
-#if defined(PLB_ANDROID_GFXSTREAM_VULKAN_PROBE) || defined(PLB_ANDROID_MEMORY_POLICY)
+#ifdef PLB_ANDROID_LARGE_PROFILE
+        execv(PLB_LARGE_VMM, (char *const *)args);
+#elif defined(PLB_ANDROID_GFXSTREAM_VULKAN_PROBE) || defined(PLB_ANDROID_MEMORY_POLICY)
         execv(FILES "/kernel-probes/crosvm-copy", (char *const *)args);
 #else
         execv("/apex/com.android.virt/bin/crosvm", (char *const *)args);
 #endif
         _exit(26);
     }
-    if (child < 0)
+    if (child < 0) {
+#ifdef PLB_ANDROID_LARGE_PROFILE
+        large_error = 27;
+        goto large_startup_failed;
+#else
         return 27;
+#endif
+    }
 #ifdef PLB_ANDROID_GFXSTREAM_PROBE
     pthread_t console_thread;
     struct gpu_console_context console_context = {&console, child};
@@ -454,6 +550,13 @@ int main(int argc, char **argv) {
     const int ticks = 18000;
 #endif
     for (int i = 0; i < ticks && !stopping; i++) {
+#ifdef PLB_ANDROID_LARGE_PROFILE
+        if (policy.guardian > 0 && plb_shmem_millis() - policy.started_ms >= 10000 &&
+            plb_shmem_finish(&policy)) {
+            large_error = 38;
+            stopping = 1;
+        }
+#endif
         sensor_poll(&control, 0);
         sensor_poll(&data, 0);
         sensor_poll(&oemlock, 1);
@@ -462,6 +565,10 @@ int main(int argc, char **argv) {
             break;
         usleep(100000);
     }
+#ifdef PLB_ANDROID_LARGE_PROFILE
+    if (plb_shmem_finish(&policy))
+        large_error = 38;
+#endif
 #ifdef PLB_ANDROID_MEMORY_PROBE
     stopping = 1;
     if (observer_started)
@@ -508,6 +615,10 @@ int main(int argc, char **argv) {
         sensor_close(&control, BASE "/sensor-control.sock");
         sensor_close(&data, BASE "/sensor-data.sock");
         sensor_close(&oemlock, BASE "/oemlock.sock");
+#ifdef PLB_ANDROID_LARGE_PROFILE
+        if (large_error)
+            return large_error;
+#endif
         return 124;
     }
     sensor_close(&control, BASE "/sensor-control.sock");
@@ -518,5 +629,19 @@ int main(int argc, char **argv) {
     fprintf(stderr, "ANDROID_GPU_VMM_STATUS raw=%d signal=%d\n", status,
             WIFSIGNALED(status) ? WTERMSIG(status) : 0);
 #endif
+#ifdef PLB_ANDROID_LARGE_PROFILE
+    if (large_error)
+        return large_error;
+#endif
     return done > 0 && WIFEXITED(status) ? WEXITSTATUS(status) : 29;
+#ifdef PLB_ANDROID_LARGE_PROFILE
+large_startup_failed:
+    plb_shmem_finish(&policy);
+    android_display_stop();
+    sensor_close(&control, BASE "/sensor-control.sock");
+    sensor_close(&data, BASE "/sensor-data.sock");
+    sensor_close(&oemlock, BASE "/oemlock.sock");
+    close(lock);
+    return large_error;
+#endif
 }

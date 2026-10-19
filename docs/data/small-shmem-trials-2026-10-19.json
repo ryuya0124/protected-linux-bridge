@@ -575,5 +575,7 @@
     "tailadb_application_low_memory_exit_recorded": true,
     "systemui_screenshot_auxiliary_low_memory_exit_recorded": true,
     "final_adb_disconnect_cause_confirmed": false
-  }
+  },
+  "dataset_scope": "Historical standalone diagnostics; production_apk_changed and diagnostics_only describe these trials, not later app integration.",
+  "later_app_integration": "android-large-profile-2026-10-19.json"
 }

@@ -48,6 +48,12 @@ int main(int argc, char **argv) {
         plb_page_observe(&summary, present, visible, pfn, flags_valid, flags);
     }
     assert(summary.samples == count);
+    int complete_thp = !base_only && strcmp(argv[1], "reverse-base") && !partial_compound &&
+                       strcmp(argv[1], "hidden") && strcmp(argv[1], "missing") &&
+                       strcmp(argv[1], "unreadable-flags");
+    assert(plb_page_all_thp(&summary, count) == !!complete_thp);
+    assert(!plb_page_all_thp(&summary, count + 1));
+    assert(!plb_page_all_thp(&summary, 0));
     if (!strcmp(argv[1], "full-folio")) {
         assert(summary.sampled_2m_folios == 1);
         assert(summary.compound_heads == 1 && summary.compound_tails == 511);

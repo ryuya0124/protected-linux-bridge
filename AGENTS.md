@@ -64,3 +64,16 @@ APK must not silently adopt this global policy change.
 - The allocation helper now stops starting batches below 1536 MiB MemAvailable;
   the older 512 MiB floor describes historical trials only. Do not lower it to
   bypass a refusal or change another process's OOM protection.
+
+## Explicit Android 1.5 GiB app selection: requested 2026-10-19
+
+The user asked to integrate the successful 1.5 GiB Android configuration and
+update the app/GitHub records. Keep it a separate, explicitly selected profile;
+show the host-wide three-key change and RAM pressure before each launch. Keep
+512 MiB available without that policy/preparation. Do not persist or silently
+auto-enable the host policy, broaden the three-key exception, remove the
+40-second independent restoration guardian or weaken exact platform/VMM pins.
+The startup RAM preparation remains within the 6 GiB cap and existing floor.
+The owned root controller may leave its own launching app's cached-app cgroup
+for the existing unified root cgroup, so its guardian cannot be frozen with the
+UI. Never move another process or change freezer/CPU policies or directories.

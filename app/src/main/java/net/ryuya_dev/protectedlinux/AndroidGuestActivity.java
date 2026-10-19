@@ -29,6 +29,8 @@ import java.util.concurrent.Executors;
 
 /** Separate experimental Android display. Debian's terminal sessions remain separate. */
 public final class AndroidGuestActivity extends AppCompatActivity {
+  static final String EXTRA_MEMORY_MIB = "android_memory_mib";
+  static final String EXTRA_POLICY_ACKNOWLEDGED = "android_small_shmem_acknowledged";
   private final ExecutorService worker = Executors.newSingleThreadExecutor();
   private final ArrayBlockingQueue<byte[]> commands = new ArrayBlockingQueue<>(12);
   private volatile boolean closed, resumed;
@@ -37,12 +39,15 @@ public final class AndroidGuestActivity extends AppCompatActivity {
   private TextView status;
   private ImageView display;
   private Bitmap currentFrame;
+  private int memoryMib;
+  private volatile int runtimeFailure;
 
   @Override
   public void onCreate(Bundle state) {
     DynamicColors.applyToActivityIfAvailable(this);
     super.onCreate(state);
     EdgeToEdge.enable(this);
+    memoryMib = getIntent().getIntExtra(EXTRA_MEMORY_MIB, 512);
     LinearLayout page = new LinearLayout(this);
     page.setOrientation(LinearLayout.VERTICAL);
     int padding = Math.round(12 * getResources().getDisplayMetrics().density);
@@ -113,7 +118,9 @@ public final class AndroidGuestActivity extends AppCompatActivity {
 
   private void session() {
     try {
-      Process process = AndroidGuestRuntime.start(this);
+      Process process =
+          AndroidGuestRuntime.start(
+              this, memoryMib, getIntent().getBooleanExtra(EXTRA_POLICY_ACKNOWLEDGED, false));
       manager = process;
       Thread logs =
           new Thread(
@@ -121,15 +128,25 @@ public final class AndroidGuestActivity extends AppCompatActivity {
                 try (var reader =
                     new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                   String line;
-                  while ((line = reader.readLine()) != null)
+                  while ((line = reader.readLine()) != null) {
                     android.util.Log.i("ProtectedLinuxAndroid", line);
+                    if (line.contains("ANDROID_BACKING_UNSUITABLE")) runtimeFailure = 89;
+                    if (line.contains("ANDROID_SMALL_SHMEM_RESTORED=0")
+                        || line.contains("ANDROID_SMALL_SHMEM_GUARDIAN_RESTORED=0"))
+                      runtimeFailure = 38;
+                    if (line.startsWith("ANDROID_MEMORY_PREPARING"))
+                      runOnUiThread(
+                          () -> {
+                            if (!closed) status.setText(R.string.android_guest_preparing);
+                          });
+                  }
                 } catch (IOException ignored) {
                 }
               },
               "android-guest-log");
       logs.start();
       LocalSocket socket = null;
-      for (int attempt = 0; attempt < 100 && !closed && process.isAlive(); attempt++) {
+      for (int attempt = 0; attempt < 600 && !closed && process.isAlive(); attempt++) {
         LocalSocket candidate = new LocalSocket();
         try {
           candidate.connect(
@@ -151,7 +168,7 @@ public final class AndroidGuestActivity extends AppCompatActivity {
                 !process.isAlive()
                     ? AndroidGuestRuntime.errorMessage(process.exitValue())
                     : R.string.android_guest_busy));
-      socket.setSoTimeout(60000);
+      socket.setSoTimeout(120000);
       InputStream input = socket.getInputStream();
       OutputStream output = socket.getOutputStream();
       if (number(input) != 0x41424c50
@@ -196,7 +213,10 @@ public final class AndroidGuestActivity extends AppCompatActivity {
                   }
                   currentFrame = bitmap;
                   display.setImageBitmap(bitmap);
-                  status.setText(R.string.android_guest_connected);
+                  status.setText(
+                      getString(
+                          R.string.android_guest_connected,
+                          memoryMib == 1536 ? "1.5 GiB" : "512 MiB"));
                 } finally {
                   applied.countDown();
                 }
@@ -207,10 +227,26 @@ public final class AndroidGuestActivity extends AppCompatActivity {
       }
     } catch (Exception error) {
       android.util.Log.w("ProtectedLinuxAndroid", "SESSION_STOPPED", error);
+      int failure = runtimeFailure;
+      Process process = manager;
+      if (failure == 0 && process != null && !closed) {
+        try {
+          if (process.waitFor(3, java.util.concurrent.TimeUnit.SECONDS))
+            failure = process.exitValue();
+        } catch (InterruptedException interrupted) {
+          Thread.currentThread().interrupt();
+        }
+      }
+      if (runtimeFailure != 0) failure = runtimeFailure;
+      String detail =
+          failure != 0
+              ? getString(AndroidGuestRuntime.errorMessage(failure))
+              : error instanceof EOFException
+                  ? getString(R.string.android_guest_start_failed)
+                  : error.getMessage();
       runOnUiThread(
           () -> {
-            if (!closed)
-              status.setText(getString(R.string.android_guest_error, error.getMessage()));
+            if (!closed) status.setText(getString(R.string.android_guest_error, detail));
           });
     } finally {
       disconnect();
