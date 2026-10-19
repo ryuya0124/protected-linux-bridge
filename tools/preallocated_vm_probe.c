@@ -34,6 +34,10 @@
 #if defined(PLB_ANDROID4G_CUSTOM_GUEST) && !defined(PLB_PREALLOCATED_ANDROID_PROXY)
 #error "Custom guest kernel requires the isolated adopted-RAM Android proxy"
 #endif
+#if defined(PLB_ANDROID4G_LOADER_COMPAT) &&                                                        \
+    (!defined(PLB_PREALLOCATED_ANDROID_PROXY) || !defined(PLB_ANDROID4G_BUFFER_CAPSET))
+#error "Loader compatibility requires the isolated Android buffer-capset proxy"
+#endif
 #define FILES "/data/user/0/net.ryuya_dev.protectedlinux/files"
 #ifdef PLB_PREALLOCATED_ANDROID_PROXY
 #include "android4g_config.h"
@@ -320,8 +324,15 @@ static int prepare_and_exec(int memory, int touch, int small_folios, int chunked
         setenv("LD_LIBRARY_PATH", "/apex/com.android.virt/lib64:/system/lib64", 1)) {
         return 90;
     }
-    /* No LD_PRELOAD, custom module probe, file-backed/CMA option or policy knob. */
+    /* No memory/ioctl interposition, CMA path or host policy knob. The optional
+     * Vulkan-loader bridge is pinned and applies to this final VMM exec only. */
     unsetenv("LD_PRELOAD");
+#ifdef PLB_ANDROID4G_LOADER_COMPAT
+    if (!pinned_file(PLB_ANDROID4G_COMPAT, PLB_PREALLOCATED_COMPAT_SHA256) ||
+        setenv("LD_PRELOAD", PLB_ANDROID4G_COMPAT, 1)) {
+        return 90;
+    }
+#endif
     snprintf(size, sizeof(size), "size=%d", memory);
     snprintf(options, sizeof(options),
              "console=ttyS0 8250.nr_uarts=1 rdinit=/init panic=0 quiet loglevel=3 "
@@ -400,9 +411,13 @@ int main(int argc, char **argv) {
     if (argc != 1 || !platform() || !plb_host_memory_healthy()) {
         return 70;
     }
-    /* Android boot allocates heavily from the low guest DMA32 zone.
-     * Compare ascending preparation with the retained normal-first trial. */
-    const int normal_first = 0, chunked = 1, small_folios = 1, pin_check = 0, collapse = 0;
+    /* Compare zone order with the same fresh aligned mappings and no collapse. */
+#ifdef PLB_ANDROID4G_NORMAL_FIRST
+    const int normal_first = 1;
+#else
+    const int normal_first = 0;
+#endif
+    const int chunked = 1, small_folios = 1, pin_check = 0, collapse = 0;
     const long memory = PLB_ANDROID4G_MEMORY_MIB, touch = 0;
 #else
     int normal_first_pin = argc == 4 && !strcmp(argv[3], "--normal-first-pin");

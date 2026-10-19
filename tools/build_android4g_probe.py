@@ -70,10 +70,21 @@ def main():
     parser.add_argument("--build-manifest", type=Path, required=True)
     parser.add_argument("--guest-render-apk", type=Path, required=True)
     parser.add_argument("--minimum-folio-kib", type=int, choices=(16, 128), default=16)
+    parser.add_argument(
+        "--preparation-order", choices=("ascending", "normal-first"), default="ascending"
+    )
     parser.add_argument("--transport", choices=("pipe", "asg"), default="pipe")
+    parser.add_argument(
+        "--buffer-capset",
+        action="store_true",
+        help="Expose gfxstream format/Vulkan caps (also initializes the Vulkan backend)",
+    )
+    parser.add_argument("--loader-compat", action="store_true")
     parser.add_argument("--guest-kernel", type=Path)
     parser.add_argument("--guest-kernel-manifest", type=Path)
     args = parser.parse_args()
+    if args.loader_compat and not args.buffer_capset:
+        parser.error("The isolated Vulkan loader bridge requires the buffer-capset comparison")
     custom = args.guest_kernel is not None
     if custom != (args.guest_kernel_manifest is not None):
         parser.error("Select both the separate guest Image and its completed build manifest")
@@ -151,13 +162,6 @@ def main():
         ),
         "INITRAMFS": digest(ramdisk),
     }
-    (out / "preallocated_vm.generated.h").write_text(
-        "/* Generated private artifact identities. */\n"
-        + "\n".join(
-            f'#define PLB_PREALLOCATED_{key}_SHA256 "{value}"' for key, value in pins.items()
-        )
-        + "\n"
-    )
     host = "darwin-x86_64" if platform.system() == "Darwin" else "linux-x86_64"
     compiler = (
         args.sdk
@@ -166,10 +170,39 @@ def main():
         / "bin/aarch64-linux-android35-clang"
     )
     flags = [str(compiler), "-O2", "-Wall", "-Wextra", "-Werror", "-I", str(out)]
+    if args.buffer_capset:
+        flags.append("-DPLB_ANDROID4G_BUFFER_CAPSET=1")
+    if args.preparation_order == "normal-first":
+        flags.append("-DPLB_ANDROID4G_NORMAL_FIRST=1")
     if args.transport == "asg":
         flags.append("-DPLB_ANDROID4G_ASG=1")
     if custom:
         flags.append("-DPLB_ANDROID4G_CUSTOM_GUEST=1")
+    compatibility = None
+    if args.loader_compat:
+        flags.append("-DPLB_ANDROID4G_LOADER_COMPAT=1")
+        compatibility = out / "android4g-loader-compat.so"
+        subprocess.run(
+            flags
+            + [
+                "-shared",
+                "-fPIC",
+                "-DPLB_GFXSTREAM_DIAGNOSTIC_LOG=1",
+                str(ROOT / "tools/gfxstream_android_compat.c"),
+                "-ldl",
+                "-o",
+                str(compatibility),
+            ],
+            check=True,
+        )
+        pins["COMPAT"] = digest(compatibility)
+    (out / "preallocated_vm.generated.h").write_text(
+        "/* Generated private artifact identities. */\n"
+        + "\n".join(
+            f'#define PLB_PREALLOCATED_{key}_SHA256 "{value}"' for key, value in pins.items()
+        )
+        + "\n"
+    )
     proxy = out / (label + "-adopt-vmm")
     subprocess.run(
         flags
@@ -186,6 +219,7 @@ def main():
         f'#define PLB_ANDROID4G_PROXY_SHA256 "{digest(proxy)}"\n'
         f'#define PLB_ANDROID4G_KERNEL_SHA256 "{pins["KERNEL"]}"\n'
         f'#define PLB_ANDROID4G_INITRAMFS_SHA256 "{pins["INITRAMFS"]}"\n'
+        + (f'#define PLB_ANDROID4G_COMPAT_SHA256 "{pins["COMPAT"]}"\n' if compatibility else "")
     )
     setup = (ROOT / "native/android_guest_setup.sh").read_text()
     (out / "android_guest_setup.generated.h").write_text(
@@ -235,7 +269,7 @@ def main():
         flags + [str(ROOT / "tools/android4g_guest_diagnostics.c"), "-o", str(diagnostics)],
         check=True,
     )
-    extra_files = []
+    extra_files = [compatibility] if compatibility else []
     if custom:
         identity = out / "android4g-custom-ramdisk.sha256"
         identity.write_text(pins["INITRAMFS"] + "\n")
@@ -244,11 +278,15 @@ def main():
         "configured_memory_mib": 4096,
         "custom_guest_kernel": custom,
         "guest_kernel_build": guest_record,
+        "buffer_format_capset_exposed": args.buffer_capset,
+        "vulkan_parameter_requested": False,
+        "capset_mask_enables_vulkan_backend": args.buffer_capset,
+        "android_loader_compatibility": args.loader_compat,
         "guest_graphics_transport": "virtio-gpu-" + args.transport,
         "advised_shmem_sizes_kib": (
             [16, 32, 64, 128, 256, 512] if args.minimum_folio_kib == 16 else [128, 256, 512]
         ),
-        "backing_preparation_order": "ascending",
+        "backing_preparation_order": args.preparation_order,
         "backing_mapping_alignment_bytes": 2097152,
         "gpu_bar_bytes": 268435456,
         "combined_explicit_budget_limit_mib": 6144,

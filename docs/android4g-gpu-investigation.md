@@ -1,7 +1,7 @@
 # Android 17 at 4 GiB: RAM and GPU investigation
 
-Updated 2026-10-20 JST. Work is ongoing. **No Android boot-complete or
-hardware-rendered guest frame has been verified in these trials.** The released
+Updated 2026-10-20 JST. Work is ongoing. **Trial 8 reached Android boot-complete and SystemUI with a separate guest
+kernel. A hardware-rendered guest test frame is still unverified.** The released
 APK has not been changed by this developer experiment.
 
 ## What is established
@@ -76,7 +76,7 @@ supervision; RSS does not measure every GPU allocation. New kernel-report read
 loss or BUG/Oops reports stop the owned trial. The original protected LEND and
 32 MiB shared SWIOTLB roles remain in place.
 
-Trials 1–7 ended in the same host boot, SELinux Enforcing, taint 4608 with
+Trials 1–11 ended in the same host boot, SELinux Enforcing, taint 4608 with
 no BAD_PAGE/OOPS bits, and unchanged main Android processes/unrelated trusted
 VM. Those checks are bounded observations, not proof of zero host risk. No
 Android restart, host module/kernel/partition/protection change, mapped hole
@@ -140,7 +140,7 @@ the corresponding CPU-sync function. The guest-bound transfer function's
 disassembly and the Android common 6.12 driver source lack a completion CPU-sync
 operation. Together with the stale-looking `pipe:opengles` reply, this makes
 SWIOTLB bounce-buffer synchronization a concrete **candidate**, not yet a
-confirmed device-specific cause. No guest kernel/module has been replaced.
+confirmed device-specific cause. At that stage no guest kernel/module had been replaced; trial 8 below uses a separate guest Image.
 
 Upstream's guest-bound synchronization fix is
 [commit 598c1c3e895590f845e04455d5580ea28ffde666](https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=598c1c3e895590f845e04455d5580ea28ffde666).
@@ -202,3 +202,124 @@ threshold and cleaning owned intermediates afterwards. The build preserves
 the Image, config, System.map, logs/provenance and exact compressed source.
 No unrelated Docker data is pruned. A successful build alone will not be
 reported as a successful Android/GPU trial.
+
+## Trial 8: Android boot-complete with the new guest kernel
+
+The separate guest Image built successfully as `6.12.74-plb-android-gpu1`
+(SHA256 `1ad9e37e8f2247e3ee566e85beec4ce0a29ef279633163a4c1672234d2cecee5`).
+The compiled virtio-GPU object contains the missing CPU-sync reference. The
+built-in-only configuration also disables guest bootloader debug-kinfo data,
+whose source assumes loadable-module structures; no Android host setting is
+changed by that build configuration.
+
+Trial 8 used this Image, its separate initramfs and a new verified disk copy.
+The observer recorded **BOOT=1**, a live **SystemUI** and guest MemTotal
+`3973592 kB`. Guest SurfaceFlinger successfully initialized EGL and reported
+**Google (Qualcomm), Android Emulator OpenGL ES Translator (Adreno (TM) 840),
+OpenGL ES 3.1**. The prior stale version string / `no suitable EGLConfig found`
+blocker was not present in that diagnostic. This is evidence for the combined
+custom-kernel configuration, not an isolated proof that the single backport
+alone accounts for the difference.
+
+Before donation, THP coverage was 93.7286% overall: 100% in the first 2 GiB,
+87.4573% in the second. After boot completion, Gunyah again returned PAGE_FAULT
+attempt `-12` / map error 10 and the VMM exited 33 while the fixed GLES probe
+was starting. No nonce-bound readback or matching test PNG was captured.
+**Boot completion and EGL initialization are not a successful GPU frame test.**
+The next bounded comparison changes allocation order to normal-zone-first,
+retaining 2 MiB alignment and the same kernel/GPU configuration.
+
+The guest vendor DLKM loader still requests old loadable modules, which the
+built-in-only kernel refuses. Its diagnostic abort is retained as an integration
+issue; do not call this a clean, production-ready Android profile. The original
+Android disks retained their hashes, both policy restorers succeeded, all six
+values returned to `never`, and the host boot/core processes/trusted VM stayed
+unchanged with taint 4608 and SELinux Enforcing.
+
+After successful compilation, the owned Docker work volume/container were
+removed and the earlier Mac source/object intermediates were cleaned. The Mac
+cleanup freed about 2.49 GiB; the Image, final config, System.map, exact compressed
+source, disassembly and logs/provenance remain private. No unrelated cache or
+project was pruned.
+
+## Trial 9: normal-zone-first, later buffer allocation failure
+
+With the same custom guest kernel and GPU settings, the aligned normal-zone-first
+comparison again reached BOOT=1 and guest Adreno EGL. The signed GLES probe
+started. No Gunyah PAGE_FAULT attempt error was recorded during the bounded
+160-second observation; the manager ended on its deadline (124). This is not
+a long-running RAM stability claim.
+
+SystemUI and Launcher repeatedly aborted with
+`drawRenderNode called on a context with no surface!`. Their preceding errors
+were `GraphicBufferAllocator` allocation error `-129` and `EGL_BAD_ALLOC`, even
+for a 1×1 scratch buffer. Guest Mesa reported invalid virtio-GPU GET_CAPS
+requests. No matching probe result/PNG was produced. A SystemUI PID or BOOT=1
+alone must not be described as a usable Android desktop.
+
+The examined upstream
+[minigbm virgl backend](https://android.googlesource.com/platform/external/minigbm/+/refs/heads/main/virtgpu_virgl.c)
+selects gfxstream's buffer-format capabilities through the gfxstream Vulkan
+capset. The GLES-only developer mask omitted that capset. Standard
+[Cuttlefish gfxstream configuration](https://android.googlesource.com/device/google/cuttlefish/+/refs/heads/main/host/libs/vm_manager/crosvm_manager.cpp)
+includes GLES, Vulkan and composer context types. The gfxstream capset-fill
+implementation can report format support from the GLES FrameBuffer even when
+Vulkan emulation is absent.
+
+A separate `--buffer-capset` comparison exposes that capability information
+while leaving `vulkan=false`, the guest GLES renderer and host configuration
+unchanged. It is a diagnostic hypothesis, not a claim that the format query
+is already the confirmed cause of allocation error -129. Read-only guest
+diagnostics now include a bounded buffer-allocation log filter.
+
+## Trial 10: capset selection overrides the Vulkan parameter
+
+The capset-only comparison retained the explicit `vulkan=false` argument but
+**did not keep the backend Vulkan initialization disabled**. In this pinned
+crosvm/rutabaga implementation, the selected capset mask calls `use_vulkan`
+again and overrides the earlier argument. The owned VMM aborted (SIGABRT,
+manager result 29) while looking up `vkCreateInstance` and two global enumeration
+commands. The guest did not reach adbd or boot completion. Both policy restorers
+and the host/disk boundary checks succeeded.
+
+The builder metadata/help now distinguish the requested parameter from the
+actual mask-derived backend selection. The failed comparison is retained; do
+not describe it as format metadata exposure without Vulkan initialization.
+
+The next separately selected `--loader-compat` comparison reuses the existing
+process-local Android Vulkan-loader bridge for the owned source-built VMM.
+It retries only those three global lookups with a null instance when the
+instance-qualified lookup returns null. The exact compatibility library is
+pinned by the manager/proxy; its constructor checks the owned VMM inode/name
+and removes LD_PRELOAD from its environment. It does not edit the Android
+loader, driver, namespace/SELinux policy or protection mechanisms, and it
+contains no memory, mmap, Gunyah-ioctl or folio interposition. Plain GLES and
+production launch paths do not use it. This is still a GLES guest workload,
+with Vulkan backend initialization for the full capability set.
+
+## Trial 11: loader repaired, Vulkan test allocation still fails
+
+The pinned process-local loader bridge initialized and logged successful repairs
+of the three global lookups. The full-capset comparison passed the earlier
+missing-function failure and selected the physical host renderer, but gfxstream
+then aborted while establishing the memory type for a 64×64 RGBA8 test
+ColorBuffer. The log reported a zero-byte memory requirement and
+`vkAllocateMemory: VK_ERROR_INITIALIZATION_FAILED`. The owned VMM received
+SIGABRT (manager result 29) before guest adbd/boot completion. This is a later
+host-renderer/Vulkan compatibility failure, not the earlier guest EGL version
+reply or a recorded Gunyah PAGE_FAULT. The zero requirement is an observed
+value to investigate, not a reason to replace a real allocation with fake data.
+
+No new GPU success is claimed. Plain GLES trials 8/9 remain the evidence for
+Android boot-complete and guest EGL initialization; their unusable/crashing
+window surfaces remain unresolved. The original Android disks, host boot,
+core processes and unrelated trusted VM were unchanged after trial 11, with
+taint 4608, SELinux Enforcing and all six policies restored. The released APK
+and its existing selectable profiles were not changed.
+
+The follow-up priorities are the exact guest allocator/mapper failure behind
+error -129, the gfxstream/Adreno test-image requirements and the actual
+capset-derived renderer flags. Preserve these negative comparisons and avoid
+blind VM retries, fictitious formats/requirements or silent feature enabling.
+The 177 Python/native tests pass, including compile-time isolation checks for
+the optional loader bridge. Built binaries and device logs remain private.

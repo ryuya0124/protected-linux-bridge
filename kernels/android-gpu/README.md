@@ -17,7 +17,9 @@ The fragment retains Android F2FS, device-mapper encryption/verity, Binder and
 SELinux. Required virtual-device drivers are built in and guest module loading
 is disabled. This avoids mixing a custom kernel with the original guest's
 ABI-specific modules. Nested KVM and VM-manager interfaces are disabled inside
-this guest; the outer protected Gunyah VM is unchanged. Compiler AutoFDO is disabled because its
+this guest; the outer protected Gunyah VM is unchanged. The guest bootloader
+debug-kinfo table is disabled because it assumes loadable-module structures.
+Compiler AutoFDO is disabled because its
 matching profiling input is not part of this reproducible source archive.
 
 ## Build without touching a device
@@ -52,7 +54,11 @@ archive. Only the verified source extraction and this build's intermediate
 objects may be removed; do not prune unrelated Docker data. On success the tool
 exports the completed outputs and removes only its own stopped build container
 and volume. On failure it retains that invocation for diagnosis; its identities
-are recorded in `builder-instance.json`.
+are recorded in `builder-instance.json`. Pass `--resume` with the same inputs
+and output to reuse that failed workspace. The tool checks the stopped builder,
+image, volume label and mount identity, then verifies every archived regular
+source/symlink and reconstructs the three patched files before resuming.
+It never resets a checkout or resumes a running/unrelated container.
 
 ## Separate developer profile
 

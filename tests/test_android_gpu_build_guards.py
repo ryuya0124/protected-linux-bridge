@@ -38,6 +38,7 @@ class AndroidGpuBuildGuardsTest(unittest.TestCase):
                 '#define PLB_ANDROID4G_PROXY_SHA256 "' + "0" * 64 + '"\n'
                 '#define PLB_ANDROID4G_KERNEL_SHA256 "' + "0" * 64 + '"\n'
                 '#define PLB_ANDROID4G_INITRAMFS_SHA256 "' + "0" * 64 + '"\n'
+                '#define PLB_ANDROID4G_COMPAT_SHA256 "' + "0" * 64 + '"\n'
             )
             modes = (
                 [
@@ -113,6 +114,15 @@ class AndroidGpuBuildGuardsTest(unittest.TestCase):
             text=True,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_loader_bridge_requires_adopted_profile_and_capset_selection(self):
+        flags = ("-DPLB_ANDROID4G_LOADER_COMPAT=1", "-DPLB_ANDROID4G_BUFFER_CAPSET=1")
+        result = self.compile_manager(flags, adopted=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for extra, adopted in ((flags, False), (flags[:1], True)):
+            result = self.compile_manager(extra, adopted=adopted)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("Loader compatibility requires", result.stderr)
 
     def test_fixed_payload_render_build_compiles_only_in_the_gpu_diagnostic(self):
         result = self.compile_manager(("-DPLB_ANDROID_GPU_RENDER_PROBE=1",))

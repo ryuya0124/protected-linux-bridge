@@ -8,6 +8,8 @@ CONFIG_LOCALVERSION="-plb-android-gpu1"
 # CONFIG_GUNYAH is not set
 # CONFIG_GUNYAH_HYPERCALLS is not set
 # CONFIG_GUNYAH_PLATFORM_HOOKS is not set
+# No bootloader consumes this guest-only module-layout debug table.
+# CONFIG_ANDROID_DEBUG_KINFO is not set
 # CONFIG_AUTOFDO_CLANG is not set
 # CONFIG_TRIM_UNUSED_KSYMS is not set
 CONFIG_VIRTIO_PCI=y

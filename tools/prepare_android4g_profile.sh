@@ -9,6 +9,18 @@ if [ "$#" != 0 ]; then
     [ "$#" = 1 ]
     case "$1" in
     --custom-guest) custom_guest=1 ;;
+    --archive-custom-boot-complete)
+        custom_guest=1
+        archive_suffix=guest-boot-complete
+        ;;
+    --archive-custom-normal-first)
+        custom_guest=1
+        archive_suffix=normal-first
+        ;;
+    --archive-custom-capsets)
+        custom_guest=1
+        archive_suffix=capsets
+        ;;
     --archive-normal-first) archive_suffix=normal-first ;;
     --archive-ascending) archive_suffix=ascending ;;
     --archive-medium-only) archive_suffix=medium-only ;;

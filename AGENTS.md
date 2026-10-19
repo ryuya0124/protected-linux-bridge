@@ -239,3 +239,31 @@ Image, final config, System.map/provenance/logs, exact compressed source archive
 and public reproduction recipe; remove only this build's verified owned source
 extraction/intermediates when no longer needed. Never prune unrelated Docker
 images, caches, projects or device data. Host Android constraints are unchanged.
+
+## Separate Android guest kernel and GPU follow-up, later 2026-10-20
+
+A separate Android common 6.12.74 guest Image with the upstream guest-bound
+DMA-completion sync backport built successfully. Its virtual devices are built
+in, modules/nested VM-manager interfaces/debug-kinfo are disabled inside the
+guest only. The Image/config/System.map/archive/provenance remain private;
+owned Mac source/object intermediates and the build volume were cleaned after
+compilation. No original guest Image or host kernel was replaced.
+
+Trials 8/9 reached BOOT=1 and guest Adreno EGL with this Image. Trial 8 later
+failed Gunyah PAGE_FAULT -12; trial 9 had no recorded page-fault error during
+160 seconds but SystemUI/Launcher crashed on buffer allocation -129. No
+nonce-bound GLES test PNG or usable Android GPU desktop is verified.
+
+The pinned VMM derives Vulkan enablement from its capset mask, overriding the
+explicit false argument. Trial 10's capset comparison aborted in global loader
+lookups. An optional pinned process-local loader bridge, restricted to the
+owned source-built VMM, repaired those three lookups in trial 11; the renderer
+then aborted on a zero-requirement 64x64 test ColorBuffer allocation. No memory
+or Gunyah ioctl interposition, fake requirements or host library change is
+authorized by that bridge. Keep full-capset/loader options developer-only,
+explicit and independently pinned; do not add them silently to the APK.
+
+All trial 8–11 postflights retained the host boot/core processes/trusted VM,
+original Android disk hashes, taint 4608, Enforcing and all six never values.
+These observations do not remove the earlier risk/health/RAM/policy guards.
+Details and failed cases are in docs/android4g-gpu-investigation.md.

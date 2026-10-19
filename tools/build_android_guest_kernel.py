@@ -4,6 +4,7 @@
 import argparse
 import hashlib
 import json
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -35,6 +36,11 @@ def main():
     parser.add_argument("--base-config", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--builder-image", default="plb-android-gpu-kernel:clang19")
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Verify/reuse only this output's owned failed Linux workspace",
+    )
     args = parser.parse_args()
     output = private_output(args.output)
     recipe = ROOT / "kernels/android-gpu"
@@ -52,11 +58,43 @@ def main():
         raise ValueError("Expected a resolved builder image identity")
     name = "plb-guest-dma-sync-build-" + uuid.uuid4().hex[:12]
     volume = name + "-work"
-    subprocess.run(
-        ["docker", "volume", "create", "--label", "plb.guest-build=" + name, volume], check=True
-    )
+    owner = name
+    if args.resume:
+        previous = json.loads((output / "builder-instance.json").read_text())
+        owner = previous.get("volume_owner", previous["container"])
+        volume = previous["volume"]
+        if (
+            not re.fullmatch(r"plb-guest-dma-sync-build-[0-9a-f]{12}", owner)
+            or volume != owner + "-work"
+            or previous["image"] != image
+        ):
+            parser.error("Resumed workspace identity mismatch")
+        info = json.loads(
+            subprocess.check_output(["docker", "inspect", previous["container"]], text=True)
+        )[0]
+        labels = json.loads(
+            subprocess.check_output(["docker", "volume", "inspect", volume], text=True)
+        )[0].get("Labels", {})
+        if (
+            info["State"]["Status"] != "exited"
+            or info["Config"]["Image"] != image
+            or labels.get("plb.guest-build") != owner
+            or not any(
+                m.get("Name") == volume and m.get("Destination") == "/work" for m in info["Mounts"]
+            )
+        ):
+            parser.error("Only this output's stopped, labeled builder may resume")
+        subprocess.run(["docker", "rm", previous["container"]], check=True)
+    else:
+        subprocess.run(
+            ["docker", "volume", "create", "--label", "plb.guest-build=" + owner, volume],
+            check=True,
+        )
     (output / "builder-instance.json").write_text(
-        json.dumps({"container": name, "volume": volume, "image": image}, indent=2) + "\n"
+        json.dumps(
+            {"container": name, "volume": volume, "volume_owner": owner, "image": image}, indent=2
+        )
+        + "\n"
     )
     command = [
         "docker",
@@ -70,6 +108,8 @@ def main():
         "4",
         "--memory",
         "4g",
+        "-e",
+        "PLB_RESUME_BUILD=" + ("1" if args.resume else "0"),
         "--pids-limit",
         "1024",
         "--tmpfs",
@@ -88,6 +128,8 @@ def main():
         "python3 /recipe/prepare.py && exec sh /recipe/build.sh",
     ]
     log_path = output / "build.log"
+    if log_path.exists():
+        log_path.rename(output / ("build.previous-" + uuid.uuid4().hex[:12] + ".log"))
     with log_path.open("wb") as log:
         process = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT)
         try:
@@ -131,6 +173,7 @@ def main():
         "config_sha256": digest(output / "output/.config"),
         "system_map_sha256": digest(output / "output/System.map"),
         "case_sensitive_linux_build": True,
+        "resumed_verified_source": args.resume,
         "patch_sha256": digest(recipe / "guest-bound-dma-sync.patch"),
         "recipe_sha256": {p.name: digest(p) for p in recipe.iterdir() if p.is_file()},
         "android_host_modified": False,

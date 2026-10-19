@@ -57,7 +57,11 @@ static const char *const android4g_arguments[] = {
     "--block",
     "path=" PLB_ANDROID4G_BASE "/android-frp.raw,ro=false",
     "--gpu",
-    "backend=gfxstream,context-types=gfxstream-gles:gfxstream-composer,"
+    "backend=gfxstream,context-types=gfxstream-gles:"
+#ifdef PLB_ANDROID4G_BUFFER_CAPSET
+    "gfxstream-vulkan:"
+#endif
+    "gfxstream-composer,"
     "egl=true,gles=true,vulkan=false,glx=false,surfaceless=true,width=480,height=800,"
     "pci-bar-size=268435456",
     "--serial",

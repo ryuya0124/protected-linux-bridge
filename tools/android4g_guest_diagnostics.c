@@ -41,6 +41,9 @@ int main(int argc, char **argv) {
          "cat /proc/cmdline; cat /proc/modules; dumpsys SurfaceFlinger'"),
         "exec:logcat -d -b crash -t 200",
         "exec:logcat -d -t 500",
+        ("exec:sh -c 'logcat -d -t 3000 -v brief | "
+         "grep -E \"minigbm|gralloc|GraphicBufferAllocator|GFXSTREAM.*(fail|error)|"
+         "PLB_GPU_PROBE|drawRenderNode\" | tail -n 150'"),
     };
     int result = 0;
     for (size_t i = 0; i < sizeof(queries) / sizeof(queries[0]); i++) {

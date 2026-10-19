@@ -13,5 +13,6 @@
 #define PLB_ANDROID4G_BASE FILES "/android-guests/cf17-gpu4096-adopted"
 #endif
 #define PLB_ANDROID4G_VMM FILES "/kernel-probes/android4g-crosvm"
+#define PLB_ANDROID4G_COMPAT FILES "/kernel-probes/android4g-loader-compat.so"
 #define PLB_ANDROID4G_MEMORY_MIB 4096
 #endif

@@ -56,6 +56,10 @@
 #if defined(PLB_ANDROID4G_CUSTOM_GUEST) && !defined(PLB_ANDROID_ADOPTED_PROBE)
 #error "Custom guest kernel requires the isolated adopted-RAM Android diagnostic"
 #endif
+#if defined(PLB_ANDROID4G_LOADER_COMPAT) &&                                                        \
+    (!defined(PLB_ANDROID_ADOPTED_PROBE) || !defined(PLB_ANDROID4G_BUFFER_CAPSET))
+#error "Loader compatibility requires the isolated Android buffer-capset manager"
+#endif
 #ifdef PLB_ANDROID_ADOPTED_PROBE
 #include "../tools/android4g_config.h"
 #include "android4g.generated.h"
@@ -340,6 +344,14 @@ int main(int argc, char **argv) {
 #endif
 #endif
 #ifdef PLB_ANDROID_ADOPTED_PROBE
+#ifdef PLB_ANDROID4G_LOADER_COMPAT
+#ifndef PLB_ANDROID4G_COMPAT_SHA256
+#error "Pin the isolated Android loader compatibility library"
+#endif
+    if (!private_file(PLB_ANDROID4G_COMPAT) ||
+        !pinned_digest(PLB_ANDROID4G_COMPAT, PLB_ANDROID4G_COMPAT_SHA256))
+        return 31;
+#endif
     if (!private_file(PLB_ANDROID4G_VMM) ||
         !pinned_digest(PLB_ANDROID4G_VMM, PLB_ANDROID4G_VMM_SHA256) ||
         !private_file(PLB_ANDROID4G_PROXY) ||

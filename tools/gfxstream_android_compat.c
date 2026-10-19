@@ -38,7 +38,14 @@ static PFN_vkVoidFunction compatible_get(VkInstance instance, const char *name) 
 
 __attribute__((constructor)) static void initialize(void) {
     struct stat actual, copy;
+#ifdef PLB_ANDROID4G_LOADER_COMPAT
+    const char *path =
+        "/data/user/0/net.ryuya_dev.protectedlinux/files/kernel-probes/android4g-crosvm";
+    const char *expected_name = "plb-android17-gpu4096";
+#else
     const char *path = "/data/user/0/net.ryuya_dev.protectedlinux/files/kernel-probes/crosvm-copy";
+    const char *expected_name = "plb-android17-probe";
+#endif
     char args[8192] = {0};
     int fd = open("/proc/self/cmdline", O_RDONLY | O_CLOEXEC);
     ssize_t size = fd < 0 ? -1 : read(fd, args, sizeof(args));
@@ -46,7 +53,7 @@ __attribute__((constructor)) static void initialize(void) {
         close(fd);
     if (getuid() || stat("/proc/self/exe", &actual) || stat(path, &copy) ||
         actual.st_dev != copy.st_dev || actual.st_ino != copy.st_ino || size <= 0 ||
-        !memmem(args, (size_t)size, "plb-android17-probe", 19))
+        !memmem(args, (size_t)size, expected_name, strlen(expected_name) + 1))
         _exit(79);
 #ifdef PLB_GFXSTREAM_DIAGNOSTIC_LOG
     original_log =
