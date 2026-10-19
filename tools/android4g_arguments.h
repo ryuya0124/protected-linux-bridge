@@ -63,7 +63,11 @@ static const char *const android4g_arguments[] = {
 #endif
     "gfxstream-composer,"
     "egl=true,gles=true,vulkan=false,glx=false,surfaceless=true,width=480,height=800,"
-    "pci-bar-size=268435456",
+    "pci-bar-size=268435456"
+#ifdef PLB_ANDROID4G_DISABLE_RENDERER_VULKAN
+    ",renderer-features=Vulkan:disabled"
+#endif
+    ,
     "--serial",
     "hardware=virtio-console,num=1,type=unix-stream,path=" PLB_ANDROID4G_BASE
     "/sensor-control.sock,input-unix-stream=true",

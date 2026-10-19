@@ -21,6 +21,10 @@ if [ "$#" != 0 ]; then
         custom_guest=1
         archive_suffix=capsets
         ;;
+    --archive-custom-loader)
+        custom_guest=1
+        archive_suffix=loader
+        ;;
     --archive-normal-first) archive_suffix=normal-first ;;
     --archive-ascending) archive_suffix=ascending ;;
     --archive-medium-only) archive_suffix=medium-only ;;

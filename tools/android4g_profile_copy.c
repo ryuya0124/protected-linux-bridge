@@ -17,7 +17,8 @@ int main(int argc, char **argv) {
     int custom = argc == 2 && (!strcmp(argv[1], "--custom-guest") ||
                                !strcmp(argv[1], "--archive-custom-boot-complete") ||
                                !strcmp(argv[1], "--archive-custom-normal-first") ||
-                               !strcmp(argv[1], "--archive-custom-capsets"));
+                               !strcmp(argv[1], "--archive-custom-capsets") ||
+                               !strcmp(argv[1], "--archive-custom-loader"));
     int archive =
         argc == 2 &&
         (!strcmp(argv[1], "--archive-normal-first") || !strcmp(argv[1], "--archive-ascending") ||

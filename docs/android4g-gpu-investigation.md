@@ -76,7 +76,7 @@ supervision; RSS does not measure every GPU allocation. New kernel-report read
 loss or BUG/Oops reports stop the owned trial. The original protected LEND and
 32 MiB shared SWIOTLB roles remain in place.
 
-Trials 1–11 ended in the same host boot, SELinux Enforcing, taint 4608 with
+Trials 1–12 ended in the same host boot, SELinux Enforcing, taint 4608 with
 no BAD_PAGE/OOPS bits, and unchanged main Android processes/unrelated trusted
 VM. Those checks are bounded observations, not proof of zero host risk. No
 Android restart, host module/kernel/partition/protection change, mapped hole
@@ -323,3 +323,30 @@ capset-derived renderer flags. Preserve these negative comparisons and avoid
 blind VM retries, fictitious formats/requirements or silent feature enabling.
 The 177 Python/native tests pass, including compile-time isolation checks for
 the optional loader bridge. Built binaries and device logs remain private.
+
+## Trial 12: real renderer feature override separates allocation failure
+
+The source supports `renderer-features=Vulkan:disabled` through
+`STREAM_RENDERER_PARAM_RENDERER_FEATURES`, applied after mask-derived flags.
+Unlike the earlier boolean alone, this comparison reached BOOT=1 and guest
+Adreno EGL with full format capsets and without the loader bridge or the
+observed Vulkan initialization abort. Guest minigbm reported capset mask 776
+(GLES, Vulkan-format and composer IDs), and the fixed GLES test app started.
+No Gunyah PAGE_FAULT attempt error was recorded during the 160-second window.
+
+The app/SystemUI window allocation still failed with -129 and no nonce-bound
+result or matching PNG appeared. This rejects the simple claim that exposing
+the format capset by itself fixes the window problem. The manager ended at
+its deadline (124), and the full host/disk/policy postflight passed again.
+The configuration is developer-only and not a new production app setting.
+
+An important error-code distinction: Android 17's
+[Binder Status](https://android.googlesource.com/platform/frameworks/native/+/refs/heads/android17-release/libs/binder/include/binder/Status.h)
+defines `EX_TRANSACTION_FAILED = -129`. Its
+[Gralloc5 allocator](https://android.googlesource.com/platform/frameworks/native/+/refs/heads/android17-release/libs/ui/Gralloc5.cpp)
+returns a failed allocator call's exception code. Therefore the numerical
+allocation error must not be diagnosed as Linux EKEYREJECTED/key authentication
+just because `strerror(129)` says that, nor automatically as lack of RAM.
+Further diagnosis must capture the underlying Binder transaction status and
+allocator/mapper service logs in the actual guest; the current records do not
+yet isolate that call's failure source.

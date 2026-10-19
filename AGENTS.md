@@ -267,3 +267,11 @@ All trial 8–11 postflights retained the host boot/core processes/trusted VM,
 original Android disk hashes, taint 4608, Enforcing and all six never values.
 These observations do not remove the earlier risk/health/RAM/policy guards.
 Details and failed cases are in docs/android4g-gpu-investigation.md.
+
+Trial 12 uses the renderer's explicit `Vulkan:disabled` feature override with
+format capsets, without the loader bridge. It reached BOOT=1/Adreno EGL and
+lasted the 160-second observation without recorded Gunyah page-fault errors,
+but window allocation -129 and SystemUI crashes remained. No frame is verified.
+All host/disk/policy postflight checks passed. Android Binder also uses -129
+for EX_TRANSACTION_FAILED, and Gralloc5 propagates that exception code; do not
+call this a cryptographic-key failure or RAM shortage from strerror alone.

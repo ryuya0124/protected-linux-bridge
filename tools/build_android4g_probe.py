@@ -80,11 +80,14 @@ def main():
         help="Expose gfxstream format/Vulkan caps (also initializes the Vulkan backend)",
     )
     parser.add_argument("--loader-compat", action="store_true")
+    parser.add_argument("--disable-renderer-vulkan", action="store_true")
     parser.add_argument("--guest-kernel", type=Path)
     parser.add_argument("--guest-kernel-manifest", type=Path)
     args = parser.parse_args()
     if args.loader_compat and not args.buffer_capset:
         parser.error("The isolated Vulkan loader bridge requires the buffer-capset comparison")
+    if args.disable_renderer_vulkan and (not args.buffer_capset or args.loader_compat):
+        parser.error("The renderer Vulkan override requires format caps and no loader bridge")
     custom = args.guest_kernel is not None
     if custom != (args.guest_kernel_manifest is not None):
         parser.error("Select both the separate guest Image and its completed build manifest")
@@ -170,6 +173,8 @@ def main():
         / "bin/aarch64-linux-android35-clang"
     )
     flags = [str(compiler), "-O2", "-Wall", "-Wextra", "-Werror", "-I", str(out)]
+    if args.disable_renderer_vulkan:
+        flags.append("-DPLB_ANDROID4G_DISABLE_RENDERER_VULKAN=1")
     if args.buffer_capset:
         flags.append("-DPLB_ANDROID4G_BUFFER_CAPSET=1")
     if args.preparation_order == "normal-first":
@@ -282,6 +287,7 @@ def main():
         "vulkan_parameter_requested": False,
         "capset_mask_enables_vulkan_backend": args.buffer_capset,
         "android_loader_compatibility": args.loader_compat,
+        "renderer_feature_override": "Vulkan:disabled" if args.disable_renderer_vulkan else None,
         "guest_graphics_transport": "virtio-gpu-" + args.transport,
         "advised_shmem_sizes_kib": (
             [16, 32, 64, 128, 256, 512] if args.minimum_folio_kib == 16 else [128, 256, 512]
