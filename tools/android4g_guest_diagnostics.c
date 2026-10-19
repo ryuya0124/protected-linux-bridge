@@ -15,7 +15,8 @@ static volatile int stopping;
 
 int main(int argc, char **argv) {
     int frame = argc == 2 && !strcmp(argv[1], "--frame");
-    if (getuid() || (argc != 1 && !frame))
+    int raw_frame = argc == 2 && !strcmp(argv[1], "--raw-frame");
+    if (getuid() || (argc != 1 && !frame && !raw_frame))
         return 20;
     unsigned char *output = malloc(ANDROID_ADB_LIMIT + 1);
     if (!output)
@@ -35,9 +36,11 @@ int main(int argc, char **argv) {
         free(output);
         return 23;
     }
-    if (frame) {
-        int failed = android_adb("exec:timeout 4 screencap -p", output, &length) || length < 24 ||
-                     memcmp(output, "\211PNG\r\n\032\n", 8);
+    if (frame || raw_frame) {
+        int failed =
+            android_adb(raw_frame ? "exec:timeout 4 screencap" : "exec:timeout 4 screencap -p",
+                        output, &length) ||
+            length < 24 || (!raw_frame && memcmp(output, "\211PNG\r\n\032\n", 8));
         if (!failed)
             failed = fwrite(output, 1, length, stdout) != length;
         free(output);

@@ -204,9 +204,18 @@ public final class AndroidGuestActivity extends AppCompatActivity {
           || number(input) != 800
           || number(input) != 0)
         throw new IOException(getString(R.string.android_guest_start_failed));
+      boolean rawFrames = true;
+      byte[] rawFrame = new byte[AndroidGuestFrame.SIZE];
+      byte[] pendingCommand = null;
+      long measuredAt = android.os.SystemClock.elapsedRealtime();
+      long captureDue = 0;
+      int measuredFrames = 0;
       while (!closed) {
-        byte[] command;
-        while ((command = commands.poll()) != null) {
+        byte[] command = pendingCommand;
+        pendingCommand = null;
+        if (command == null) command = commands.poll();
+        // Bound each input batch so a busy producer cannot starve frame delivery.
+        for (int count = 0; command != null && count < 12; count++) {
           output.write(command);
           int reply = input.read();
           if (reply < 0) throw new EOFException();
@@ -214,43 +223,97 @@ public final class AndroidGuestActivity extends AppCompatActivity {
             android.util.Log.w("ProtectedLinuxAndroid", "INPUT_REJECTED");
             runOnUiThread(() -> status.setText(R.string.android_guest_input_failed));
           }
+          command = count < 11 ? commands.poll() : null;
         }
         if (!resumed) {
           output.write('P');
           if (input.read() != 'P') throw new IOException("ping");
-          Thread.sleep(1000);
+          pendingCommand = commands.poll(1000, java.util.concurrent.TimeUnit.MILLISECONDS);
           continue;
         }
-        output.write('F');
+        long captureStarted = android.os.SystemClock.elapsedRealtime();
+        if (captureStarted < captureDue) {
+          pendingCommand =
+              commands.poll(
+                  captureDue - captureStarted, java.util.concurrent.TimeUnit.MILLISECONDS);
+          continue;
+        }
+        captureDue = captureStarted + 100;
+        output.write(rawFrames ? 'R' : 'F');
         int size = number(input);
         if (size < 0 || size > 2 * 1024 * 1024) throw new IOException("frame size");
         if (size > 0) {
-          byte[] png = read(input, size);
-          BitmapFactory.Options dimensions = new BitmapFactory.Options();
-          dimensions.inJustDecodeBounds = true;
-          BitmapFactory.decodeByteArray(png, 0, png.length, dimensions);
-          if (dimensions.outWidth != 480 || dimensions.outHeight != 800)
-            throw new IOException("frame dimensions");
-          Bitmap bitmap = BitmapFactory.decodeByteArray(png, 0, png.length);
-          if (bitmap == null) throw new IOException("PNG");
+          final Bitmap pngBitmap;
+          final ByteBuffer pixels;
+          if (rawFrames) {
+            if (size != rawFrame.length) throw new IOException("raw frame length");
+            int at = 0;
+            while (at < size) {
+              int count = input.read(rawFrame, at, size - at);
+              if (count < 0) throw new EOFException();
+              at += count;
+            }
+            pixels = AndroidGuestFrame.pixels(rawFrame, size);
+            pngBitmap = null;
+          } else {
+            byte[] png = read(input, size);
+            BitmapFactory.Options dimensions = new BitmapFactory.Options();
+            dimensions.inJustDecodeBounds = true;
+            BitmapFactory.decodeByteArray(png, 0, png.length, dimensions);
+            if (dimensions.outWidth != 480 || dimensions.outHeight != 800)
+              throw new IOException("frame dimensions");
+            pngBitmap = BitmapFactory.decodeByteArray(png, 0, png.length);
+            if (pngBitmap == null) throw new IOException("PNG");
+            pixels = null;
+          }
           var applied = new java.util.concurrent.CountDownLatch(1);
           runOnUiThread(
               () -> {
                 try {
                   if (closed) {
-                    bitmap.recycle();
+                    if (pngBitmap != null) pngBitmap.recycle();
                     return;
                   }
-                  currentFrame = bitmap;
-                  display.setImageBitmap(bitmap);
+                  if (pixels != null) {
+                    // Reuse one mutable bitmap on the UI thread. The worker waits
+                    // for the copy before reusing its single bounded byte buffer.
+                    if (currentFrame == null || !currentFrame.isMutable()) {
+                      currentFrame = Bitmap.createBitmap(480, 800, Bitmap.Config.ARGB_8888);
+                      display.setImageBitmap(currentFrame);
+                    }
+                    currentFrame.copyPixelsFromBuffer(pixels);
+                    display.invalidate();
+                  } else {
+                    currentFrame = pngBitmap;
+                    display.setImageBitmap(pngBitmap);
+                  }
                   status.setText(getString(R.string.android_guest_connected, memoryMib + " MiB"));
                 } finally {
                   applied.countDown();
                 }
               });
           if (!applied.await(5, java.util.concurrent.TimeUnit.SECONDS)) throw new IOException("UI");
+          measuredFrames++;
+        } else {
+          captureDue = android.os.SystemClock.elapsedRealtime() + 500;
+          if (rawFrames) {
+            rawFrames = false;
+            android.util.Log.i("ProtectedLinuxAndroid", "DISPLAY_RAW_UNAVAILABLE: PNG fallback");
+          }
         }
-        Thread.sleep(1500);
+        long now = android.os.SystemClock.elapsedRealtime();
+        if (now - measuredAt >= 5000) {
+          android.util.Log.i(
+              "ProtectedLinuxAndroid",
+              "DISPLAY_STATS mode="
+                  + (rawFrames ? "raw" : "png")
+                  + " frames="
+                  + measuredFrames
+                  + " elapsed_ms="
+                  + (now - measuredAt));
+          measuredAt = now;
+          measuredFrames = 0;
+        }
       }
     } catch (Exception error) {
       android.util.Log.w("ProtectedLinuxAndroid", "SESSION_STOPPED", error);

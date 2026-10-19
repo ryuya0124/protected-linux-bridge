@@ -14,8 +14,11 @@ inputs produce a visible error. No additional Vector scope is required.
 This profile has reached Android's lock screen and home with actual Adreno GLES
 readback. Startup remains unreliable: a later fresh-copy trial failed Gunyah
 admission before boot. There is no automatic retry or host reboot. Rendering is
-accelerated, but viewer transfer still captures PNGs slowly; it is not a smooth
-GPU/zero-copy display. Android networking, audio, physical USB and Vulkan remain
+accelerated. The updated viewer prefers packed sRGB RGBA capture, reuses its
+buffer/bitmap and removes the fixed 1.5-second wait. It falls back to PNG for
+unknown raw formats and caps capture requests at 10/s, pausing capture when
+backgrounded. The observed app delivery was about 3–6 fps, not 10 fps guaranteed
+or a GPU/zero-copy display. Android networking, audio, physical USB and Vulkan remain
 unsupported. Tap and single-finger swipe are forwarded within the 480×800 guest
 image; letterbox touches and multi-touch are ignored. The **Unlock** button wakes
 and requests dismissal of the guest's keyguard. It cannot bypass a guest PIN or
@@ -37,6 +40,7 @@ owned VM, with a 30-minute session limit. If launch fails, read the displayed
 reason and return to a legacy profile. Do not delete app data to troubleshoot:
 that also deletes the persistent guest disks.
 
+[Display transfer measurements and GPU handoff research](android-display-transport.md) ·
 [Investigation and negative results](android4g-gpu-investigation.md) ·
 [Bundled component sources/licenses](../third_party/android-gpu4g/SOURCES.md)
 

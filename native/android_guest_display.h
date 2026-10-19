@@ -1,12 +1,13 @@
 /* MIT. App-UID authenticated, private Android guest display session.
- * Frame capture is deliberately bounded and slow in this experimental profile.
- * No claim of hardware acceleration, sound, guest networking or zero-copy.
+ * Frame capture is bounded; raw sRGB skips PNG but still performs CPU readback.
+ * Guest GPU rendering does not imply direct GPU display/zero-copy transfer.
  */
 #if !defined(PLB_ANDROID_PROBE) || defined(PLB_ANDROID4G_INTERACTIVE)
 #include <pthread.h>
 #include <stdatomic.h>
 #include "android_guest_adb.h"
 #include "android_guest_input.h"
+#include "android_guest_frame.h"
 #include "android_guest_setup.generated.h"
 
 #define ANDROID_DISPLAY_SOCKET "net.ryuya_dev.protectedlinux.android-display"
@@ -142,6 +143,8 @@ static void *android_display_worker(void *unused) {
         char service[256];
         if (command == 'F') {
             strcpy(service, "exec:screencap -p");
+        } else if (command == 'R') {
+            strcpy(service, "exec:screencap");
         } else {
             uint32_t values[5] = {0};
             size_t count = command == 'T' ? 2 : command == 'S' ? 5 : command == 'K' ? 1 : 0;
@@ -151,9 +154,10 @@ static void *android_display_worker(void *unused) {
         }
         size_t length;
         int error = android_adb(service, output, &length);
-        if (command == 'F') {
+        if (command == 'F' || command == 'R') {
             static const unsigned char png[] = {137, 80, 78, 71, 13, 10, 26, 10};
-            if (error || length < 24 || memcmp(output, png, sizeof(png)))
+            if (error || (command == 'R' ? !android_raw_frame_valid(output, length)
+                                         : length < 24 || memcmp(output, png, sizeof(png))))
                 length = 0;
             uint32_t size = (uint32_t)length;
             if (android_io(client, &size, sizeof(size), 1) ||

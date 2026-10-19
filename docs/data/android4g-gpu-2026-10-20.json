@@ -665,9 +665,37 @@
     "falsing_disabled": false,
     "legacy_profiles_retained": true,
     "host_restart_sent": false,
-    "python_native_tests": 182,
+    "python_native_tests": 183,
     "release_lint_passed": true,
     "signed_release_installed": true,
-    "nonce_pattern_png_matched": false
+    "nonce_pattern_png_matched": false,
+    "raw_frame_viewer": {
+      "enabled": true,
+      "header": [
+        480,
+        800,
+        1,
+        1
+      ],
+      "frame_bytes": 1536016,
+      "capture_request_cap_fps": 10,
+      "observed_frames_per_5s_window": [
+        24,
+        15,
+        26,
+        24,
+        30,
+        27,
+        31,
+        31,
+        30,
+        27,
+        28
+      ],
+      "png_fallback_seen": false,
+      "direct_gpu_transfer": false,
+      "fixed_1500ms_wait_removed": true,
+      "buffer_and_bitmap_reused": true
+    }
   }
 }
