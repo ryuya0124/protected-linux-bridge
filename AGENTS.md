@@ -142,3 +142,19 @@ ftruncates and applies seals before mapping. A potential adoption path belongs
 there in a separately reviewed private userspace VMM, preserving all region
 roles/offsets/seals and protection flags. It is not implemented or boot-tested;
 no new VM/allocation or host-setting permission is implied by this design.
+
+## User-requested normal reboot and bounded FD handoff, later 2026-10-19
+
+The user explicitly requested one normal Android reboot, which was sent only
+to the selected Galaxy. This one-time instruction did not authorize future
+reboots. The user restored temporary root. Read-only admission in the new boot
+showed taint 4608, without BAD_PAGE/OOPS bits; SELinux stayed Enforcing and all
+three small-shmem policies remained `never`.
+
+A fixed 16 MiB ordinary-memfd handoff probe then ran once with the normal health
+guard, owner lock, memory floor and owned-parent watchdog. Exec'd consumer
+identity/seals/offsets/full-content checks passed, and all 4096 observed PFNs
+matched before/after. THP coverage was zero. This is not crosvm import, a VM boot,
+Gunyah donation or a large-memory/GPU result. No host setting or guest disk was
+changed. Preserve the earlier spent GPU-exception marker as historical evidence;
+do not weaken production guards or restore mapped hole punching.

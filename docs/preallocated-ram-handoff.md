@@ -1,15 +1,85 @@
 # Can Bridge hand preallocated RAM to the installed crosvm?
 
-Static review, 2026-10-19. **A plain file-backed command-line mapping is not a
+Static review and later bounded FD experiment, 2026-10-19. **A plain file-backed command-line mapping is not a
 valid ordinary-memfd handoff through the reviewed installed backend.** The
 viable design candidate is an explicit adoption path in the normal shared-RAM
 constructor of a separately built, app-private userspace VMM. That path is not
 implemented or boot-validated here, and does not create missing contiguous pages
 or identify/repair an exhausted Gunyah allocator.
 
-No device, VM, memory-pressure allocation, sysfs write or host reboot was used
-in this review. The earlier single-trial permission remains consumed. The app's
-guarded preview.7 runtime and its disk profiles are unchanged.
+The initial static review used no device, VM, memory-pressure allocation, sysfs
+write or host reboot. Subsequently the user explicitly requested one normal
+Android reboot, restored temporary root and requested real-device testing. The
+small experiment below ran in that new boot, with the ordinary health guard;
+it did not reuse the consumed affected-boot GPU exception. The app's guarded
+preview.7 runtime and its disk profiles remain unchanged.
+
+## Real-device FD experiment after the separately authorized reboot
+
+The developer-only `tools/preallocated_ram_probe.c` allocated one ordinary
+**16 MiB** memfd on the selected Galaxy, filled every 64-bit word with a
+deterministic verification pattern, inspected its owned pages, then **unmapped
+the entire preparation mapping**. It added grow/shrink/seal seals, inherited the
+same FD into an exec'd consumer and validated device/inode identity, total size,
+read/write access and seals before mapping. The consumer checked the full
+contents through two disjoint regions at offsets 0 and 15 MiB. This 15+1 MiB
+split is only an offset test, not the actual crosvm/SWIOTLB layout.
+
+After the consumer exited, the producer remapped the original object and
+verified the entire contents and owned-page observations again:
+
+| Check | Observed result |
+|---|---|
+| Total data checked | 16,777,216 bytes |
+| Consumer identity, size, access, seals, offsets and contents | Passed |
+| Resident base pages before / after | 4096 / 4096 |
+| Same observed PFN before / after | 4096 / 4096 |
+| THP-flagged pages before / after | **0 / 0** |
+| Program exit | 0 |
+| Host taint before / after | 4608 / 4608, no BAD_PAGE/OOPS bits |
+| Selected host boundary output before / after | Identical |
+| New BUG/Oops/panic/page-cache matches in bounded kernel-log delta | 0 |
+
+The selected boundary snapshot included boot identity, SELinux Enforcing, the
+three small-shmem policies still set to `never`, and the observed Android core
+and unrelated trusted-VM process identities. Logs and PFNs are not published;
+only aggregate results are retained publicly. An unchanged snapshot and a
+bounded kernel-log check are not a general guarantee of host safety.
+
+The ordinary health check and minimum 1536 MiB available-memory floor were
+enforced. The common owner lock serialized the probe with VM/storage work. A
+direct parent supervised its worker for 10 seconds, with a four-second owned
+consumer timeout and parent-death signals. There was **no VM, Gunyah/CMA ioctl,
+disk-profile access, hole punching, collapse/THP advice, sysfs write, cache drop,
+application kill or additional reboot** in the experiment. The developer binary
+was removed after its identity was checked. The released APK was not changed.
+
+This proves the small **userspace FD handoff primitive** on this device. It
+does **not** prove crosvm adoption, Gunyah LEND/SHARE, long-term pin compatibility,
+large-folio supply, a 1.5/4 GiB workload or GPU drawing. The zero THP observation
+also demonstrates why retaining an object alone does not solve large-folio
+shortage. PFNs can migrate or change between observations; equality at these
+two samples is not a physical-memory reservation.
+
+Build without installing or running:
+
+```sh
+python3 tools/build_preallocated_ram_probe.py --sdk /path/to/Android/sdk
+python3 -m unittest discover -s tests -v
+```
+
+The NDK build passed with `-Wall -Wextra -Werror`; all **159** Python/native
+tests passed. The new contract fixture rejects incorrect size/identity, linked
+regular files, read-only access, missing seals and incompatible write seals.
+These synthetic assertions are distinct from the real-device result above.
+
+A separate source-built VMM is still required. The pinned DroidVM fork has
+Android-specific Cargo dependencies and an `all-android` feature set; it is not
+the recovered complete source identity of the installed binary. Merely building
+that fork would not establish ABI/library/protection parity. No new VMM was
+built, substituted or launched in this experiment.
+
+[Sanitized FD experiment](data/preallocated-ram-experiment-2026-10-19.json).
 
 ## Evidence from the actual saved VMM
 
