@@ -129,6 +129,7 @@ extra_tools = []
 if a.allocation_research:
     inputs += [root / "tools/owned_page_summary.h", root / "tools/probe_watchdog.h"]
     inputs += [root / "tools/shmem_refault_probe.h"]
+    inputs += [root / "tools/allocation_probe_limits.h"]
     extra_tools += [
         ("backing_allocation_probe.c", "backing-allocation-probe"),
         ("owned_cache_probe.c", "owned-cache-probe"),

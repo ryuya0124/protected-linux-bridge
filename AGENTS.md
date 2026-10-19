@@ -53,3 +53,14 @@ other host/global setting, defrag/compaction/cache-drop write, anonymous THP
 setting, kernel/module/partition/SELinux/protection change, or Android restart.
 Keep all existing Debian disks and unrelated VMs protected as above. The released
 APK must not silently adopt this global policy change.
+
+## Developer diagnostic RAM cap: user update, 2026-10-19
+
+- The current user limit is **6 GiB maximum**, including explicitly allocated
+  probe RAM, its resident allocation target and reserved execution headroom.
+- The removed 8 GiB pressure mode must be rejected before allocating anything.
+- Keep memory-probe configured RAM at or below this cap and continue to serialize
+  owned VM/allocation tests through the common owner lock.
+- The allocation helper now stops starting batches below 1536 MiB MemAvailable;
+  the older 512 MiB floor describes historical trials only. Do not lower it to
+  bypass a refusal or change another process's OOM protection.

@@ -562,5 +562,18 @@
       "all_three_policies_restored": true,
       "guest_memtotal_kib": 1468784
     }
-  ]
+  ],
+  "current_diagnostic_ram_cap_mib": 6144,
+  "current_pressure_mapping_cap_mib": 6112,
+  "current_pressure_available_floor_mib": 1536,
+  "removed_8g_mode_rejected": true,
+  "reconnection_check": {
+    "host_boot_unchanged": true,
+    "selinux_enforcing": true,
+    "main_systemui_continuous_runtime_minutes_approx": 1721,
+    "main_systemui_recent_restart_observed": false,
+    "tailadb_application_low_memory_exit_recorded": true,
+    "systemui_screenshot_auxiliary_low_memory_exit_recorded": true,
+    "final_adb_disconnect_cause_confirmed": false
+  }
 }

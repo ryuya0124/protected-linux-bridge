@@ -260,3 +260,35 @@ from the previous commit and current source with the same flags/generated setup;
 after stripping symbols and omitting build IDs, the two binaries were byte-identical.
 Thus the compile-time diagnostic branches do not change that ordinary profile.
 No replacement APK is published as a large-memory fix.
+
+## Reconnection check and current six-GiB cap
+
+After reconnecting on 2026-10-19, the Galaxy retained the same boot ID and SELinux
+Enforcing. The main SystemUI process had run continuously for about 28 hours
+41 minutes, and system_server/zygote were similarly long-lived. This does not
+show a new host or main-SystemUI restart during the recent memory tests.
+Application-exit history did record LOW_MEMORY for Tail ADB's application process
+and SystemUI's separate screenshot process at 15:09. Those records precede the
+last transport loss, so its direct cause is not established. The screenshot
+auxiliary process must not be confused with SystemUI's main process. A historical
+boot-reason property alone is not a new reboot record. Raw process/exit logs stay
+private.
+
+The user's updated diagnostic limit is **6 GiB**. New allocation helpers reject
+`reclaim-8g` and unknown pressure modes before allocating a probe target. For the
+`reclaim-6g` name, the combined budget includes a 16 MiB resident target and a
+16 MiB execution reserve, leaving at most **6112 MiB** for the pressure mapping.
+The 4 GiB mode uses the same accounting. A partial final 64 MiB batch is bounded
+to its remaining bytes and readback never walks past that mapping.
+
+New pressure runs stop starting batches below **1536 MiB MemAvailable**, replacing
+the historical 512 MiB floor. This reduces pressure; it cannot promise that
+Android will never reclaim another background app. Nothing changes another
+process's OOM protection. Current diskless VM profiles top out at 5120 MiB and
+remain serialized with allocation tests; no new larger profile is enabled.
+
+The previous **6144 MiB pressure workload** with zero sampled readback errors
+remains a historical measurement. The more conservative replacement has a lower
+maximum workload to respect the combined six-GiB budget. Host allocation, VMM
+RSS, configured guest RAM and successful guest-resident workload remain separate
+measurements; the largest completed guest workload remains **1536 MiB**.

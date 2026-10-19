@@ -1,7 +1,8 @@
 /* MIT. Small, process-local backing allocation experiment; no VM or device ioctl.
  * Default: 16 MiB, one short-range check and two owned 2 MiB collapse requests.
- * Explicit detached/reclaim-4g mode additionally touches/frees at most 4 GiB (6 GiB with explicit
- * reclaim-6g or reclaim-8g). A direct parent watchdog supervises only its own worker. No sysfs,
+ * Explicit detached/reclaim-4g or reclaim-6g mode uses a combined 4/6 GiB budget
+ * including the 16 MiB target and execution headroom. No larger mode is accepted.
+ * A direct parent watchdog supervises only its own worker. No sysfs,
  * global compaction, THP policy, kernel, partition or protection setting writes.
  */
 #define _GNU_SOURCE
@@ -24,6 +25,7 @@
 #include "owned_page_summary.h"
 #include "probe_watchdog.h"
 #include "shmem_refault_probe.h"
+#include "allocation_probe_limits.h"
 #ifndef MADV_COLLAPSE
 #define MADV_COLLAPSE 25
 #endif
@@ -240,7 +242,6 @@ static int bounded_reclaim_trial(size_t cap) {
     if (!ok) {
         return -1;
     }
-    const size_t batch = 64UL * 1024 * 1024;
     unsigned char *pressure =
         mmap(NULL, cap, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (pressure == MAP_FAILED) {
@@ -248,11 +249,14 @@ static int bounded_reclaim_trial(size_t cap) {
         return -1;
     }
     size_t touched = 0;
-    for (; touched < cap; touched += batch) {
-        if (available_kib() < 512UL * 1024) {
+    while (touched < cap) {
+        if (available_kib() < PLB_PROBE_AVAILABLE_FLOOR_KIB) {
             break;
         }
-        for (size_t page = touched; page < touched + batch; page += 4096) {
+        size_t end = touched + plb_pressure_chunk(touched, cap);
+        if (end <= touched)
+            break;
+        for (size_t page = touched; page < end; page += 4096) {
             uint64_t state = 0x9e3779b97f4a7c15ULL ^ (page / 4096);
             uint64_t *words = (uint64_t *)(pressure + page);
             for (size_t word = 0; word < 4096 / sizeof(*words); word++) {
@@ -260,9 +264,10 @@ static int bounded_reclaim_trial(size_t cap) {
                 words[word] = state;
             }
         }
-        if ((touched + batch) % (256UL * 1024 * 1024) == 0) {
-            printf("PLB_PRESSURE_PROGRESS mib=%zu available_kib=%lu\n",
-                   (touched + batch) / (1024 * 1024), available_kib());
+        touched = end;
+        if (touched % (256UL * 1024 * 1024) == 0 || touched == cap) {
+            printf("PLB_PRESSURE_PROGRESS mib=%zu available_kib=%lu\n", touched / (1024 * 1024),
+                   available_kib());
             fflush(stdout);
         }
     }
@@ -288,9 +293,8 @@ int main(int argc, char **argv) {
          strcmp(argv[1], "shared-refault")))
         return 20;
     int reclaim = argc == 3;
-    if (reclaim && (strcmp(argv[1], "detached") ||
-                    (strcmp(argv[2], "reclaim-4g") && strcmp(argv[2], "reclaim-6g") &&
-                     strcmp(argv[2], "reclaim-8g")))) {
+    size_t pressure_bytes = reclaim ? plb_pressure_limit(argv[2]) : 0;
+    if (reclaim && (strcmp(argv[1], "detached") || !pressure_bytes)) {
         return 20;
     }
     int owner_lock = diagnostic_owner_lock();
@@ -319,7 +323,7 @@ int main(int argc, char **argv) {
     signal(SIGALRM, SIG_DFL);
     alarm(reclaim ? 25 : 10);
     printf("PLB_ALLOCATION_CONTEXT thp_disabled=%d\n", prctl(PR_GET_THP_DISABLE, 0, 0, 0, 0));
-    const size_t size = 16 * 1024 * 1024, huge = 2 * 1024 * 1024;
+    const size_t size = PLB_PROBE_TARGET_BYTES, huge = 2 * 1024 * 1024;
     int shared = strcmp(argv[1], "anon") != 0;
     int fd = -1;
     if (shared) {
@@ -358,10 +362,7 @@ int main(int argc, char **argv) {
         accounting("refaulted");
         owned_page_flags(map, size);
     }
-    size_t pressure_mib = reclaim && !strcmp(argv[2], "reclaim-8g")   ? 8192
-                          : reclaim && !strcmp(argv[2], "reclaim-6g") ? 6144
-                                                                      : 4096;
-    if (reclaim && bounded_reclaim_trial(pressure_mib * 1024UL * 1024)) {
+    if (reclaim && bounded_reclaim_trial(pressure_bytes)) {
         munmap(map, size);
         if (fd >= 0) {
             close(fd);
