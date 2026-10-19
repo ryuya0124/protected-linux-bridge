@@ -26,6 +26,7 @@
 #include "probe_watchdog.h"
 #include "shmem_refault_probe.h"
 #include "allocation_probe_limits.h"
+#include "host_memory_health.h"
 #ifndef MADV_COLLAPSE
 #define MADV_COLLAPSE 25
 #endif
@@ -296,6 +297,10 @@ int main(int argc, char **argv) {
     size_t pressure_bytes = reclaim ? plb_pressure_limit(argv[2]) : 0;
     if (reclaim && (strcmp(argv[1], "detached") || !pressure_bytes)) {
         return 20;
+    }
+    if (!plb_host_memory_healthy()) {
+        fprintf(stderr, "PLB_ALLOCATION_REJECTED host_memory_warning=1\n");
+        return 28;
     }
     int owner_lock = diagnostic_owner_lock();
     if (owner_lock < 0) {

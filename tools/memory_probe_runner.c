@@ -16,6 +16,7 @@
 #define FILES "/data/user/0/net.ryuya_dev.protectedlinux/files"
 #define PLB_OWNER_LOCK_FILE FILES "/vm-owner.lock"
 #include "diagnostic_owner_lock.h"
+#include "host_memory_health.h"
 static volatile sig_atomic_t stopping;
 static void stop(int signal) {
     (void)signal;
@@ -100,19 +101,30 @@ int main(int argc, char **argv) {
     int dump_fdt = argc >= 7 ? number(argv[6]) : 0;
     int rounds = argc >= 8 ? number(argv[7]) : 1;
     int discard = argc == 9 ? number(argv[8]) : 0;
-    int prepared_large = (anonymous == 6 || anonymous == 7 || anonymous == 8) && huge == 1 &&
-                         rounds == 1 && !discard && !dump_fdt &&
-                         ((mem == 2048 && touch == 1536) || (mem == 4096 && touch == 3072) ||
-                          (mem == 5120 && touch == 4096));
+    int prepared_large =
+        (anonymous == 6 || anonymous == 7 || anonymous == 8 || anonymous == 9 || anonymous == 10) &&
+        huge == 1 && rounds == 1 && !discard && !dump_fdt &&
+        ((mem == 2048 && touch == 1536) || (mem == 4096 && touch == 3072) ||
+         (mem == 5120 && touch == 4096) || (mem == 3072 && touch == 2048) ||
+         (mem == 4480 && touch == 4096));
     int lazy_large = mem == 4096 && touch <= 256 && !anonymous && !huge;
     if (!kernel ||
-        (mem != 512 && mem != 768 && mem != 1024 && mem != 2048 && mem != 4096 && mem != 5120) ||
-        touch < 64 || touch > mem - 64 || huge < 0 || huge > 1 || anonymous < 0 || anonymous > 8 ||
+        (mem != 512 && mem != 768 && mem != 1024 && mem != 2048 && mem != 3072 && mem != 4096 &&
+         mem != 4480 && mem != 5120) ||
+        touch < 64 || touch > mem - 64 || huge < 0 || huge > 1 || anonymous < 0 || anonymous > 10 ||
         dump_fdt < 0 || dump_fdt > 1 || (dump_fdt && anonymous) || rounds < 1 || rounds > 8 ||
         touch * rounds > (prepared_large ? 4096 : 3072) || discard < 0 || discard > 1 ||
         (discard && rounds < 2) || (anonymous >= 5 && !huge) ||
         (mem >= 2048 && !prepared_large && !lazy_large))
         return 21;
+    if (!plb_host_memory_healthy()) {
+        fprintf(stderr, "PLB_MEMORY_REJECTED host_memory_warning=1\n");
+        return 31;
+    }
+    if (anonymous >= 6) {
+        fprintf(stderr, "PLB_MEMORY_REJECTED mapped_refault_retired=1\n");
+        return 32;
+    }
     if (anonymous) {
         struct stat library, copy;
         if (lstat(FILES "/kernel-probes/libmemory_backing_probe.so", &library) ||
@@ -149,7 +161,9 @@ int main(int argc, char **argv) {
                                        "shared-upper-huge",
                                        "shared-upper-refault",
                                        "shared-upper-collapse",
-                                       "shared-upper-locked"};
+                                       "shared-upper-locked",
+                                       "shared-middle-refault",
+                                       "shared-middle-reverse-refault"};
         if (anonymous &&
             (setenv("LD_PRELOAD", FILES "/kernel-probes/libmemory_backing_probe.so", 1) ||
              setenv("PLB_DISKLESS_BACKING_PROBE", backing_modes[anonymous], 1) ||

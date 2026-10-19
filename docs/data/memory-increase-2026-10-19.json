@@ -1,0 +1,132 @@
+{
+  "date": "2026-10-19",
+  "overall_diagnostic_cap_mib": 6144,
+  "preparation_mapping_cap_mib": 6112,
+  "preparation_available_floor_mib": 1536,
+  "ordinary_preparation": {
+    "touched_mib": 6112,
+    "sampled_readback_errors": 0,
+    "released_available_kib": 7999096
+  },
+  "trials": [
+    {
+      "trial_id": "20261019T085123.903630Z",
+      "configured_memory_mib": 5120,
+      "requested_workload_mib": 4096,
+      "base_page_tail": false,
+      "reverse_middle": false,
+      "complete": false,
+      "vcpu_failure": true,
+      "last_write_progress_mib": 448,
+      "full_workload_readback_verified": false,
+      "host_boundary_unchanged": true,
+      "host_policy_restored": true,
+      "new_bad_page_cache_messages_in_captured_kernel_tail": 0,
+      "failure_kind": "address-map-nomem-10",
+      "last_backing_sample": {
+        "sampled_pages": 1286144,
+        "present_pages": 1285000,
+        "thp_pages": 712092,
+        "compound_heads": 156253,
+        "compound_tails": 555839,
+        "flag_read_errors": 0
+      },
+      "max_observed_vmm_rss_kib": 5202896
+    },
+    {
+      "trial_id": "20261019T085418.280550Z",
+      "configured_memory_mib": 512,
+      "requested_workload_mib": 256,
+      "base_page_tail": true,
+      "reverse_middle": true,
+      "complete": true,
+      "vcpu_failure": false,
+      "last_write_progress_mib": 256,
+      "full_workload_readback_verified": true,
+      "host_boundary_unchanged": true,
+      "host_policy_restored": true,
+      "new_bad_page_cache_messages_in_captured_kernel_tail": 0,
+      "failure_kind": "none-or-unclassified",
+      "last_backing_sample": {
+        "sampled_pages": 90112,
+        "present_pages": 90112,
+        "thp_pages": 90112,
+        "compound_heads": 5632,
+        "compound_tails": 84480,
+        "flag_read_errors": 0
+      },
+      "verified_resident_mib": 256,
+      "max_observed_vmm_rss_kib": 542332
+    },
+    {
+      "trial_id": "20261019T085535.606793Z",
+      "configured_memory_mib": 3072,
+      "requested_workload_mib": 2048,
+      "base_page_tail": true,
+      "reverse_middle": false,
+      "complete": false,
+      "vcpu_failure": true,
+      "last_write_progress_mib": 1792,
+      "full_workload_readback_verified": false,
+      "host_boundary_unchanged": true,
+      "host_policy_restored": true,
+      "new_bad_page_cache_messages_in_captured_kernel_tail": 0,
+      "failure_kind": "address-map-nomem-10",
+      "last_backing_sample": {
+        "sampled_pages": 745472,
+        "present_pages": 745472,
+        "thp_pages": 745472,
+        "compound_heads": 139173,
+        "compound_tails": 606299,
+        "flag_read_errors": 0
+      },
+      "max_observed_vmm_rss_kib": 3164336
+    },
+    {
+      "trial_id": "20261019T085721.534021Z",
+      "configured_memory_mib": 3072,
+      "requested_workload_mib": 2048,
+      "base_page_tail": true,
+      "reverse_middle": true,
+      "complete": false,
+      "vcpu_failure": true,
+      "last_write_progress_mib": null,
+      "full_workload_readback_verified": false,
+      "host_boundary_unchanged": true,
+      "host_policy_restored": true,
+      "new_bad_page_cache_messages_in_captured_kernel_tail": 242,
+      "failure_kind": "donation-not-owner-111",
+      "last_backing_sample": {
+        "sampled_pages": 745472,
+        "present_pages": 745472,
+        "thp_pages": 745472,
+        "compound_heads": 109036,
+        "compound_tails": 636436,
+        "flag_read_errors": 0
+      },
+      "max_observed_vmm_rss_kib": 3128288
+    }
+  ],
+  "largest_full_guest_readback_mib_historical": 1536,
+  "resident_4g_goal_achieved": false,
+  "new_vm_trials_stopped_after_host_page_warning": true,
+  "host_bad_page_taint_bit_observed_after_trial": true,
+  "taint_clear_baseline_asserted": false,
+  "mapped_shmem_hole_punch_retired": true,
+  "production_hotfix": "0.4.0-preview.6",
+  "future_large_launches_refuse_bad_page_or_oops_taint": true,
+  "hotfix_validation": {
+    "python_native_tests": 126,
+    "jvm_tests": 27,
+    "release_lint_passed": true,
+    "production_library_excludes_retired_helper": true,
+    "signed_release_matches_previous_certificate": true,
+    "bad_host_policy_supervisor_exit": 38,
+    "bad_host_diskless_runner_exit": 31,
+    "bad_host_allocation_exit": 28,
+    "bad_host_android_diagnostic_exit": 42,
+    "bad_host_android_app_check_exit": 42,
+    "all_guard_checks_refused_before_load": true,
+    "changed_prefault_only_android_boot_verified": false
+  }
+}

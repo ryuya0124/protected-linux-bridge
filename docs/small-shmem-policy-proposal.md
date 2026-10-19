@@ -1,5 +1,11 @@
 # Approved small-shmem folio trial
 
+**Later safety update:** a reverse mapped-hole-punch trial produced host
+`Bad page cache` warnings. That helper is retired and the current host boot is
+not used for further load. Preview.6 removes it from the app and refuses large
+starts on BAD_PAGE/OOPS taint. Commands/results below are historical, not an
+instruction to replay the retired path. [Follow-up and safeguards](memory-increase-2026-10-19.md).
+
 **Explicitly approved by the user on 2026-10-19 for the three bounded settings
 below.** At approval, only mock files and read-only plans had been exercised.
 The measured results below distinguish host folio creation from VM success.

@@ -1,5 +1,15 @@
 # Android guest display investigation
 
+## Preview.6 memory safety update
+
+Further large-memory trials exposed host `Bad page cache` warnings during mapped
+shmem hole punching. Preview.6 retires that method, uses prefault-only admission
+in the app and refuses the guarded large profile on BAD_PAGE/OOPS-tainted hosts.
+The current phone is refused before policy changes or VM launch. The changed
+1.5 GiB path is not boot-validated; earlier successful home screenshots belong to
+the older runtime. The existing 512 MiB choice/disks remain available.
+[Full follow-up and limits](memory-increase-2026-10-19.md).
+
 ## Integrated 1.5 GiB selection (0.4.0-preview.5)
 
 Settings → Android 17 guest → Open now offers **1.5 GiB** and the previous

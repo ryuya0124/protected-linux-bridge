@@ -49,6 +49,7 @@ final class AndroidGuestRuntime {
       case 39 -> R.string.android_guest_large_unsupported;
       case 40 -> R.string.android_guest_preparation_failed;
       case 41 -> R.string.android_guest_process_isolation_failed;
+      case 42 -> R.string.android_guest_host_memory_warning;
       case 89 -> R.string.android_guest_fragmented;
       case 124 -> R.string.android_guest_session_ended;
       default -> R.string.android_guest_root_error;

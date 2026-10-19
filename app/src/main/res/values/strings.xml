@@ -174,7 +174,7 @@ plb-udp-forward 5353 1.1.1.1 53 forwards guest localhost:5353 to the specified U
   <string name="storage_no_space">Not enough Android free space for the working and final copies.</string>
   <string name="storage_failed">Disk operation did not complete. The original is retained. Check private storage logs before retrying; an interrupted promotion is recovered at next start.</string>
   <string name="android_guest_title">Android 17 guest · experimental</string>
-  <string name="android_guest_description">Run a separate Android 17 VM with 1.5 GiB or the original 512 MiB. Two CPUs, 480 × 800, software rendering. Short 1.5 GiB boot and home-screen tests passed, but startup depends on available memory backing. Prepared OS images are required.</string>
+  <string name="android_guest_description">Run a separate Android 17 VM with 1.5 GiB or the original 512 MiB. Two CPUs, 480 × 800, software rendering. The older 1.5 GiB runtime reached home, but its refault method was retired after a host page-cache warning. The current prefault-only runtime is not boot-validated and refuses known host page errors. Prepared OS images are required.</string>
   <string name="android_guest_open">Open Android guest</string>
   <string name="android_guest_starting">Starting Android 17 guest… First boot may take several minutes.</string>
   <string name="android_guest_connected">Android 17 · experimental · %1$s · slow frame capture</string>
@@ -190,7 +190,7 @@ plb-udp-forward 5353 1.1.1.1 53 forwards guest localhost:5353 to the specified U
   <string name="android_guest_close">Close</string>
   <string name="android_guest_integrity">The guest kernel or ramdisk hash does not match the tested profile. Launch was refused.</string>
   <string name="android_guest_headroom">Not enough free host memory to launch this VM safely. Close other apps and retry.</string>
-  <string name="android_guest_launch_conditions">The 1.5 GiB mode temporarily uses up to 6 GiB of RAM during preparation. Background apps may be reclaimed. Startup changes the host-wide 16/32/64 KiB shmem THP settings to advise for about 10 seconds, then restores them. An independent guardian attempts restoration at its 40-second deadline on failure.\n\nOn first use, the existing Android disks are copied. Later data is stored separately from the 512 MiB profile. Debian is stopped and its disks are preserved. Closing this viewer stops only this VM. Maximum session: 30 minutes. Guest networking, audio, physical USB and hardware graphics are not supported.</string>
+  <string name="android_guest_launch_conditions">The 1.5 GiB mode refuses startup if host page-management failures are recorded. The 1.5 GiB mode temporarily uses up to 6 GiB of RAM during preparation. Background apps may be reclaimed. Startup changes the host-wide 16/32/64 KiB shmem THP settings to advise for about 10 seconds, then restores them. An independent guardian attempts restoration at its 40-second deadline on failure.\n\nOn first use, the existing Android disks are copied. Later data is stored separately from the 512 MiB profile. Debian is stopped and its disks are preserved. Closing this viewer stops only this VM. Maximum session: 30 minutes. Guest networking, audio, physical USB and hardware graphics are not supported.</string>
   <string name="android_guest_memory_label">Android guest memory</string>
   <string name="android_guest_preparing">Preparing Android guest memory… (maximum allocation budget: 6 GiB)</string>
   <string name="android_guest_profile_copy_failed">Could not prepare the 1.5 GiB disk copy. The original 512 MiB disks are retained. Check available storage and logs.</string>
@@ -201,4 +201,5 @@ plb-udp-forward 5353 1.1.1.1 53 forwards guest localhost:5353 to the specified U
   <string name="android_guest_policy_consent">Review the startup conditions and launch from the Android guest screen in this app.</string>
   <string name="android_guest_process_isolation_failed">Cannot isolate the VM controller from the cached-app freezer. The guarded VM was not started.</string>
   <string name="android_guest_session_ended">The Android guest session ended. Open it again to start a new session.</string>
+  <string name="android_guest_host_memory_warning">The host has recorded a page-management failure. This large-memory session was not started. Host settings and existing VM disks were left unchanged.</string>
 </resources>

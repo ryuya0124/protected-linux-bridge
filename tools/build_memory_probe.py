@@ -118,6 +118,8 @@ inputs = [
     root / "tools/memory_probe_runner.c",
     root / "tools/memory_backing_probe.c",
     root / "tools/backing_order_summary.h",
+    root / "tools/backing_page_order.h",
+    root / "tools/host_memory_health.h",
     root / "native/profile_lock.h",
     root / "tools/diagnostic_owner_lock.h",
     binary,

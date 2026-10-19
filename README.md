@@ -23,7 +23,7 @@ Android標準の「ターミナル」から、Snapdragon / Gunyahの保護VM上�
 - クリップボードの手動共有、任意でバックグラウンド双方向共有
 - 有線・USB・Bluetooth音声の接続先選択（実物の周辺機器では未検証）
 - 既存Microdroidと、独立したディスクを使う実験用Linux 6.18ゲストの選択
-- Android 17ゲストの画面表示プレビュー（1.5GiB／従来の512MiBを選択。事前準備・root・起動時の確認が必要。[使い方と制限](docs/android-guest-display.md#integrated-15-gib-selection-040-preview5)）
+- Android 17ゲストの画面表示プレビュー（1.5GiB／従来の512MiBを選択。事前準備・root・起動時の確認が必要。v0.4.0-preview.6はホストのページ管理エラーを検出すると1.5GiBを起動しません。[使い方と制限](docs/android-guest-display.md#integrated-15-gib-selection-040-preview5)）
 - Material 3の「ホーム」「画面」「連携」「設定」、root・Vectorの状態表示、VM停止
 
 Android上のchrootやPRootではなく、独立したカーネルの実行インスタンスを持つVMです。Android本体のカーネルは変更せず、端末に元からあるAVF用Microdroidカーネルファイルをゲストとして起動します。実験用プロファイルでは、専用領域のLinux 6.18.57-plb1をゲストとして起動します。AndroidのAVBと、ゲストカーネルの起動は別です。ただし、この経路は **pvmfwによる検証済み起動・アテステーションを提供しません**。通常の検証済みAVFゲストと同じ保証はありません。

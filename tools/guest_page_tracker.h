@@ -34,4 +34,15 @@ static void plb_guest_page_observe(struct plb_guest_page_scan *scan, uint64_t en
         scan->new_pages++;
     }
 }
+/* Only relative 256 MiB guest-RAM bands are emitted, never host or guest PFNs.
+ * These fixed guests start RAM at 2 GiB and reserve no RAM above 32 GiB. */
+#define PLB_GUEST_RAM_BANDS 120
+static inline int plb_guest_page_band(uint64_t entry, size_t page_size) {
+    if (!(entry & (1ULL << 63)) || (page_size != 4096 && page_size != 16384))
+        return -1;
+    uint64_t pfn = entry & ((1ULL << 55) - 1);
+    if (pfn < (2ULL << 30) / page_size || pfn >= (32ULL << 30) / page_size)
+        return -1;
+    return (int)((pfn * page_size - (2ULL << 30)) / (256ULL << 20));
+}
 #endif

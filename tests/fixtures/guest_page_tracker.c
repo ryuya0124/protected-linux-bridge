@@ -3,6 +3,12 @@
 #include <assert.h>
 
 int main(void) {
+    assert(plb_guest_page_band((1ULL << 63) | ((2ULL << 30) / 4096), 4096) == 0);
+    assert(plb_guest_page_band((1ULL << 63) | ((3ULL << 30) / 16384), 16384) == 4);
+    assert(plb_guest_page_band((1ULL << 63) | ((32ULL << 30) / 4096), 4096) == -1);
+    assert(plb_guest_page_band((1ULL << 63) | ((1ULL << 30) / 4096), 4096) == -1);
+    assert(plb_guest_page_band(0, 4096) == -1);
+    assert(plb_guest_page_band((1ULL << 63) | ((2ULL << 30) / 4096), 8192) == -1);
     unsigned char guarded[] = {0xA5, 0, 0, 0x5A};
     unsigned char *seen = guarded + 1;
     const uint64_t present = 1ULL << 63;

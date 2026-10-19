@@ -1,5 +1,17 @@
 # Guarded Android 17 / 1.5 GiB app profile
 
+## Current preview.6 safety update
+
+The larger follow-up found host `Bad page cache` warnings in the mapped-hole-punch
+experiment. Preview.6 removes that operation from the production library and
+retires the diagnostic helper. The app now uses prefault-only admission and
+refuses large starts if the host has BAD_PAGE/OOPS taint. The current phone refuses
+this mode; no further load is run in this host session. The changed mode is not
+boot-validated on a clean session. The successful preview.5 sessions below are
+historical, not evidence for the new path. [Investigation and measured limits](memory-increase-2026-10-19.md).
+
+## Historical preview.5 integration
+
 Status: 2026-10-19, 0.4.0-preview.5. Native runtime validation passed;
 the phone remains locked, so the app selection/viewer screen is not yet verified. The prior
 standalone 1536 MiB diagnostic reached Android boot completion and Launcher3 home

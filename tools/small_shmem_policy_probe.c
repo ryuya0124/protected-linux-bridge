@@ -22,6 +22,7 @@
 #define FILES "/data/user/0/net.ryuya_dev.protectedlinux/files"
 #define PLB_OWNER_LOCK_FILE FILES "/vm-owner.lock"
 #include "../native/profile_lock.h"
+#include "host_memory_health.h"
 
 #ifdef PLB_POLICY_MOCK
 #define APPLY_OPTION "--run-mock"
@@ -63,6 +64,13 @@ static const struct vm_stage vm_stages[] = {
     {"--vm-5120-4096-boot-safe-refault-collapse", "5120", "4096", "7", 5888},
     {"--vm-5120-4096-boot-safe-refault-locked", "5120", "4096", "8", 5888},
     {"--vm-512-256-boot-safe-refault-locked", "512", "256", "8", 1280},
+    {"--vm-512-256-boot-safe-refault-middle", "512", "256", "9", 1280},
+    {"--vm-2048-1536-boot-safe-refault-middle", "2048", "1536", "9", 2816},
+    {"--vm-3072-2048-boot-safe-refault-middle", "3072", "2048", "9", 3840},
+    {"--vm-4480-4096-boot-safe-refault-middle", "4480", "4096", "9", 5248},
+    {"--vm-512-256-boot-safe-refault-middle-reverse", "512", "256", "10", 1280},
+    {"--vm-3072-2048-boot-safe-refault-middle-reverse", "3072", "2048", "10", 3840},
+    {"--vm-4480-4096-boot-safe-refault-middle-reverse", "4480", "4096", "10", 5248},
 };
 static volatile sig_atomic_t interrupted;
 static void stop(int number) {
@@ -200,6 +208,14 @@ int main(int argc, char **argv) {
     __system_property_get("ro.build.version.sdk", sdk);
     if (strcmp(model, "SM-S948Q") || strcmp(sdk, "36"))
         return 21;
+    if (strcmp(argv[1], "--plan") && !plb_host_memory_healthy()) {
+        fprintf(stderr, "PLB_POLICY_REJECTED host_memory_warning=1\n");
+        return 38;
+    }
+    if ((android || (stage && atoi(stage->backing) >= 6)) && strcmp(argv[1], "--plan")) {
+        fprintf(stderr, "PLB_POLICY_REJECTED mapped_refault_retired=1\n");
+        return 39;
+    }
     char boot[80] = {0};
     int fd = open("/proc/sys/kernel/random/boot_id", O_RDONLY | O_CLOEXEC);
     if (fd < 0)

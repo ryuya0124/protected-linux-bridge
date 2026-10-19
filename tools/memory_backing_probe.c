@@ -24,8 +24,11 @@
 #include <sys/ioctl.h>
 #include <stdarg.h>
 #include "backing_order_summary.h"
+#include "backing_page_order.h"
 #include "owned_page_summary.h"
+#ifndef PLB_ANDROID_LARGE_BACKING
 #include "shmem_refault_probe.h"
+#endif
 #ifndef MADV_COLLAPSE
 #define MADV_COLLAPSE 25
 #endif
@@ -217,7 +220,7 @@ __attribute__((constructor)) static void initialize(void) {
          strcmp(mode, "shared-forward") && strcmp(mode, "shared-reverse") &&
          strcmp(mode, "shared-upper-huge") && strcmp(mode, "shared-upper-refault") &&
          strcmp(mode, "shared-upper-collapse") && strcmp(mode, "shared-middle-refault") &&
-         strcmp(mode, "shared-upper-locked")) ||
+         strcmp(mode, "shared-upper-locked") && strcmp(mode, "shared-middle-reverse-refault")) ||
         getuid() || stat("/proc/self/exe", &actual) ||
         stat(
 #ifdef PLB_ANDROID_LARGE_BACKING
@@ -231,14 +234,16 @@ __attribute__((constructor)) static void initialize(void) {
         _exit(79);
     enabled = 1;
     lock_backing = !strcmp(mode, "shared-upper-locked");
-    tail_safe = !strcmp(mode, "shared-middle-refault");
+    tail_safe =
+        !strcmp(mode, "shared-middle-refault") || !strcmp(mode, "shared-middle-reverse-refault");
     collapse_backing = !strcmp(mode, "shared-upper-collapse");
     refault_small =
         lock_backing || tail_safe || collapse_backing || !strcmp(mode, "shared-upper-refault");
     boot_safe = refault_small || !strcmp(mode, "shared-upper-huge");
     shared_backing =
         boot_safe || !strcmp(mode, "shared-forward") || !strcmp(mode, "shared-reverse");
-    reverse_order = collapse_backing || !strcmp(mode, "shared-reverse");
+    reverse_order = collapse_backing || !strcmp(mode, "shared-reverse") ||
+                    !strcmp(mode, "shared-middle-reverse-refault");
     prefault = shared_backing || !strcmp(mode, "anonymous-prefault");
     /* Do not propagate this experiment through a later exec. */
     unsetenv("LD_PRELOAD");
@@ -259,6 +264,10 @@ static int sample_order(void *mapping, size_t size) {
     size_t pages = size / 4096;
     struct plb_backing_order summary = {0};
     struct plb_page_summary folios = {0};
+#ifndef PLB_ANDROID_LARGE_BACKING
+    struct plb_page_summary bands[24] = {0};
+    const size_t band_pages = 256UL * 1024 * 1024 / 4096;
+#endif
     int flags_fd = open("/proc/kpageflags", O_RDONLY | O_CLOEXEC);
     for (size_t at = 0; at < pages; at += 512) {
         size_t count = pages - at < 512 ? pages - at : 512;
@@ -277,6 +286,11 @@ static int sample_order(void *mapping, size_t size) {
             int valid = present && pfn && flags_fd >= 0 &&
                         pread(flags_fd, &flags, 8, (off_t)(pfn * 8)) == 8;
             plb_page_observe(&folios, present, pfn != 0, pfn, valid, flags);
+#ifndef PLB_ANDROID_LARGE_BACKING
+            size_t band = (at + i) / band_pages;
+            if (band < 24)
+                plb_page_observe(&bands[band], present, pfn != 0, pfn, valid, flags);
+#endif
         }
     }
     close(input);
@@ -294,6 +308,13 @@ static int sample_order(void *mapping, size_t size) {
             folios.compound_tails, folios.flag_errors,
             !((uintptr_t)mapping & ((2UL * 1024 * 1024) - 1)),
             ((uintptr_t)mapping & ((2UL * 1024 * 1024) - 1)) ? 0 : folios.sampled_2m_folios);
+#ifndef PLB_ANDROID_LARGE_BACKING
+    for (size_t band = 0; band < 24 && bands[band].samples; band++)
+        dprintf(STDERR_FILENO,
+                "PLB_BACKING_BAND offset_mib=%zu sampled=%zu present=%zu thp=%zu heads=%zu\n",
+                band * 256, bands[band].samples, bands[band].present, bands[band].thp_pages,
+                bands[band].compound_heads);
+#endif
     return plb_page_all_thp(&folios, pages);
 }
 
@@ -435,7 +456,8 @@ static void *map_memory(void *address, size_t size, int prot, int flags, int fd,
             size_t first_page = boot_safe ? BOOT_BASE_PAGES / 4096 : 0;
             size_t page_count = (size - BOOT_TAIL_PAGES) / 4096 - first_page;
             for (size_t page = 0; page < page_count; page++) {
-                size_t at = (reverse_order ? size / 4096 - 1 - page : first_page + page) * 4096;
+                size_t at =
+                    plb_backing_page_index(first_page, page_count, page, reverse_order) * 4096;
                 unsigned char value = bytes[at];
                 bytes[at] = value;
             }
@@ -443,23 +465,26 @@ static void *map_memory(void *address, size_t size, int prot, int flags, int fd,
                     "PLB_BACKING_PREFAULTED size=%zu alignment=%zu shared=%d reverse=%d\n", size,
                     (size_t)((uintptr_t)mapping & ((2UL * 1024 * 1024) - 1)), shared_backing,
                     reverse_order);
-            sample_order(boot_safe ? (char *)mapping + BOOT_BASE_PAGES : mapping,
-                         boot_safe ? size - BOOT_BASE_PAGES - BOOT_TAIL_PAGES : size);
+            int suitable =
+                sample_order(boot_safe ? (char *)mapping + BOOT_BASE_PAGES : mapping,
+                             boot_safe ? size - BOOT_BASE_PAGES - BOOT_TAIL_PAGES : size);
+#ifdef PLB_ANDROID_LARGE_BACKING
+            /* Do not hole-punch a mapped shmem folio. The diagnostic reverse
+             * comparison exposed a host page-cache accounting failure. */
+            if (!suitable) {
+                dprintf(STDERR_FILENO, "ANDROID_BACKING_UNSUITABLE\n");
+                _exit(89);
+            }
+            dprintf(STDERR_FILENO, "ANDROID_BACKING_ADMITTED prefault_only=1\n");
+#else
+            (void)suitable;
             if (refault_small) {
                 void *upper = (char *)mapping + BOOT_BASE_PAGES;
                 size_t upper_size = size - BOOT_BASE_PAGES - BOOT_TAIL_PAGES;
                 if (plb_refault_owned_shmem(fd, upper, upper_size, BOOT_BASE_PAGES, 4))
                     _exit(82);
-                int suitable = sample_order(upper, upper_size);
-#ifdef PLB_ANDROID_LARGE_BACKING
-                if (!suitable) {
-                    dprintf(STDERR_FILENO, "ANDROID_BACKING_UNSUITABLE\n");
-                    _exit(89);
-                }
-#else
-                (void)suitable;
-#endif
             }
+#endif
         }
     }
 

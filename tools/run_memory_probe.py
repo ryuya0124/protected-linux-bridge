@@ -112,12 +112,23 @@ def workload_budget_mib(
     memory, touch, rounds, private_backing=False, hugepages=False, discard=False, prepared=False
 ):
     """Bound diagnostic coverage; large address reservations never imply residency."""
-    if memory not in (512, 768, 1024, 2048, 4096, 5120) or not 64 <= touch <= memory - 64:
+    if (
+        memory not in (512, 768, 1024, 2048, 3072, 4096, 4480, 5120)
+        or not 64 <= touch <= memory - 64
+    ):
         raise ValueError("Unsupported memory size or insufficient guest-kernel allowance")
     if prepared:
         if (
             (memory, touch)
-            not in ((512, 256), (1024, 768), (2048, 1536), (4096, 3072), (5120, 4096))
+            not in (
+                (512, 256),
+                (1024, 768),
+                (2048, 1536),
+                (3072, 2048),
+                (4096, 3072),
+                (4480, 4096),
+                (5120, 4096),
+            )
             or rounds != 1
             or discard
             or not hugepages
@@ -125,7 +136,7 @@ def workload_budget_mib(
         ):
             raise ValueError("Unsupported prepared one-pass workload")
         return memory
-    if memory in (2048, 5120):
+    if memory in (2048, 3072, 4480, 5120):
         raise ValueError("This large working set requires the approved prepared stage")
     if not 1 <= rounds <= 8 or touch * rounds > 3072:
         raise ValueError("Repeated page coverage is bounded to 3072 MiB for the VM watchdog")
@@ -146,6 +157,7 @@ def host_snapshot(shell):
     """Read-only observations; missing optional statistics never change policy."""
     paths = {
         "boot_id": "/proc/sys/kernel/random/boot_id",
+        "kernel_taint": "/proc/sys/kernel/tainted",
         "memory": "/proc/meminfo",
         "buddy": "/proc/buddyinfo",
         "shmem_thp": "/sys/kernel/mm/transparent_hugepage/shmem_enabled",
@@ -182,6 +194,22 @@ def verified_boot_guard(vmm_text):
     return True
 
 
+def verified_middle_order(vmm_text, reverse):
+    """Require both margins and the requested traversal, not only a mode label."""
+    guards = [line for line in vmm_text.splitlines() if line.startswith("PLB_BACKING_BOOT_GUARD")]
+    prefaults = [
+        line for line in vmm_text.splitlines() if line.startswith("PLB_BACKING_PREFAULTED")
+    ]
+    return (
+        verified_boot_guard(vmm_text)
+        and bool(guards)
+        and all("tail_mib=64 " in line for line in guards)
+        and "PLB_BACKING_BOOT_MARGINS_PREFAULTED mib=128" in vmm_text.splitlines()
+        and bool(prefaults)
+        and all(line.endswith("reverse=" + str(int(reverse))) for line in prefaults)
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--serial", required=True, help="Explicit Galaxy adb serial")
@@ -196,7 +224,7 @@ def main():
     parser.add_argument("--dump-fdt", action="store_true", help="Capture the generated guest DTB")
     parser.add_argument("--kernel", choices=KERNELS, required=True)
     parser.add_argument(
-        "--memory", type=int, choices=(512, 768, 1024, 2048, 4096, 5120), required=True
+        "--memory", type=int, choices=(512, 768, 1024, 2048, 3072, 4096, 4480, 5120), required=True
     )
     parser.add_argument("--touch", type=int, required=True, help="Guest MiB to allocate and touch")
     parser.add_argument("--rounds", type=int, choices=range(1, 9), default=1)
@@ -247,6 +275,16 @@ def main():
         action="store_true",
         help="Requires explicit human approval: temporary three-key host shmem policy trial",
     )
+    parser.add_argument(
+        "--base-page-tail",
+        action="store_true",
+        help="Diskless prepared trial: retain and populate a 64 MiB base-page tail too",
+    )
+    parser.add_argument(
+        "--reverse-middle",
+        action="store_true",
+        help="With --base-page-tail only: prefault the middle from high offsets downward",
+    )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     try:
@@ -279,7 +317,15 @@ def main():
     if args.approved_small_shmem_policy and (
         args.kernel != "linux618"
         or (args.memory, args.touch)
-        not in ((512, 256), (1024, 768), (2048, 1536), (4096, 3072), (5120, 4096))
+        not in (
+            (512, 256),
+            (1024, 768),
+            (2048, 1536),
+            (3072, 2048),
+            (4096, 3072),
+            (4480, 4096),
+            (5120, 4096),
+        )
         or (args.memory >= 2048 and not (args.boot_safe_hugepages and args.refault_small_pages))
         or args.rounds != 1
         or not args.hugepages
@@ -292,6 +338,24 @@ def main():
         parser.error(
             "Approved policy VM stages: linux618 512/256 or 1024/768, one round, --hugepages"
         )
+    if args.base_page_tail and (
+        not (
+            args.boot_safe_hugepages
+            and args.refault_small_pages
+            and args.approved_small_shmem_policy
+        )
+        or args.collapse_backing
+        or args.lock_backing
+        or (args.memory, args.touch) not in ((512, 256), (2048, 1536), (3072, 2048), (4480, 4096))
+    ):
+        parser.error("Tail comparison requires a prepared, fixed middle-refault profile")
+    if args.reverse_middle and (
+        not args.base_page_tail
+        or (args.memory, args.touch) not in ((512, 256), (3072, 2048), (4480, 4096))
+    ):
+        parser.error("Reverse comparison requires a prepared middle profile")
+    if args.memory in (3072, 4480) and not args.base_page_tail:
+        parser.error("The new intermediate sizes require the middle-refault comparison")
     if not 1024 <= args.server_port <= 65535:
         parser.error("Invalid local ADB server port")
     adb = [args.adb, "-P", str(args.server_port), "-s", args.serial]
@@ -342,6 +406,10 @@ def main():
         label += "-boot-safe"
     if args.refault_small_pages:
         label += "-refault"
+    if args.base_page_tail:
+        label += "-middle"
+    if args.reverse_middle:
+        label += "-reverse"
     if args.lock_backing:
         label += "-locked"
     if args.collapse_backing:
@@ -369,7 +437,11 @@ def main():
         (output / label).write_text(text + "\n")
 
     capture_kernel("kernel-before.private.log")
-    if args.lock_backing:
+    if args.reverse_middle:
+        backing_mode = 10
+    elif args.base_page_tail:
+        backing_mode = 9
+    elif args.lock_backing:
         backing_mode = 8
     elif args.collapse_backing:
         backing_mode = 7
@@ -410,7 +482,9 @@ def main():
             + ("-boot-safe" if args.boot_safe_hugepages else "")
             + ("-refault" if args.refault_small_pages else "")
             + ("-collapse" if args.collapse_backing else "")
-            + ("-locked" if args.lock_backing else ""),
+            + ("-locked" if args.lock_backing else "")
+            + ("-middle" if args.base_page_tail else "")
+            + ("-reverse" if args.reverse_middle else ""),
         ]
     with (output / "vmm.log").open("w") as out:
         result = subprocess.run(
@@ -444,6 +518,8 @@ def main():
         "refault_small_pages": args.refault_small_pages,
         "collapse_backing": args.collapse_backing,
         "lock_backing": args.lock_backing,
+        "base_page_tail": args.base_page_tail,
+        "reverse_middle": args.reverse_middle,
         "sparse_collapse_seeded": "PLB_BACKING_SPARSE_SEED" in (output / "vmm.log").read_text(),
         "dump_fdt": args.dump_fdt,
         "approved_small_shmem_policy": args.approved_small_shmem_policy,
@@ -483,6 +559,8 @@ def main():
         summary.update(complete=False, prefault_not_applied=True)
     if args.boot_safe_hugepages and not verified_boot_guard(vmm_text):
         summary.update(complete=False, boot_guard_not_verified=True)
+    if args.base_page_tail and not verified_middle_order(vmm_text, args.reverse_middle):
+        summary.update(complete=False, middle_order_not_verified=True)
     if args.refault_small_pages and not re.search(
         r"PLB_SHMEM_REFAULT round=4 block_bytes=32768 kept_large_windows=\d+ retried=\d+ errors=0",
         vmm_text,

@@ -77,3 +77,18 @@ The startup RAM preparation remains within the 6 GiB cap and existing floor.
 The owned root controller may leave its own launching app's cached-app cgroup
 for the existing unified root cgroup, so its guardian cannot be frozen with the
 UI. Never move another process or change freezer/CPU policies or directories.
+
+## Host page-cache warning: observed 2026-10-19
+
+A 3072/2048 MiB reverse-middle refault trial produced 242 new host
+`BUG: Bad page cache` / `still mapped when deleted` reports, through
+`shmem_fallocate` and `filemap_unaccount_folio`. Stop new VM/allocation-pressure
+trials in this affected host boot. Do not clear taint, restart Android, or bypass
+health guards to continue. The mapped-hole-punch refault helper is retired and
+returns ENOTSUP; do not restore it as a fallback. The app now uses prefault-only
+admission, without that helper. BAD_PAGE/OOPS taint or unreadable health state
+refuses new diagnostic load and the guarded large Android profile before policy
+changes. Expected root O/W taints alone are not BAD_PAGE. No clean-session
+boot validation of the changed app path is claimed. Preserve the old result
+records as historical evidence, and record the failed large trials and warning
+separately; a 1792 MiB write marker is not successful full readback.

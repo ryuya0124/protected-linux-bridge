@@ -155,3 +155,13 @@ or released stability claims. Sanitized results are checked in; raw logs stay in
 ignored artifacts. The host boundary remains in force; the later narrow small-shmem
 trial approval and guarded app integration are documented separately in
 [the Android 1.5 GiB record](android-large-profile.md).
+
+### Retired mapped-shmem refault experiment
+
+The larger-memory follow-up found host `Bad page cache` warnings. The mapped
+hole-punch helper now returns ENOTSUP without mutating its input, and the
+supervisor/runner reject its retired stages. The production 1.5 GiB library is
+prefault-only and does not include that helper. BAD_PAGE/OOPS taint or unreadable
+health state refuses new diagnostic load and the guarded large app profile;
+never clear the host taint or bypass this guard to continue. See
+[memory-increase-2026-10-19.md](memory-increase-2026-10-19.md).

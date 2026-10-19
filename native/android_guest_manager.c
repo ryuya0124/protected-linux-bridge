@@ -65,6 +65,7 @@
 #endif
 
 #include "android_sensor_transport.h"
+#include "../tools/host_memory_health.h"
 
 static volatile _Atomic sig_atomic_t stopping;
 static void stop(int signal) {
@@ -232,6 +233,10 @@ int main(int argc, char **argv) {
                        PLB_GFXSTREAM_COMPAT_SHA256))
         return 31;
 #endif
+#endif
+#if defined(PLB_ANDROID_PROBE) || defined(PLB_ANDROID_LARGE_PROFILE)
+    if (!plb_host_memory_healthy())
+        return 42;
 #endif
 #ifdef PLB_ANDROID_LARGE_PROFILE
     if (!large_platform())

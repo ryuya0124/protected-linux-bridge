@@ -23,6 +23,30 @@ class MemoryProbeResult(unittest.TestCase):
             "PLB_MEMORY_COMPLETE\r\n"
         )
 
+    def test_new_middle_profile_budgets_remain_below_six_gib(self):
+        for memory, touch in ((3072, 2048), (4480, 4096)):
+            self.assertEqual(
+                PROBE.workload_budget_mib(memory, touch, 1, True, True, False, True), memory
+            )
+            with self.assertRaises(ValueError):
+                PROBE.workload_budget_mib(memory, touch, 1)
+        with self.assertRaises(ValueError):
+            PROBE.workload_budget_mib(8192, 4096, 1, True, True, False, True)
+
+    def test_middle_order_needs_margins_and_actual_prefault_direction(self):
+        log = (
+            "PLB_BACKING_BOOT_GUARD prefix_mib=64 tail_mib=64 low_result=0 high_result=0 tail_result=0\n"
+            "PLB_BACKING_FOLIOS sampled=1\n"
+            "PLB_BACKING_BOOT_MARGINS_PREFAULTED mib=128\n"
+            "PLB_BACKING_PREFAULTED size=1 alignment=0 shared=1 reverse=1\n"
+        )
+        self.assertTrue(PROBE.verified_middle_order(log, True))
+        self.assertFalse(PROBE.verified_middle_order(log, False))
+        self.assertFalse(
+            PROBE.verified_middle_order(log.replace("tail_mib=64", "tail_mib=0"), True)
+        )
+        self.assertFalse(PROBE.verified_middle_order(log.replace("mib=128", "mib=0"), True))
+
     def test_readback_then_completion(self):
         self.assertTrue(
             PROBE.assess_probe(0, self.success, "exiting with success", 256)["complete"]

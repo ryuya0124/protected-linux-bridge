@@ -49,6 +49,35 @@ static int observe_pages(int pagemap, const void *memory, size_t bytes, size_t p
                : -1;
 }
 
+/* Sample each freshly written 64 MiB chunk before the next potentially failing
+ * fault. Relative guest bands connect placement to pre-donation host bands. */
+static void observe_progress_bands(int pagemap, const void *memory, size_t bytes, size_t page_size,
+                                   size_t progress_mib) {
+    size_t counts[PLB_GUEST_RAM_BANDS] = {0}, unknown = 0;
+    uint64_t entries[256];
+    size_t pages = bytes / page_size;
+    for (size_t at = 0; at < pages; at += 256) {
+        size_t count = pages - at < 256 ? pages - at : 256;
+        off_t offset = (off_t)(((uintptr_t)memory / page_size + at) * 8);
+        if (pread(pagemap, entries, count * 8, offset) != (ssize_t)(count * 8)) {
+            unknown += count;
+            continue;
+        }
+        for (size_t i = 0; i < count; i++) {
+            int band = plb_guest_page_band(entries[i], page_size);
+            if (band < 0)
+                unknown++;
+            else
+                counts[band]++;
+        }
+    }
+    printf("PLB_MEMORY_PLACEMENT after_mib=%zu unknown=%zu", progress_mib, unknown);
+    for (size_t band = 0; band < PLB_GUEST_RAM_BANDS; band++)
+        if (counts[band])
+            printf(" offset_%zu_mib_pages=%zu", band * 256, counts[band]);
+    putchar('\n');
+}
+
 int main(void) {
     if (getpid() != 1)
         return 99;
@@ -127,6 +156,9 @@ int main(void) {
             memory[offset] = (unsigned char)((offset / 4096 + (size_t)round) % 251 + 1);
             if ((offset + 4096) % (64 * 1048576) == 0) {
                 printf("PLB_MEMORY_PROGRESS round=%d mib=%zu\n", round, (offset + 4096) / 1048576);
+                observe_progress_bands(pagemap,
+                                       (const void *)(memory + offset + 4096 - 64 * 1048576),
+                                       64 * 1048576, (size_t)page_size, (offset + 4096) / 1048576);
                 struct timespec step = {0, mib > 1024 ? 50000000 : 200000000};
                 nanosleep(&step, NULL);
             }

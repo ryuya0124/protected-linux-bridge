@@ -12,6 +12,7 @@
 #include "small_shmem_guard.h"
 #include "android_owned_process.h"
 #include "../tools/allocation_probe_limits.h"
+#include "../tools/host_memory_health.h"
 
 #define PLB_LARGE_RUNTIME FILES "/android-runtime"
 #define PLB_LARGE_VMM PLB_LARGE_RUNTIME "/crosvm"
