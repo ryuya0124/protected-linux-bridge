@@ -12,6 +12,7 @@ if [ "$#" != 0 ]; then
     --archive-medium-only) archive_suffix=medium-only ;;
     --archive-medium-aligned) archive_suffix=medium-aligned ;;
     --archive-all-aligned) archive_suffix=all-aligned ;;
+    --archive-pipe-trace) archive_suffix=pipe-trace ;;
     *) exit 1 ;;
     esac
 fi

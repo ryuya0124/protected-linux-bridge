@@ -37,7 +37,8 @@ int main(int argc, char **argv) {
     }
     const char *const queries[] = {
         ("exec:sh -c 'getprop sys.boot_completed; getprop ro.hardware.egl; "
-         "getprop ro.hardware.gltransport; dumpsys SurfaceFlinger'"),
+         "getprop ro.hardware.gltransport; getprop ro.boot.hardware.gltransport; "
+         "cat /proc/cmdline; cat /proc/modules; dumpsys SurfaceFlinger'"),
         "exec:logcat -d -b crash -t 200",
         "exec:logcat -d -t 500",
     };

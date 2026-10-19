@@ -30,7 +30,12 @@ static const char *const android4g_arguments[] = {
     "androidboot.hardware.hwcomposer=ranchu androidboot.hardware.hwcomposer.mode=client "
     "androidboot.hardware.hwcomposer.display_finder_mode=drm "
     "androidboot.hardware.egl=emulation androidboot.hardware.vulkan=pastel "
-    "androidboot.hardware.gltransport=virtio-gpu-pipe androidboot.enable_bootanimation=0 "
+#ifdef PLB_ANDROID4G_ASG
+    "androidboot.hardware.gltransport=virtio-gpu-asg "
+#else
+    "androidboot.hardware.gltransport=virtio-gpu-pipe "
+#endif
+    "androidboot.enable_bootanimation=0 "
     "androidboot.hardware.guest_hwui_renderer=skiagl "
     "androidboot.hardware.guest_disable_renderer_preload=true androidboot.console=ttyS0 "
     "androidboot.vendor.apex.com.android.hardware.gatekeeper=com.android.hardware.gatekeeper."

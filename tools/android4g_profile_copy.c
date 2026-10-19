@@ -18,7 +18,8 @@ int main(int argc, char **argv) {
         argc == 2 &&
         (!strcmp(argv[1], "--archive-normal-first") || !strcmp(argv[1], "--archive-ascending") ||
          !strcmp(argv[1], "--archive-medium-only") ||
-         !strcmp(argv[1], "--archive-medium-aligned") || !strcmp(argv[1], "--archive-all-aligned"));
+         !strcmp(argv[1], "--archive-medium-aligned") ||
+         !strcmp(argv[1], "--archive-all-aligned") || !strcmp(argv[1], "--archive-pipe-trace"));
     if (getuid() || (argc != 1 && !archive))
         return 20;
     int lock = diagnostic_owner_lock();

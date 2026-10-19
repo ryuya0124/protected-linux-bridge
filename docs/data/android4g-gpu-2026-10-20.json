@@ -148,6 +148,74 @@
       "final_taint": 4608,
       "final_selinux": "Enforcing",
       "gpu_frame_verified": false
+    },
+    {
+      "trial": 6,
+      "configured_memory_mib": 4096,
+      "preparation_order": "ascending",
+      "mapping_aligned_2m": true,
+      "advised_shmem_sizes_kib": [
+        16,
+        32,
+        64,
+        128,
+        256,
+        512
+      ],
+      "last_snapshot_sampled_pages": 1048576,
+      "last_snapshot_thp_pages": 1048576,
+      "last_snapshot_compound_heads": 59100,
+      "last_snapshot_base_pages": 0,
+      "thp_percent": 100.0,
+      "ram_adopted": true,
+      "guest_adb_sampled": true,
+      "guest_boot_complete": false,
+      "page_fault_attempt_errors": [],
+      "outer_exit": 124,
+      "both_restorers": true,
+      "final_taint": 4608,
+      "final_selinux": "Enforcing",
+      "gpu_frame_verified": false,
+      "vmm_sha256": "13dd50f7e347c597c16c49151c677a0798b5b9c8c8971b9643165ac3165ac0ca",
+      "graphics_transport": "virtio-gpu-pipe",
+      "gfxstream_context_creation_observed": true,
+      "gfxstream_transfer_reads_observed": true,
+      "gfxstream_transfer_writes_observed": true
+    },
+    {
+      "trial": 7,
+      "configured_memory_mib": 4096,
+      "preparation_order": "ascending",
+      "mapping_aligned_2m": true,
+      "advised_shmem_sizes_kib": [
+        16,
+        32,
+        64,
+        128,
+        256,
+        512
+      ],
+      "last_snapshot_sampled_pages": 1048576,
+      "last_snapshot_thp_pages": 1048576,
+      "last_snapshot_compound_heads": 63478,
+      "last_snapshot_base_pages": 0,
+      "thp_percent": 100.0,
+      "ram_adopted": true,
+      "guest_adb_sampled": true,
+      "guest_boot_complete": false,
+      "page_fault_attempt_errors": [],
+      "outer_exit": 124,
+      "both_restorers": true,
+      "final_taint": 4608,
+      "final_selinux": "Enforcing",
+      "gpu_frame_verified": false,
+      "vmm_sha256": "13dd50f7e347c597c16c49151c677a0798b5b9c8c8971b9643165ac3165ac0ca",
+      "graphics_transport": "virtio-gpu-asg property; GLES still used pipe",
+      "gfxstream_context_creation_observed": true,
+      "gfxstream_transfer_reads_observed": true,
+      "gfxstream_transfer_writes_observed": true,
+      "asg_property_observed": true,
+      "asg_blob_transport_verified": false
     }
   ],
   "host_renderer_trial_5": "Android Emulator OpenGL ES Translator (Adreno (TM) 840)",
@@ -156,5 +224,12 @@
   "guest_transport_warning_trial_5": "Unrecognized GLES max version string in extensions: pipe:opengles",
   "original_android_disks_unchanged_at_each_profile_copy": true,
   "production_apk_changed": false,
-  "raw_logs_identifiers_images_included": false
+  "raw_logs_identifiers_images_included": false,
+  "guest_dma_sync_candidate": {
+    "upstream_commit": "598c1c3e895590f845e04455d5580ea28ffde666",
+    "actual_guest_module_imports_device_sync": true,
+    "actual_guest_module_imports_cpu_sync": false,
+    "cause_confirmed": false,
+    "guest_kernel_modified": false
+  }
 }

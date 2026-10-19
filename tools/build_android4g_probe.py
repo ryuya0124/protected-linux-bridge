@@ -27,6 +27,7 @@ def main():
     parser.add_argument("--build-manifest", type=Path, required=True)
     parser.add_argument("--guest-render-apk", type=Path, required=True)
     parser.add_argument("--minimum-folio-kib", type=int, choices=(16, 128), default=16)
+    parser.add_argument("--transport", choices=("pipe", "asg"), default="pipe")
     args = parser.parse_args()
     if shutil.disk_usage(ROOT).free < 21 * 1024**3:
         parser.error("Retain 20 GiB Mac storage headroom")
@@ -79,6 +80,8 @@ def main():
         / "bin/aarch64-linux-android35-clang"
     )
     flags = [str(compiler), "-O2", "-Wall", "-Wextra", "-Werror", "-I", str(out)]
+    if args.transport == "asg":
+        flags.append("-DPLB_ANDROID4G_ASG=1")
     proxy = out / "android4g-adopt-vmm"
     subprocess.run(
         flags
@@ -144,6 +147,7 @@ def main():
     )
     record = {
         "configured_memory_mib": 4096,
+        "guest_graphics_transport": "virtio-gpu-" + args.transport,
         "advised_shmem_sizes_kib": (
             [16, 32, 64, 128, 256, 512] if args.minimum_folio_kib == 16 else [128, 256, 512]
         ),
