@@ -1,5 +1,7 @@
 # Can Bridge hand preallocated RAM to the installed crosvm?
 
+**Later follow-up:** [The separate VMM implementation and real-device validation](preallocated-vmm-validation.md) now establish repeated protected 4 GiB all-byte readback. The static review and initial 16 MiB experiment below describe the earlier stage; their statements that no VMM had yet been built are historical. Android/GPU operation is not established by that diskless Linux result.
+
 Static review and later bounded FD experiment, 2026-10-19. **A plain file-backed command-line mapping is not a
 valid ordinary-memfd handoff through the reviewed installed backend.** The
 viable design candidate is an explicit adoption path in the normal shared-RAM

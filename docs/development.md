@@ -148,10 +148,12 @@ First-party source is expanded consistently across Java, C, Python, Gradle, XML,
 ## Memory diagnostics, 2026-10-19
 
 The [working-set probes](memory-working-set-probes.md) separate configured RAM,
-resident page coverage, repeated reuse and VMM accounting. A diskless protected
-4 GiB configuration boots with small workloads; the large newly mapped workload
-still fails. These are developer helpers, not a change to APK memory admission
-or released stability claims. Sanitized results are checked in; raw logs stay in
+resident page coverage, repeated reuse and VMM accounting. The initial diskless
+protected 4 GiB configurations booted with small workloads but failed larger
+newly mapped workloads. The later [explicit FD-adoption VMM
+and six-size THP experiment](preallocated-vmm-validation.md) completed a 4 GiB
+all-byte workload twice. These are developer helpers, not a change to APK
+memory admission or released stability claims. Sanitized results are checked in; raw logs stay in
 ignored artifacts. The host boundary remains in force; the later narrow small-shmem
 trial approval and guarded app integration are documented separately in
 [the Android 1.5 GiB record](android-large-profile.md).
@@ -203,4 +205,6 @@ existing MiniDebugInfo entirely offline. It writes address-bearing ELF/symbol/
 assembly output only into a fresh directory under ignored artifacts, without
 executing or patching the VMM. [Actual memory-ingress findings](preallocated-ram-handoff.md)
 distinguish the installed CMA file-backed route from an original-style shared
-memfd adoption design; neither a handoff nor another guest boot is claimed.
+memfd adoption design. The later [separate VMM validation](preallocated-vmm-validation.md)
+implements that path and verifies a diskless protected 4 GiB all-byte workload
+twice. Android and GPU operation are not established by those tests.

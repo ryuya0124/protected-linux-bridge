@@ -2,3 +2,6 @@
 app/src/main/assets/novnc/** -whitespace
 third_party/novnc/** -whitespace
 third_party/gpu/** -whitespace
+
+# Unified diff blank context lines contain a significant single space.
+tools/crosvm_preallocated_ram.patch whitespace=-blank-at-eol

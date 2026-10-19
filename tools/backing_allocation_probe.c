@@ -251,6 +251,10 @@ static int bounded_reclaim_trial(size_t cap) {
     }
     size_t touched = 0;
     while (touched < cap) {
+        if (!plb_host_memory_healthy()) {
+            munmap(pressure, cap);
+            return -1;
+        }
         if (available_kib() < PLB_PROBE_AVAILABLE_FLOOR_KIB) {
             break;
         }

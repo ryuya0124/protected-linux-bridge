@@ -38,6 +38,9 @@ def main():
         ROOT / "tools/preallocated_ram_contract.h",
         ROOT / "tools/host_memory_health.h",
         ROOT / "tools/probe_watchdog.h",
+        ROOT / "tools/diagnostic_owner_lock.h",
+        ROOT / "tools/preallocated_pin.h",
+        ROOT / "tools/preallocated_collapse.h",
         ROOT / "native/profile_lock.h",
         Path(__file__).resolve(),
     ]

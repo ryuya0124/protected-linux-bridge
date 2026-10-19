@@ -1,5 +1,6 @@
 /* MIT. One 16 MiB owned memfd, unmap, exec a consumer, then inspect the same FD.
- * No VM, device ioctl, THP advice, policy change, pressure loop or hole punching.
+ * No VM, policy change, pressure loop or hole punching. Explicit developer modes
+ * may request THP/collapse or an io_uring pin check on this owned mapping only.
  * The 15+1 MiB split only exercises offsets; it is not a Gunyah RAM layout.
  */
 #define _GNU_SOURCE
@@ -18,9 +19,11 @@
 #include <sys/system_properties.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include "../native/profile_lock.h"
+#include "diagnostic_owner_lock.h"
 #include "host_memory_health.h"
 #include "preallocated_ram_contract.h"
+#include "preallocated_pin.h"
+#include "preallocated_collapse.h"
 #include "probe_watchdog.h"
 
 #define HANDOFF_FD 32
@@ -46,7 +49,7 @@ static int check_words(const uint64_t *mapping, size_t bytes, size_t offset) {
 static int snapshot_pages(void *mapping, uint64_t pages[PAGE_COUNT], const char *stage) {
     int pagemap = open("/proc/self/pagemap", O_RDONLY | O_CLOEXEC);
     int flags_fd = open("/proc/kpageflags", O_RDONLY | O_CLOEXEC);
-    size_t present = 0, thp = 0;
+    size_t present = 0, thp = 0, heads = 0;
     int result = -1;
     if (pagemap < 0 || flags_fd < 0) {
         goto done;
@@ -66,6 +69,7 @@ static int snapshot_pages(void *mapping, uint64_t pages[PAGE_COUNT], const char 
         pages[page] = pfn;
         present++;
         thp += !!(flags & (UINT64_C(1) << 22));
+        heads += !!(flags & (UINT64_C(1) << 15));
     }
     result = 0;
 done:
@@ -75,8 +79,8 @@ done:
     if (flags_fd >= 0) {
         close(flags_fd);
     }
-    printf("PLB_HANDOFF_PAGES stage=%s present=%zu thp=%zu complete=%d\n", stage, present, thp,
-           !result);
+    printf("PLB_HANDOFF_PAGES stage=%s present=%zu thp=%zu heads=%zu complete=%d\n", stage, present,
+           thp, heads, !result);
     return result;
 }
 
@@ -111,7 +115,7 @@ static int attach_parent_lifetime(pid_t expected) {
     return prctl(PR_SET_PDEATHSIG, SIGKILL) || getppid() != expected;
 }
 
-static int produce(void) {
+static int produce(int small_folios, int pin_check, int collapse) {
     int fd = (int)syscall(__NR_memfd_create, "plb-handoff-probe", MFD_CLOEXEC | MFD_ALLOW_SEALING);
     if (fd < 0) {
         return 10;
@@ -131,15 +135,29 @@ static int produce(void) {
         return 12;
     }
     uint64_t *mapping =
-        mmap(NULL, PLB_HANDOFF_BYTES, PROT_READ | PROT_WRITE, MAP_SHARED, HANDOFF_FD, 0);
+        collapse ? plb_aligned_shared_mapping(HANDOFF_FD, PLB_HANDOFF_BYTES, 0)
+                 : mmap(NULL, PLB_HANDOFF_BYTES, PROT_READ | PROT_WRITE, MAP_SHARED, HANDOFF_FD, 0);
     if (mapping == MAP_FAILED) {
         return 13;
+    }
+    if (small_folios && madvise(mapping, PLB_HANDOFF_BYTES, MADV_HUGEPAGE)) {
+        return 14;
     }
     for (size_t word = 0; word < PLB_HANDOFF_BYTES / sizeof(*mapping); word++) {
         mapping[word] = pattern(word);
     }
     uint64_t before[PAGE_COUNT], after[PAGE_COUNT];
-    if (snapshot_pages(mapping, before, "prepared") || munmap(mapping, PLB_HANDOFF_BYTES) ||
+    if (collapse) {
+        for (size_t at = 0; at < PLB_HANDOFF_BYTES; at += PLB_COLLAPSE_BYTES) {
+            plb_collapse_owned((unsigned char *)mapping + at, PLB_COLLAPSE_BYTES);
+        }
+        if (check_words(mapping, PLB_HANDOFF_BYTES, 0)) {
+            return 14;
+        }
+    }
+    if (snapshot_pages(mapping, before, "prepared") ||
+        (pin_check && plb_preallocated_pin(mapping, PLB_HANDOFF_BYTES)) ||
+        munmap(mapping, PLB_HANDOFF_BYTES) ||
         fcntl(HANDOFF_FD, F_ADD_SEALS, PLB_HANDOFF_REQUIRED_SEALS)) {
         return 14;
     }
@@ -221,10 +239,13 @@ int main(int argc, char **argv) {
         }
         return consume(values[0], values[1]);
     }
-    if (argc != 1) {
+    int small_folios = argc == 2 && !strcmp(argv[1], "--small-folios");
+    int pin_check = argc == 2 && !strcmp(argv[1], "--pin-check");
+    int collapse = argc == 2 && !strcmp(argv[1], "--collapse-folios");
+    if (argc != 1 && !small_folios && !pin_check && !collapse) {
         return 82;
     }
-    int owner = profile_lock();
+    int owner = diagnostic_owner_lock();
     if (owner < 0 || !available_memory()) {
         if (owner >= 0) {
             close(owner);
@@ -237,7 +258,7 @@ int main(int argc, char **argv) {
         if (attach_parent_lifetime(controller)) {
             _exit(125);
         }
-        _exit(produce());
+        _exit(produce(small_folios, pin_check, collapse));
     }
     int result = worker < 0 ? 84 : plb_probe_wait(worker, 10000);
     close(owner);

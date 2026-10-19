@@ -158,3 +158,48 @@ matched before/after. THP coverage was zero. This is not crosvm import, a VM boo
 Gunyah donation or a large-memory/GPU result. No host setting or guest disk was
 changed. Preserve the earlier spent GPU-exception marker as historical evidence;
 do not weaken production guards or restore mapped hole punching.
+
+## Additional bounded shmem exception: explicit approval, later 2026-10-19
+
+The user explicitly approved adding only the following three temporary host-wide
+`never` to `advise` changes, in addition to the already approved 16/32/64 KiB:
+
+- `/sys/kernel/mm/transparent_hugepage/hugepages-128kB/shmem_enabled`
+- `/sys/kernel/mm/transparent_hugepage/hugepages-256kB/shmem_enabled`
+- `/sys/kernel/mm/transparent_hugepage/hugepages-512kB/shmem_enabled`
+
+Use the distinct medium-policy developer build and its explicit application
+token. First prove useful larger folios and full data retention in an owned
+16 MiB handoff; verify both independent restorers and all six original `never`
+values. Only after that gate may diskless protected diagnostic VMs proceed.
+Each policy window remains at most 40 seconds with an independent guardian.
+Keep the 6 GiB combined budget, 1536 MiB MemAvailable floor, owner lock, host
+health/new-kernel-report guards and all existing host prohibitions. This does
+not authorize 1024/2048 KiB settings, global compaction/cache-drop/defrag writes,
+Android restart, modules, kernel/protection/partition changes or other VM access.
+The production APK must not silently adopt these settings.
+
+## Verified separate VMM result after six-key approval, later 2026-10-19
+
+An app-private AOSP Android16 userspace VMM now explicitly adopts a prepared,
+size-sealed ordinary memfd through GuestMemory::create_shm. It is developer-only,
+not a replacement for the stock installed VMM. Preserve identity/seal/offset
+checks, original protected LEND and 32 MiB shared SWIOTLB roles, and no fallback.
+The final baseline SHA256 is
+`962b69814df0a60995f5127a2c1ff94730592eb07bf739d1dfa9d6ca0416dc09`.
+
+With the six approved 16–512 KiB shmem advice sizes, atomic owned pressure/release
+and normal-zone-first preparation, a 4480 MiB diskless protected Linux VM checked
+all 4,294,967,296 bytes of its 4096 MiB workload twice, with zero errors, positive
+completion, normal exits and both restorers. All six policies returned to never,
+taint stayed 4608 and SELinux Enforcing. Three-key trials had established 3 GiB;
+write-only progress near 4 GiB was not readback. Record all failed comparisons.
+The separate split-LEND and pin/collapse variants did not fix the measured 4 GiB
+workload; the successes use the baseline without them. Do not resurrect the
+retired GuestMemory subdivision or bypass its DTB/payload-region assertion.
+
+This result does not validate all 4480 MiB, Android 17, GPU, attached disks,
+long-running stability or an automatic production app profile. Do not silently
+add the six-key global policy to the released APK. Keep new Android/GPU and
+persistent-disk comparisons separate and preserve their original data. Source,
+limits and aggregate results are in docs/preallocated-vmm-validation.md.

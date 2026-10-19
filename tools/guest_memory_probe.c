@@ -16,6 +16,10 @@
 #include <time.h>
 #include "guest_page_tracker.h"
 
+#ifdef PLB_MEMORY_FULL_CONTENT
+#include "full_memory_pattern.h"
+#endif
+
 static void finish(void) {
     fflush(stdout);
     reboot(RB_POWER_OFF);
@@ -124,6 +128,12 @@ int main(void) {
         puts("PLB_MEMORY_TARGET_REJECTED");
         finish();
     }
+#ifdef PLB_MEMORY_FULL_CONTENT
+    if (rounds != 1 || discard) {
+        puts("PLB_MEMORY_TARGET_REJECTED");
+        finish();
+    }
+#endif
     printf("PLB_MEMORY_LAYOUT total_kib=%llu free_kib=%llu\n",
            (unsigned long long)((uint64_t)info.totalram * info.mem_unit / 1024),
            (unsigned long long)((uint64_t)info.freeram * info.mem_unit / 1024));
@@ -153,7 +163,12 @@ int main(void) {
         for (size_t offset = 0; offset < bytes; offset += 4096) {
             if (discard && round > 1 && memory[offset] != 0)
                 errors++;
+#ifdef PLB_MEMORY_FULL_CONTENT
+            volatile uint64_t *words = (volatile uint64_t *)(memory + offset);
+            plb_full_store(words, offset, round);
+#else
             memory[offset] = (unsigned char)((offset / 4096 + (size_t)round) % 251 + 1);
+#endif
             if ((offset + 4096) % (64 * 1048576) == 0) {
                 printf("PLB_MEMORY_PROGRESS round=%d mib=%zu\n", round, (offset + 4096) / 1048576);
                 observe_progress_bands(pagemap,
@@ -163,9 +178,18 @@ int main(void) {
                 nanosleep(&step, NULL);
             }
         }
-        for (size_t offset = 0; offset < bytes; offset += 4096)
+        for (size_t offset = 0; offset < bytes; offset += 4096) {
+#ifdef PLB_MEMORY_FULL_CONTENT
+            volatile const uint64_t *words = (volatile const uint64_t *)(memory + offset);
+            errors += plb_full_check(words, offset, round);
+#else
             if (memory[offset] != (unsigned char)((offset / 4096 + (size_t)round) % 251 + 1))
                 errors++;
+#endif
+        }
+#ifdef PLB_MEMORY_FULL_CONTENT
+        printf("PLB_MEMORY_FULL_CONTENT checked_bytes=%zu errors=%u\n", bytes, errors);
+#endif
         if (observe_pages(pagemap, (const void *)memory, bytes, (size_t)page_size, seen, pfn_limit,
                           &unique_pages, round)) {
             puts("PLB_MEMORY_OBSERVATION_FAILED");

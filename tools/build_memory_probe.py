@@ -10,6 +10,9 @@ from build_guest_runtime import build
 p = argparse.ArgumentParser()
 p.add_argument("--sdk", required=True)
 p.add_argument(
+    "--full-content", action="store_true", help="Build a separate all-64-bit-word RAM probe"
+)
+p.add_argument(
     "--allocation-research",
     action="store_true",
     help="Compile small owned-allocation/cache probes; never execute them",
@@ -33,7 +36,7 @@ tc = sdk / "ndk/28.2.13676358/toolchains/llvm/prebuilt" / host
 s = root / "app/build/guest/sysroot"
 out = root / "artifacts"
 out.mkdir(exist_ok=True)
-binary = out / "plb-memory-probe"
+binary = out / ("plb-memory-full-probe" if a.full_content else "plb-memory-probe")
 runtime = next((tc / "lib/clang").glob("*/lib/linux/libclang_rt.builtins-aarch64-android.a"))
 subprocess.run(
     [
@@ -48,6 +51,9 @@ subprocess.run(
         "-Wall",
         "-Wextra",
         "-Werror",
+    ]
+    + (["-DPLB_MEMORY_FULL_CONTENT=1"] if a.full_content else [])
+    + [
         str(s / "lib/crt1.o"),
         str(s / "lib/crti.o"),
         str(root / "tools/guest_memory_probe.c"),
@@ -80,7 +86,31 @@ for d in ("dev", "proc", "sys", "newroot"):
 add("dev/console", stat.S_IFCHR | 0o600, major=5, minor=1)
 add("init", stat.S_IFREG | 0o755, binary.read_bytes())
 add("TRAILER!!!", 0)
-(out / "memory-probe.cpio").write_bytes(data)
+cpio = out / ("memory-full-probe.cpio" if a.full_content else "memory-probe.cpio")
+cpio.write_bytes(data)
+if a.full_content:
+    sources = [
+        root / "tools/guest_memory_probe.c",
+        root / "tools/guest_page_tracker.h",
+        root / "tools/full_memory_pattern.h",
+        binary,
+        cpio,
+    ]
+    (out / "memory-full-probe-build.json").write_text(
+        json.dumps(
+            {
+                "purpose": "separate diskless all-word RAM readback; not an Android program",
+                "sha256": {
+                    str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()
+                    for path in sources
+                },
+            },
+            indent=2,
+        )
+        + "\n"
+    )
+    print(cpio)
+    raise SystemExit(0)
 runner = out / "memory-runner"
 subprocess.run(
     [

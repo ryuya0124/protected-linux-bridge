@@ -1,6 +1,8 @@
-/* MIT. Development-only proposed runtime-policy trial; not included in the APK.
+/* MIT. Development-only runtime-policy trial; not included in the APK.
  * --plan is read-only. --apply-approved-small-shmem must not be run without explicit human
  * authorization for the three small-shmem host-wide settings documented in the proposal.
+ * PLB_MEDIUM_SHMEM_PROPOSAL is a separate six-key proposal, with a different
+ * apply token. Existing three-key approval never authorizes that token.
  */
 #define _GNU_SOURCE
 #include <sys/types.h>
@@ -23,6 +25,10 @@
 #define PLB_OWNER_LOCK_FILE FILES "/vm-owner.lock"
 #include "../native/profile_lock.h"
 #include "host_memory_health.h"
+#ifdef PLB_PREALLOCATED_VM_POLICY
+#include "preallocated_vm_limits.h"
+#include "preallocated_ready.h"
+#endif
 #include "../native/android_owned_process.h"
 #ifdef PLB_GPU_WARNING_ONCE
 #include "gpu_warning_once.h"
@@ -37,6 +43,20 @@ static const char *settings[] = {
     FILES "/kernel-probes/policy-mock/small-64k",
 };
 static const char *allocation_probe = FILES "/kernel-probes/policy-mock/child";
+#elif defined(PLB_MEDIUM_SHMEM_PROPOSAL)
+#ifndef PLB_PREALLOCATED_VM_POLICY
+#error "The medium proposal requires the separate owned-FD diagnostic mode"
+#endif
+#define APPLY_OPTION "--apply-approved-medium-shmem"
+static const char *settings[] = {
+    "/sys/kernel/mm/transparent_hugepage/hugepages-16kB/shmem_enabled",
+    "/sys/kernel/mm/transparent_hugepage/hugepages-32kB/shmem_enabled",
+    "/sys/kernel/mm/transparent_hugepage/hugepages-64kB/shmem_enabled",
+    "/sys/kernel/mm/transparent_hugepage/hugepages-128kB/shmem_enabled",
+    "/sys/kernel/mm/transparent_hugepage/hugepages-256kB/shmem_enabled",
+    "/sys/kernel/mm/transparent_hugepage/hugepages-512kB/shmem_enabled",
+};
+static const char *allocation_probe = FILES "/kernel-probes/backing-allocation-probe";
 #else
 #define APPLY_OPTION "--apply-approved-small-shmem"
 static const char *settings[] = {
@@ -189,8 +209,68 @@ static long available_kib(void) {
     return available;
 }
 
+#ifdef PLB_PREALLOCATED_VM_POLICY
+static int prepare_owned_memory(int lock) {
+    const char *path = FILES "/kernel-probes/preallocated-pressure-check";
+    struct stat info;
+    if (lstat(path, &info) || !S_ISREG(info.st_mode) || info.st_uid || info.st_nlink != 1 ||
+        info.st_mode & 077) {
+        return 45;
+    }
+    pid_t parent = getpid(), child = fork();
+    if (!child) {
+        if (prctl(PR_SET_PDEATHSIG, SIGKILL) || getppid() != parent) {
+            _exit(46);
+        }
+        char descriptor[16];
+        snprintf(descriptor, sizeof(descriptor), "%d", lock);
+        if (fcntl(lock, F_SETFD, 0) || setenv("PLB_DIAGNOSTIC_OWNER_FD", descriptor, 1)) {
+            _exit(46);
+        }
+        execl(path, path, "detached", "reclaim-6g", (char *)NULL);
+        _exit(47);
+    }
+    if (child < 0) {
+        return 48;
+    }
+    int status = 0;
+    for (int i = 0; i < 320; i++) {
+        pid_t done = waitpid(child, &status, WNOHANG);
+        if (done == child) {
+            return WIFEXITED(status) ? WEXITSTATUS(status) : 49;
+        }
+        if ((done < 0 && errno != EINTR) || !plb_host_memory_healthy()) {
+            break;
+        }
+        usleep(100000);
+    }
+    kill(child, SIGKILL); /* Still unreaped direct child; never another task. */
+    while (waitpid(child, &status, 0) < 0 && errno == EINTR) {
+    }
+    return 124;
+}
+#endif
+
 int main(int argc, char **argv) {
     char model[PROP_VALUE_MAX], sdk[PROP_VALUE_MAX];
+    int prepare_memory = 0;
+    int full_content = 0;
+    int only_64k = 0;
+#ifdef PLB_PREALLOCATED_VM_POLICY
+    if (argc >= 4 && argc <= 6) {
+        for (int i = 3; i < argc; i++) {
+            if (!strcmp(argv[i], "--prepare-memory") && !prepare_memory)
+                prepare_memory = 1;
+            else if (!strcmp(argv[i], "--full-content") && !full_content)
+                full_content = 1;
+            else if (!strcmp(argv[i], "--64k-only") && !only_64k)
+                only_64k = 1;
+            else
+                return 20;
+        }
+        argc = 3;
+    }
+#endif
     if (getuid() || (argc != 2 && argc != 3) ||
         (strcmp(argv[1], "--plan") && strcmp(argv[1], APPLY_OPTION)))
         return 20;
@@ -205,7 +285,50 @@ int main(int argc, char **argv) {
         android1536 || android_gpu1536 || (argc == 3 && !strcmp(argv[2], "--android-2048"));
     int vm = stage != NULL || android;
     int refault = argc == 3 && !strcmp(argv[2], "--allocation-refault");
-    if ((argc == 3 && !vm && !refault) || (!strcmp(argv[1], "--plan") && argc != 2))
+    int preallocated = 0;
+    int preallocated_memory = 0, preallocated_touch = 0;
+    int preallocated_chunked = 0;
+#ifdef PLB_PREALLOCATED_VM_POLICY
+    if (argc == 3 && !strcmp(argv[2], "--preallocated-16")) {
+        preallocated = 1;
+    } else if (argc == 3) {
+        if (plb_preallocated_policy(argv[2], &preallocated_memory, &preallocated_touch)) {
+            preallocated = 1;
+            vm = 1;
+        } else if (plb_preallocated_policy_mode(argv[2], &preallocated_memory, &preallocated_touch,
+                                                1)) {
+            preallocated = 1;
+            preallocated_chunked = 1;
+            vm = 1;
+        } else if (plb_preallocated_policy_mode(argv[2], &preallocated_memory, &preallocated_touch,
+                                                2)) {
+            preallocated = 1;
+            preallocated_chunked = 2;
+            vm = 1;
+        } else if (plb_preallocated_policy_mode(argv[2], &preallocated_memory, &preallocated_touch,
+                                                3)) {
+            preallocated = 1;
+            preallocated_chunked = 3;
+            vm = 1;
+        } else if (plb_preallocated_policy_mode(argv[2], &preallocated_memory, &preallocated_touch,
+                                                4)) {
+            preallocated = 1;
+            preallocated_chunked = 4;
+            vm = 1;
+        }
+    }
+#endif
+    if ((prepare_memory || full_content) &&
+        (!preallocated || !preallocated_memory || !strcmp(argv[1], "--plan")))
+        return 20;
+    if (only_64k && (!preallocated || !strcmp(argv[1], "--plan")))
+        return 20;
+#ifdef PLB_MEDIUM_SHMEM_PROPOSAL
+    if (only_64k || (strcmp(argv[1], "--plan") && !preallocated))
+        return 20;
+#endif
+    if ((argc == 3 && !vm && !refault && !preallocated) ||
+        (!strcmp(argv[1], "--plan") && argc != 2))
         return 20;
     const char *probe = android_gpu1536 ? FILES "/kernel-probes/"
 #ifdef PLB_GPU_WARNING_ONCE
@@ -217,9 +340,14 @@ int main(int argc, char **argv) {
                         : android     ? FILES "/kernel-probes/android-memory-policy-runner"
                         : vm          ? vm_probe
                                       : allocation_probe;
+    if (preallocated)
+        probe = full_content          ? FILES "/kernel-probes/preallocated-vm-full-probe"
+                : preallocated_memory ? FILES "/kernel-probes/preallocated-vm-probe"
+                                      : FILES "/kernel-probes/preallocated-ram-probe";
     /* Android retains its preallocated memory after policy restoration. Only
      * the first ten seconds use the approved host policy; observe boot later. */
-    int controller_steps = android ? 100 : vm ? 320 : 120;
+    int deferred = android || (preallocated && preallocated_memory);
+    int controller_steps = preallocated_memory ? 300 : deferred ? 100 : vm ? 320 : 120;
     int guardian_ms = vm ? 40000 : 20000;
     __system_property_get("ro.product.model", model);
     __system_property_get("ro.build.version.sdk", sdk);
@@ -252,14 +380,17 @@ int main(int argc, char **argv) {
         char mode[32];
         if (read_mode(settings[i], mode) || strcmp(mode, "never"))
             return 23;
-        printf("PLB_POLICY_PLAN index=%d original=never proposed=advise\n", i);
+        printf("PLB_POLICY_PLAN index=%d original=never proposed=%s\n", i,
+               only_64k && i != 2 ? "never" : "advise");
     }
     if (!strcmp(argv[1], "--plan"))
         return 0;
-    if (available_kib() < ((android1536 || android_gpu1536) ? 2304L
-                           : android                        ? 2816L
-                           : vm                             ? stage->headroom_mib
-                                                            : 512L) *
+    if (available_kib() < (prepare_memory ? 1600L
+                           : preallocated ? 1536L + (preallocated_memory ? preallocated_memory : 16)
+                           : (android1536 || android_gpu1536) ? 2304L
+                           : android                          ? 2816L
+                           : vm                               ? stage->headroom_mib
+                                                              : 512L) *
                               1024)
         return 37;
     struct stat executable;
@@ -269,6 +400,19 @@ int main(int argc, char **argv) {
     int lock = profile_lock();
     if (lock < 0)
         return 28;
+#ifdef PLB_PREALLOCATED_VM_POLICY
+    if (prepare_memory) {
+        /* Keep one owner across pressure, release, preparation and VM. The
+         * policy guardian starts afterwards; no policy is changed during this. */
+        int prepared = prepare_owned_memory(lock);
+        if (prepared || !plb_host_memory_healthy() ||
+            available_kib() < (1536L + preallocated_memory) * 1024) {
+            close(lock);
+            return prepared ? prepared : 50;
+        }
+        puts("PLB_PREALLOCATED_ATOMIC_PREPARATION_COMPLETE");
+    }
+#endif
     if (android_gpu1536) {
         /* A developer launch must already be outside an app freezer group.
          * With uid zero this helper accepts only the existing root group and
@@ -342,9 +486,13 @@ int main(int argc, char **argv) {
         return 26;
     }
     int result = 0;
+    int preparation_finished = 0;
     pid_t child = -1;
+    int preparation[2] = {-1, -1};
+    if (preallocated_memory && pipe2(preparation, O_CLOEXEC | O_NONBLOCK))
+        result = 51;
     for (int i = 0; i < SETTING_COUNT && !result; i++)
-        if (write_mode(settings[i], trial_mode))
+        if (write_mode(settings[i], only_64k && i != 2 ? "never" : trial_mode))
             result = 27;
     if (!result) {
 #ifdef PLB_POLICY_MOCK_KILL
@@ -362,7 +510,27 @@ int main(int argc, char **argv) {
             snprintf(descriptor, sizeof(descriptor), "%d", lock);
             if (fcntl(lock, F_SETFD, 0) || setenv("PLB_DIAGNOSTIC_OWNER_FD", descriptor, 1))
                 _exit(36);
-            if (android)
+            if (preparation[1] >= 0) {
+                close(preparation[0]);
+                snprintf(descriptor, sizeof(descriptor), "%d", preparation[1]);
+                if (fcntl(preparation[1], F_SETFD, 0) ||
+                    setenv("PLB_PREALLOCATED_READY_FD", descriptor, 1))
+                    _exit(52);
+            }
+            if (preallocated && preallocated_memory) {
+                char memory[16], touch[16];
+                snprintf(memory, sizeof(memory), "%d", preallocated_memory);
+                snprintf(touch, sizeof(touch), "%d", preallocated_touch);
+                execl(probe, probe, memory, touch,
+                      preallocated_chunked == 4   ? "--normal-first-collapse"
+                      : preallocated_chunked == 3 ? "--normal-first-pin"
+                      : preallocated_chunked == 2 ? "--normal-first"
+                      : preallocated_chunked      ? "--chunked-folios"
+                                                  : "--small-folios",
+                      (char *)NULL);
+            } else if (preallocated)
+                execl(probe, probe, "--small-folios", (char *)NULL);
+            else if (android)
                 execl(probe, probe, (char *)NULL);
             else if (vm)
                 execl(probe, probe, "linux618", stage->memory, stage->touch, "1", stage->backing,
@@ -374,15 +542,35 @@ int main(int argc, char **argv) {
         if (child < 0) {
             result = 29;
         } else {
+            if (preparation[1] >= 0) {
+                close(preparation[1]);
+                preparation[1] = -1;
+            }
             int status = 0;
             pid_t done = 0;
             for (int i = 0; i < controller_steps && !interrupted; i++) {
                 done = sample(child, &status);
                 if (done)
                     break;
+                if (preparation[0] >= 0) {
+                    char ready;
+                    ssize_t size = read(preparation[0], &ready, 1);
+                    if (size == 1 && ready == 'R') {
+                        puts("PLB_PREALLOCATED_POLICY_PREPARATION_FINISHED");
+                        preparation_finished = 1;
+                        break;
+                    }
+                    if (size == 1 || (size < 0 && errno != EAGAIN && errno != EINTR)) {
+                        interrupted = 1;
+                        break;
+                    }
+                }
                 usleep(100000);
             }
-            if (!done && android && !interrupted) {
+            if (!done && preallocated_memory && !preparation_finished) {
+                kill(child, SIGKILL);
+                result = 124;
+            } else if (!done && deferred && !interrupted) {
                 /* Restore policy before observing the rest of Android boot. */
                 result = 0;
             } else if (!done) {
@@ -395,9 +583,14 @@ int main(int argc, char **argv) {
         }
     }
     int failed = restore();
-    printf("PLB_POLICY_RESTORED=%d HOST_BOUNDARY_UNCHANGED=%d\n", !failed, unchanged_host(boot));
+    fprintf(preallocated ? stderr : stdout, "PLB_POLICY_RESTORED=%d HOST_BOUNDARY_UNCHANGED=%d\n",
+            !failed, unchanged_host(boot));
+    if (preparation[0] >= 0)
+        close(preparation[0]);
+    if (preparation[1] >= 0)
+        close(preparation[1]);
     close(alive[1]); /* Guardian verifies/restores, even if this process now dies. */
-    if (child > 0 && !android) {
+    if (child > 0 && !deferred) {
         int status;
         for (int i = 0; i < 20 && sample(child, &status) == 0; i++)
             usleep(100000);
@@ -406,11 +599,12 @@ int main(int argc, char **argv) {
     pid_t guardian_done = 0;
     for (int i = 0; i < 30 && !(guardian_done = sample(guardian, &status)); i++)
         usleep(100000);
-    if (android && child > 0 && !failed && !interrupted && guardian_done == guardian &&
+    if (deferred && child > 0 && !failed && !interrupted && guardian_done == guardian &&
         WIFEXITED(status) && WEXITSTATUS(status) == 0) {
         int child_status = 0;
         pid_t done = 0;
-        for (int i = 0; i < 1300 && !interrupted; i++) {
+        int observation_steps = preallocated ? 250 : 1300;
+        for (int i = 0; i < observation_steps && !interrupted; i++) {
             done = sample(child, &child_status);
             if (done)
                 break;
@@ -427,7 +621,7 @@ int main(int argc, char **argv) {
         child = -1;
         printf("PLB_ANDROID_OBSERVATION_FINISHED result=%d HOST_BOUNDARY_UNCHANGED=%d\n", result,
                unchanged_host(boot));
-    } else if (android && child > 0) {
+    } else if (deferred && child > 0) {
         kill(child, SIGKILL);
         while (waitpid(child, NULL, 0) < 0 && errno == EINTR) {
         }

@@ -1,0 +1,196 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index ab37f04..ad34088 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -121,6 +121,8 @@ tokio = { version = "1.29.1", features = ["net", "rt-multi-thread", "time", "syn
+ snapshot = { path = "snapshot" }
+ 
+ [features]
++plb-preallocated-ram = ["vm_memory/plb-preallocated-ram"]
++plb-split-ram = ["hypervisor/plb-split-ram"]
+ ## Default features of crosvm. This selection is somewhat arbitrary for historical reasons.
+ default = ["audio", "balloon", "config-file", "document-features", "gpu", "qcow", "usb", "libvda-stub", "net", "slirp"]
+ 
+diff --git a/hypervisor/Cargo.toml b/hypervisor/Cargo.toml
+index 474b48e..995ea93 100644
+--- a/hypervisor/Cargo.toml
++++ b/hypervisor/Cargo.toml
+@@ -5,6 +5,7 @@ authors = ["The ChromiumOS Authors"]
+ edition = "2021"
+ 
+ [features]
++plb-split-ram = []
+ enable_haxm_tests = []
+ haxm = []
+ whpx = []
+diff --git a/hypervisor/src/gunyah/gunyah_sys/bindings.rs b/hypervisor/src/gunyah/gunyah_sys/bindings.rs
+index 19e378d..fd17658 100644
+--- a/hypervisor/src/gunyah/gunyah_sys/bindings.rs
++++ b/hypervisor/src/gunyah/gunyah_sys/bindings.rs
+@@ -22,6 +22,7 @@ pub const GH_VM_MAX_EXIT_REASON_SIZE: u32 = 8;
+ pub const GH_VCPU_EXIT_UNKNOWN: u32 = 0;
+ pub const GH_VCPU_EXIT_MMIO: u32 = 1;
+ pub const GH_VCPU_EXIT_STATUS: u32 = 2;
++pub const GH_VCPU_EXIT_PAGE_FAULT: u32 = 3;
+ pub const GH_ANDROID_IOCTL_TYPE: u8 = 65u8;
+ pub const GH_VM_BOOT_CONTEXT_REG_SHIFT: u32 = 8;
+ pub type i8 = :: std :: os :: raw :: c_schar;
+@@ -142,9 +143,22 @@ pub struct gh_vcpu_run {
+ #[repr(C)]
+ #[derive(Copy, Clone)]
+ pub union gh_vcpu_run__bindgen_ty_1 {
++    pub page_fault: gh_vcpu_page_fault,
+     pub mmio: gh_vcpu_run__bindgen_ty_1__bindgen_ty_1,
+     pub status: gh_vcpu_run__bindgen_ty_1__bindgen_ty_2,
+ }
++// PAGE_FAULT ABI confirmed against the captured active-slot host's
++// gunyah_handle_page_fault: exit_reason=8, phys_addr=16, attempt=24.
++#[repr(C)]
++#[derive(Debug, Default, Copy, Clone)]
++pub struct gh_vcpu_page_fault {
++    pub phys_addr: u64,
++    pub attempt: i32,
++    pub resume_action: u8,
++}
++const _: () = assert!(std::mem::offset_of!(gh_vcpu_run, __bindgen_anon_1) == 16);
++const _: () = assert!(std::mem::offset_of!(gh_vcpu_page_fault, attempt) == 8);
++
+ #[repr(C)]
+ #[derive(Debug, Default, Copy, Clone)]
+ pub struct gh_vcpu_run__bindgen_ty_1__bindgen_ty_1 {
+diff --git a/hypervisor/src/gunyah/mod.rs b/hypervisor/src/gunyah/mod.rs
+index 2ab6c39..8e9ab0c 100644
+--- a/hypervisor/src/gunyah/mod.rs
++++ b/hypervisor/src/gunyah/mod.rs
+@@ -235,6 +235,9 @@ impl AsRawDescriptor for GunyahVm {
+     }
+ }
+ 
++#[cfg(feature = "plb-split-ram")]
++mod plb_lend;
++
+ impl GunyahVm {
+     pub fn new(gh: &Gunyah, vm_id: Option<u16>, pas_id: Option<u32>, guest_mem: GuestMemory, cfg: Config) -> Result<GunyahVm> {
+         // SAFETY:
+@@ -248,6 +251,8 @@ impl GunyahVm {
+         // SAFETY:
+         // Safe because we verify that ret is valid and we own the fd.
+         let vm_descriptor = unsafe { SafeDescriptor::from_raw_descriptor(ret) };
++        #[cfg(feature = "plb-split-ram")]
++        let mut next_split_slot = guest_mem.num_regions() as MemSlot;
+         for region in guest_mem.regions() {
+             let lend = if cfg.protection_type.isolates_memory() {
+                 match region.options.purpose {
+@@ -274,6 +279,31 @@ impl GunyahVm {
+                         region.shm_offset,
+                 )?;
+             } else if lend {
++                #[cfg(feature = "plb-split-ram")]
++                {
++                    for (offset, size) in plb_lend::chunks(region.size as u64) {
++                        let slot = if offset == 0 {
++                            region.index as MemSlot
++                        } else {
++                            let value = next_split_slot;
++                            next_split_slot = next_split_slot.checked_add(1)
++                                .ok_or_else(|| Error::new(EINVAL))?;
++                            value
++                        };
++                        // SAFETY: each bounded chunk is wholly within the
++                        // original live region, with unchanged GPA/FD offset
++                        // and LEND protection. No GuestMemory/FDT range split.
++                        unsafe {
++                            android_lend_user_memory_region(
++                                &vm_descriptor, slot, false,
++                                region.guest_addr.offset() + offset,
++                                size,
++                                (region.host_addr as *mut u8).add(offset as usize),
++                            )?;
++                        }
++                    }
++                }
++                #[cfg(not(feature = "plb-split-ram"))]
+                 // SAFETY:
+                 // Safe because the guest regions are guarnteed not to overlap.
+                 unsafe {
+@@ -600,6 +630,12 @@ impl Vm for GunyahVm {
+         _log_dirty_pages: bool,
+         _cache: MemCacheType,
+     ) -> Result<MemSlot> {
++        // Diagnostic static subdivisions own slots beyond GuestMemory's count.
++        // No hot-add is permitted in this build; never reuse those labels.
++        if cfg!(feature = "plb-split-ram") {
++            return Err(Error::new(libc::ENOTSUP));
++        }
++
+         let pgsz = pagesize() as u64;
+         // Gunyah require to set the user memory region with page size aligned size. Safe to extend
+         // the mem.size() to be page size aligned because the mmap will round up the size to be
+@@ -893,6 +929,15 @@ impl Vcpu for GunyahVcpu {
+         // because the kernel told us how large it is.
+         let run = unsafe { &mut *(self.run_mmap.as_ptr() as *mut gh_vcpu_run) };
+         match run.exit_reason {
++            GH_VCPU_EXIT_PAGE_FAULT => {
++                // SAFETY: kernel exit_reason selects this union variant. This
++                // only observes the existing failure and preserves fail-closed
++                // behavior; it never retries or changes the resume action.
++                let fault = unsafe { run.__bindgen_anon_1.page_fault };
++                warn!("PLB_GUNYAH_PAGE_FAULT attempt={} guest_addr={:#x}",
++                      fault.attempt, fault.phys_addr);
++                Err(Error::new(EINVAL))
++            }
+             GH_VCPU_EXIT_MMIO => Ok(VcpuExit::Mmio),
+             GH_VCPU_EXIT_STATUS => {
+                 // SAFETY:
+diff --git a/prebuilts/src/sys.rs b/prebuilts/src/sys.rs
+index fa13b89..c1a45c1 100644
+--- a/prebuilts/src/sys.rs
++++ b/prebuilts/src/sys.rs
+@@ -3,7 +3,7 @@
+ // found in the LICENSE file.
+ 
+ cfg_if::cfg_if! {
+-    if #[cfg(any(target_os = "android", target_os = "linux"))] {
++    if #[cfg(any(target_os = "android", target_os = "linux", target_os = "macos"))] {
+         pub(crate) mod linux;
+         pub(crate) use linux::*;
+     } else if #[cfg(windows)] {
+diff --git a/vm_memory/Cargo.toml b/vm_memory/Cargo.toml
+index 5e1f9be..cb5651e 100644
+--- a/vm_memory/Cargo.toml
++++ b/vm_memory/Cargo.toml
+@@ -5,6 +5,9 @@ authors = ["The ChromiumOS Authors"]
+ edition = "2021"
+ include = ["src/**/*", "Cargo.toml"]
+ 
++[features]
++plb-preallocated-ram = []
++
+ [dependencies]
+ anyhow = "1"
+ cfg-if = "1.0.0"
+diff --git a/vm_memory/src/guest_memory.rs b/vm_memory/src/guest_memory.rs
+index f469b92..4ef80cc 100644
+--- a/vm_memory/src/guest_memory.rs
++++ b/vm_memory/src/guest_memory.rs
+@@ -43,6 +43,8 @@ use zerocopy::IntoBytes;
+ 
+ use crate::guest_address::GuestAddress;
+ 
++#[cfg(all(feature = "plb-preallocated-ram", target_os = "android"))]
++mod plb_adopt;
+ mod sys;
+ pub use sys::MemoryPolicy;
+ 
+@@ -307,6 +309,11 @@ impl GuestMemory {
+         }
+ 
+         // NOTE: Some tests rely on the GuestMemory's name when capturing metrics.
++        #[cfg(all(feature = "plb-preallocated-ram", target_os = "android"))]
++        {
++            return plb_adopt::adopt(aligned_size).map_err(Error::MemoryCreationFailed);
++        }
++        #[allow(unreachable_code)]
+         let name = "crosvm_guest";
+         // Shm must be mut even though it is only updated on Unix systems.
+         #[allow(unused_mut)]

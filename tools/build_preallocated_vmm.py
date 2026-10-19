@@ -1,0 +1,217 @@
+#!/usr/bin/env python3
+"""Build a separate Android16 diagnostic VMM; never touch or start an Android host.
+
+Supply shallow clones of the two pinned public repositories and read-only copies
+of the selected host's three link libraries. Only source copies under artifacts/
+may be patched. Output, Cargo downloads and intermediates stay under artifacts/.
+"""
+
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import platform
+import shutil
+import signal
+import subprocess
+import time
+
+ROOT = Path(__file__).resolve().parents[1]
+ARTIFACTS = ROOT / "artifacts"
+VMM_REVISION = "8a4abfbaea5567de24e49cc43874c820098987d0"
+MINIJAIL_REVISION = "c6fe710936b84753b99e6d0e9ea634109272f307"
+LIBRARIES = ("libminijail.so", "libcap.so", "libprocessgroup.so")
+
+
+def artifact_path(path):
+    resolved = path.resolve()
+    if not resolved.is_relative_to(ARTIFACTS.resolve()) or resolved == ARTIFACTS.resolve():
+        raise ValueError("Use a dedicated path below this project's ignored artifacts/")
+    return resolved
+
+
+def git(source, *arguments, check=True):
+    return subprocess.run(
+        ["git", "-C", str(source), *arguments], capture_output=True, check=check, text=True
+    )
+
+
+def prepare_source(source, minijail):
+    if git(source, "rev-parse", "HEAD").stdout.strip() != VMM_REVISION:
+        raise ValueError("Unexpected crosvm source revision")
+    if git(minijail, "rev-parse", "HEAD").stdout.strip() != MINIJAIL_REVISION:
+        raise ValueError("Unexpected minijail source revision")
+    if git(minijail, "status", "--porcelain").stdout:
+        raise ValueError("Use an unchanged minijail checkout")
+    allowed = {
+        "Cargo.toml",
+        "hypervisor/Cargo.toml",
+        "hypervisor/src/gunyah/mod.rs",
+        "hypervisor/src/gunyah/gunyah_sys/bindings.rs",
+        "prebuilts/src/sys.rs",
+        "vm_memory/Cargo.toml",
+        "vm_memory/src/guest_memory.rs",
+        "third_party/minijail",
+    }
+    if not set(git(source, "diff", "--name-only", "HEAD").stdout.splitlines()) <= allowed:
+        raise ValueError("Source has unrelated tracked modifications")
+    patch = ROOT / "tools/crosvm_preallocated_ram.patch"
+    if git(source, "apply", "--reverse", "--check", str(patch), check=False).returncode:
+        git(source, "apply", "--check", str(patch))
+        git(source, "apply", str(patch))
+    modules = {
+        "tools/crosvm_preallocated_ram.rs": "vm_memory/src/guest_memory/plb_adopt.rs",
+        "tools/crosvm_split_lend.rs": "hypervisor/src/gunyah/plb_lend.rs",
+    }
+    for name, relative in modules.items():
+        module = ROOT / name
+        destination = source / relative
+        if destination.is_symlink() or (
+            destination.exists() and destination.read_bytes() != module.read_bytes()
+        ):
+            raise ValueError("Unexpected existing diagnostic module")
+        destination.write_bytes(module.read_bytes())
+    link = source / "third_party/minijail"
+    if not link.is_symlink():
+        raise ValueError("Expected upstream minijail symlink; will not replace a directory")
+    if link.resolve() != minijail:
+        link.unlink()
+        link.symlink_to(minijail)
+
+
+def build(args):
+    source = artifact_path(args.source)
+    minijail = artifact_path(args.minijail)
+    libraries = artifact_path(args.host_libraries)
+    output = artifact_path(args.output)
+    if shutil.disk_usage(ROOT).free < 22 * 1024**3:
+        raise ValueError("Retain at least 20 GiB disk headroom throughout the build")
+    for name in LIBRARIES:
+        path = libraries / name
+        if path.is_symlink() or not path.is_file() or path.stat().st_size > 4 * 1024**2:
+            raise ValueError("Missing or oversized captured host link library")
+        header = path.read_bytes()[:20]
+        if header[:6] != b"\x7fELF\x02\x01" or header[18:20] != b"\xb7\x00":
+            raise ValueError("Expected an AArch64 ELF link library")
+    prepare_source(source, minijail)
+    output.mkdir(mode=0o700, parents=True, exist_ok=True)
+    pkgconfig = output / "pkgconfig"
+    pkgconfig.mkdir(exist_ok=True)
+    (pkgconfig / "libminijail.pc").write_text(
+        "Name: libminijail\nDescription: Captured Android16 link library\nVersion: 0.0\n"
+        f"Libs: -L{libraries} -lminijail\nCflags: -I{minijail}\n"
+    )
+    host = "darwin-x86_64" if platform.system() == "Darwin" else "linux-x86_64"
+    ndk = args.sdk.resolve() / "ndk/28.2.13676358/toolchains/llvm/prebuilt" / host
+    rust = args.rust_bin.resolve()
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "CARGO_HOME": str(output / "cargo-home"),
+            "CARGO_TARGET_DIR": str(output / "target"),
+            "RUSTC": str(rust / "rustc"),
+            "RUSTDOC": str(rust / "rustdoc"),
+            "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER": str(
+                ndk / "bin/aarch64-linux-android35-clang"
+            ),
+            "CC_aarch64_linux_android": str(ndk / "bin/aarch64-linux-android35-clang"),
+            "AR_aarch64_linux_android": str(ndk / "bin/llvm-ar"),
+            "PKG_CONFIG_PATH_aarch64_linux_android": str(pkgconfig),
+            "PKG_CONFIG_ALLOW_CROSS": "1",
+            "LIBCLANG_PATH": str(args.llvm_library.resolve()),
+            "BINDGEN_EXTRA_CLANG_ARGS": f"--sysroot={ndk}/sysroot -I{ndk}/sysroot/usr/include/aarch64-linux-android",
+            "MINIJAIL_BINDGEN_TARGET": "aarch64-linux-android35",
+            "CARGO_BUILD_JOBS": "4",
+            "CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS": "-C link-arg=-Wl,-rpath,/apex/com.android.virt/lib64",
+        }
+    )
+    command = [
+        str(rust / "cargo"),
+        "build",
+        "--locked",
+        "--release",
+        "--target",
+        "aarch64-linux-android",
+        "--no-default-features",
+        "--features",
+        "gunyah,plb-preallocated-ram" + (",plb-split-ram" if args.split_ram else ""),
+        "--bin",
+        "crosvm",
+    ]
+    log_path = output / "build.log"
+    with log_path.open("wb") as log:
+        process = subprocess.Popen(
+            command,
+            cwd=source,
+            env=environment,
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+        try:
+            while process.poll() is None:
+                if (
+                    shutil.disk_usage(output).free < 21 * 1024**3
+                    or log_path.stat().st_size > 64 * 1024**2
+                ):
+                    raise RuntimeError("Build exceeded disk/log budget")
+                time.sleep(1)
+            if process.returncode:
+                raise RuntimeError(f"Cargo failed ({process.returncode}); inspect {log_path}")
+        finally:
+            if process.poll() is None:
+                # Only the fresh Mac process group created by this builder.
+                os.killpg(process.pid, signal.SIGTERM)
+                try:
+                    process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    os.killpg(process.pid, signal.SIGKILL)
+                    process.wait()
+    binary = output / "target/aarch64-linux-android/release/crosvm"
+    inputs = [
+        ROOT / "tools/crosvm_preallocated_ram.rs",
+        ROOT / "tools/crosvm_split_lend.rs",
+        ROOT / "tools/crosvm_preallocated_ram.patch",
+    ]
+    manifest = {
+        "source_revision": VMM_REVISION,
+        "minijail_revision": MINIJAIL_REVISION,
+        "features": ["gunyah", "plb-preallocated-ram"]
+        + (["plb-split-ram"] if args.split_ram else []),
+        "rust_version": subprocess.check_output(
+            [str(rust / "rustc"), "--version"], text=True
+        ).strip(),
+        "vmm_sha256": hashlib.sha256(binary.read_bytes()).hexdigest(),
+        "host_library_sha256": {
+            p.name: hashlib.sha256(p.read_bytes()).hexdigest()
+            for p in (libraries / n for n in LIBRARIES)
+        },
+        "patch_sha256": {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs},
+        "build_starts_vm": False,
+        "production_apk_changed": False,
+    }
+    (output / "vmm-build.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    print(json.dumps(manifest, indent=2))
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--split-ram", action="store_true", help="Separate 256 MiB registration comparison build"
+    )
+    for name in (
+        "source",
+        "minijail",
+        "host-libraries",
+        "sdk",
+        "rust-bin",
+        "llvm-library",
+        "output",
+    ):
+        parser.add_argument("--" + name, type=Path, required=True)
+    build(parser.parse_args())
+
+
+if __name__ == "__main__":
+    main()
