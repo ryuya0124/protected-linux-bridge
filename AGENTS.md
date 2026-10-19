@@ -307,3 +307,63 @@ and actual validated guest Internet. Texture update counts are not proof of
 60 presented fps or zero-copy. Details, negative trials and limits remain in
 docs/android-display-transport.md. Android guest audio/camera are not yet
 implemented; Debian's audio relay is not an Android HAL.
+
+
+## Vulkan guest trial: host restart observed, 2026-10-20
+
+The new private gfxstream build fixed the global-loader lookups, unbound AHB
+requirements query, dedicated export and incompatible AHB/DMA_BUF export mask.
+A no-VM host probe initialized Vulkan on Adreno and completed teardown. This
+does not validate guest Vulkan. The first isolated Android trial reached ADB
+but stopped when its authenticated viewer client was missing. The next trial
+reached root guest ADB with the ranchu Vulkan selector. Its guest Vulkan probe
+reported Bus error before the device/readback markers, host ADB disappeared,
+and the user confirmed Android had restarted. No host reboot command was sent.
+No Vulkan readback or clean second-trial postflight is established.
+
+Do not start this Vulkan VM or new GPU/allocation trials pending retained-crash
+review and explicit follow-up. The diagnostic manager, policy helper and RAM
+proxy are now execution-disabled at entry, including --check, before any
+allocation/disk/policy work. Do not remove that
+guard merely because a new host boot lacks taint. Building and read-only
+collection of pstore/boot reason/logs are allowed; do not clear crash records,
+reboot, change protections or restore temporary root by a different method.
+The released preview.9 GLES path has not been changed to enable Vulkan. Keep
+its persistent disks, the separate Vulkan clone and failed-case evidence.
+
+Read-only post-restart collection recovered `/proc/last_kmsg`: the host really
+panicked with `synchronous external abort`, in `crash_dump64` through
+`process_vm_readv -> process_vm_rw -> copy_page_to_iter -> __arch_copy_to_user`.
+This establishes the fatal crash-recording path, not the identity or initial
+failure of the process being inspected. No completed tombstone for that moment
+was retained. Reading protected/donated or externally mapped memory is a
+hypothesis, not a proved mapping attribution. Do not reproduce it by reading
+live VMM memory, attaching a debugger or deliberately crashing a VMM. The
+normal crosvm mapping constructor already requests MADV_DONTDUMP; do not assume
+adding it again prevents debuggerd's explicit process_vm_readv accesses.
+
+After restart, read-only checks found root available, taint 4608, Enforcing,
+all six shmem policies at never, and all four original Android source-profile
+hashes unchanged. These checks are not a clean postflight of the failed trial
+and do not authorize more VM/GPU/allocation trials.
+
+## One normal GLES retry for requested game installation, 2026-10-20
+
+The user explicitly approved one normal 4096 MiB GLES VM retry to diagnose
+network access and install the Japanese Garupa APK after the user-started normal
+GLES VM exited with Gunyah PAGE_FAULT -12 during APK transfer. This does not
+authorize Vulkan, another automatic retry, larger RAM or broader host changes.
+Retain the production health/lock/RAM/six-key/40-second-guardian checks. Stop on
+new errors; record consumption when dispatching this one launch. Existing
+Android/host protection and no-reboot constraints remain unchanged.
+
+The first approved retry was dispatched and ended before VMM execution with
+`Surface unavailable`; it is consumed. The user then explicitly approved one
+additional normal GLES startup attempt with the viewer visible, for the same
+network/game installation task. No further automatic launch is authorized.
+
+The additional attempt is now consumed. It reached BOOT=1/root guest ADB but
+APK transfer again ended with Gunyah PAGE_FAULT -12 at 08:08:26 JST. Garupa was
+not installed and the HTTPS/Aurora checks did not complete. Read-only postflight
+retained the same host boot ID, taint 4608, Enforcing and all six never values.
+Do not retry another VM/startup/allocation trial under either spent approval.

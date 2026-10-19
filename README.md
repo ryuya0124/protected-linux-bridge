@@ -180,7 +180,11 @@ plb-udp-forward 5353 1.1.1.1 53
 
 RAMの設定値は、安定して使える実メモリ容量の保証ではありません。大容量を実際に使うとGunyahのメモリ障害が起きる場合があり、現在も調査中です。[実機検証の範囲](docs/memory-working-set-probes.md)を公開しています。
 
+Androidの4 GiB構成では、起動後のAPK転送でも停止を確認しています。[メモリ安定性と描画破損の追加調査](docs/android-memory-stability.md)を進めています。
+
 開発用の別VMMでは、保護Linux VMの4 GiB全バイト検査が2回成功しました。[Linuxの検証記録](docs/preallocated-vmm-validation.md)を公開しています。続く4 GiBのAndroid 17＋GPU試験では、実際のAdreno GLES読み戻しとAndroidホームの表示を確認しました。アプリにも独立した実験構成として追加しました。GPUの画面出力と、ホームへ移動してからビューアを開き直した際の復帰を確認しました。起動失敗が残り、60fps・ゼロコピー・長時間の安定性は未確認です。起動ごとに、最大6 GiBの準備用RAMとホスト全体の16〜512 KiBの6種類の一時shmem設定について確認を表示します。既存の構成とデータは維持します。[Android／GPUの調査記録](docs/android4g-gpu-investigation.md)を参照してください。
+
+AndroidゲストのVulkanは未対応です。別構成の開発試験でホストのカーネルパニックが発生したため、新しいVM・GPU・メモリ負荷試験を停止しています。公開APKへこのVulkan構成は追加していません。[初期化修正と障害の調査記録](docs/android-vulkan-investigation.md)を公開しています。
 
 標準のディスク設定はこの専用ディスクに適用できないため無効にしています。LinuxパッケージのインストールはVMの中だけで行われます。
 

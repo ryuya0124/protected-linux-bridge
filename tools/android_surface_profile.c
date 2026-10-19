@@ -12,8 +12,17 @@
 #include <unistd.h>
 #define FILES "/data/user/0/net.ryuya_dev.protectedlinux/files"
 #define SOURCE FILES "/android-guests/cf17-gpu4096"
+#ifdef PLB_ANDROID4G_VULKAN_DIAGNOSTIC
+#define TARGET FILES "/android-guests/cf17-vulkan4096"
+#define RUNTIME FILES "/android-vulkan4g-runtime"
+#define COPY_PREFIX "vulkan-"
+#define COPY_MARKER "plb-vulkan-offline-copy-v1\n"
+#else
 #define TARGET FILES "/android-guests/cf17-gpu4096-surface"
 #define RUNTIME FILES "/android-gpu4g-surface-runtime"
+#define COPY_PREFIX "surface-"
+#define COPY_MARKER "plb-surface-offline-copy-v1\n"
+#endif
 #include "../native/profile_lock.h"
 #include "../native/android_gpu4g_files.h"
 #include "host_memory_health.h"
@@ -67,7 +76,8 @@ int main(int argc, char **argv) {
     }
     for (size_t i = 0; i < sizeof(runtime_items) / sizeof(*runtime_items); i++) {
         char source[256], target[256];
-        snprintf(source, sizeof(source), FILES "/kernel-probes/surface-%s", runtime_items[i].name);
+        snprintf(source, sizeof(source), FILES "/kernel-probes/" COPY_PREFIX "%s",
+                 runtime_items[i].name);
         snprintf(target, sizeof(target), RUNTIME "/%s", runtime_items[i].name);
         if (owned_install_pinned(source, target, runtime_items[i].sha256, 0500, 0))
             return 27;
@@ -83,7 +93,7 @@ int main(int argc, char **argv) {
     }
     int marker = open(TARGET ".preparing/.ready",
                       O_CREAT | O_EXCL | O_WRONLY | O_CLOEXEC | O_NOFOLLOW, 0600);
-    const char text[] = "plb-surface-offline-copy-v1\n";
+    const char text[] = COPY_MARKER;
     if (marker < 0 || owned_write_all(marker, (const unsigned char *)text, sizeof(text) - 1) ||
         fsync(marker))
         return 30;

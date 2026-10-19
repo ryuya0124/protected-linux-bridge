@@ -78,3 +78,25 @@ class AndroidSurfaceProfileTest(unittest.TestCase):
                 )
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("Surface mode requires", result.stderr)
+
+    def test_vulkan_trial_keeps_its_paths_and_real_guest_driver_separate(self):
+        with tempfile.TemporaryDirectory() as directory:
+            binary = Path(directory) / "args"
+            modes = COMMON + ["PLB_ANDROID4G_BUFFER_CAPSET", "PLB_ANDROID4G_VULKAN_DIAGNOSTIC"]
+            result = self.compile(binary, modes)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            args = subprocess.check_output([str(binary)], text=True).splitlines()
+            self.assertIn("androidboot.hardware.vulkan=ranchu", args[args.index("--params") + 1])
+            gpu = args[args.index("--gpu") + 1]
+            self.assertIn("vulkan=true", gpu)
+            self.assertIn("VulkanUseDedicatedAhbMemoryType:enabled", gpu)
+            self.assertNotIn("Vulkan:disabled", gpu)
+            self.assertIn("--protected-vm-without-firmware", args)
+            blocks = [args[i + 1] for i, x in enumerate(args) if x == "--block"]
+            self.assertEqual(len(blocks), 3)
+            self.assertTrue(all("/cf17-vulkan4096/" in x for x in blocks))
+            self.assertEqual(args[0], "/owned/app/android-vulkan4g-runtime/crosvm")
+            for incompatible in ("PLB_ANDROID4G_DISABLE_RENDERER_VULKAN", "PLB_SURFACE_PRODUCT"):
+                result = self.compile(binary, modes + [incompatible])
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Vulkan diagnostic requires", result.stderr)

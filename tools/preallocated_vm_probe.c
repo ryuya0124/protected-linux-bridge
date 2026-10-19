@@ -327,6 +327,14 @@ static int prepare_and_exec(int memory, int touch, int small_folios, int chunked
     /* No memory/ioctl interposition, CMA path or host policy knob. The optional
      * Vulkan-loader bridge is pinned and applies to this final VMM exec only. */
     unsetenv("LD_PRELOAD");
+#ifdef PLB_ANDROID4G_VULKAN_DIAGNOSTIC
+    // A separately built renderer, not a host-library replacement or preload.
+    if (!pinned_file(PLB_ANDROID4G_RUNTIME "/libgfxstream_backend.so",
+                     PLB_PREALLOCATED_RENDERER_SHA256) ||
+        setenv("LD_LIBRARY_PATH",
+               PLB_ANDROID4G_RUNTIME ":/apex/com.android.virt/lib64:/system/lib64", 1))
+        return 90;
+#endif
 #ifdef PLB_ANDROID4G_LOADER_COMPAT
     if (!pinned_file(PLB_ANDROID4G_COMPAT, PLB_PREALLOCATED_COMPAT_SHA256) ||
         setenv("LD_PRELOAD", PLB_ANDROID4G_COMPAT, 1)) {
@@ -405,6 +413,11 @@ static void observe_owned_child(pid_t child, int limits) {
 #endif
 
 int main(int argc, char **argv) {
+#ifdef PLB_ANDROID4G_VULKAN_DIAGNOSTIC
+    // Direct invocation must not bypass the diagnostic policy/manager hold.
+    fprintf(stderr, "ANDROID_VULKAN_EXECUTION_DISABLED host_restart_observed=1\n");
+    return 43;
+#endif
     setvbuf(stdout, NULL, _IONBF, 0);
 #ifdef PLB_PREALLOCATED_ANDROID_PROXY
     (void)argv;

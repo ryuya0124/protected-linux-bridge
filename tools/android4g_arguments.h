@@ -28,7 +28,12 @@ static const char *const android4g_arguments[] = {
     "androidboot.boot_devices=10000.pci androidboot.hardware.gralloc=minigbm "
     "androidboot.hardware.hwcomposer=ranchu androidboot.hardware.hwcomposer.mode=client "
     "androidboot.hardware.hwcomposer.display_finder_mode=drm "
-    "androidboot.hardware.egl=emulation androidboot.hardware.vulkan=pastel "
+    "androidboot.hardware.egl=emulation "
+#ifdef PLB_ANDROID4G_VULKAN_DIAGNOSTIC
+    "androidboot.hardware.vulkan=ranchu "
+#else
+    "androidboot.hardware.vulkan=pastel "
+#endif
 #ifdef PLB_ANDROID4G_ASG
     "androidboot.hardware.gltransport=virtio-gpu-asg "
 #else
@@ -55,10 +60,19 @@ static const char *const android4g_arguments[] = {
     "gfxstream-vulkan:"
 #endif
     "gfxstream-composer,"
-    "egl=true,gles=true,vulkan=false,glx=false,surfaceless=true,width=480,height=800,"
+    "egl=true,gles=true,"
+#ifdef PLB_ANDROID4G_VULKAN_DIAGNOSTIC
+    "vulkan=true,"
+#else
+    "vulkan=false,"
+#endif
+    "glx=false,surfaceless=true,width=480,height=800,"
     "pci-bar-size=268435456"
 #ifdef PLB_ANDROID4G_DISABLE_RENDERER_VULKAN
     ",renderer-features=Vulkan:disabled"
+#endif
+#ifdef PLB_ANDROID4G_VULKAN_DIAGNOSTIC
+    ",renderer-features=VulkanUseDedicatedAhbMemoryType:enabled"
 #endif
     ,
     "--serial",

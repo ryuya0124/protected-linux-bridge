@@ -1,0 +1,231 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 51d302f..03e18d6 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -107,6 +107,8 @@ if (APPLE)
+ elseif(QNX)
+     # TODO(jsimonot): fix build error
+     # add_compile_definitions(VK_USE_PLATFORM_SCREEN_QNX)
++elseif(ANDROID)
++    add_compile_definitions(VK_USE_PLATFORM_ANDROID_KHR)
+ elseif(UNIX)
+     # Use X11 version of EGL platform specific definitions.
+     add_compile_definitions(USE_X11)
+@@ -164,6 +166,9 @@ endif()
+ 
+ set(EXTRA_SUBDIR_TEST_INCLUDE_FILES)
+ 
++if(ANDROID)
++    include_directories(${PLB_ANDROID_PLATFORM_HEADERS})
++endif()
+ add_subdirectory(third_party)
+ add_subdirectory(common)
+ add_subdirectory(host)
+diff --git a/common/base/CMakeLists.txt b/common/base/CMakeLists.txt
+index 5581e2f..5f40d3e 100644
+--- a/common/base/CMakeLists.txt
++++ b/common/base/CMakeLists.txt
+@@ -105,6 +105,8 @@ if (WIN32)
+ elseif (QNX)
+     set(gfxstream_common_base_platform_deps
+         dl)
++elseif(ANDROID)
++    set(gfxstream_common_base_platform_deps dl)
+ elseif(LINUX)
+     set(gfxstream_common_base_platform_deps
+         dl
+diff --git a/host/CMakeLists.txt b/host/CMakeLists.txt
+index f781232..3aa771a 100644
+--- a/host/CMakeLists.txt
++++ b/host/CMakeLists.txt
+@@ -93,6 +93,8 @@ if (APPLE)
+     set(stream-server-core-platform-sources NativeSubWindow_cocoa.mm)
+ elseif (WIN32)
+     set(stream-server-core-platform-sources NativeSubWindow_win32.cpp)
++elseif (ANDROID)
++    set(stream-server-core-platform-sources NativeSubWindow_android.cpp)
+ elseif (QNX)
+     set(stream-server-core-platform-sources NativeSubWindow_qnx.cpp)
+ else()
+@@ -383,3 +385,9 @@ if (WIN32)
+     configure_file(../toolchain/cmake/SetWin32TestEnvironment.cmake.in ${CMAKE_CURRENT_BINARY_DIR}/SetWin32TestEnvironment.cmake @ONLY)
+     set_property(DIRECTORY APPEND PROPERTY TEST_INCLUDE_FILES ${CMAKE_CURRENT_BINARY_DIR}/SetWin32TestEnvironment.cmake)
+ endif()
++
++if(ANDROID)
++    target_link_libraries(gfxstream_backend PRIVATE android log
++        ${PLB_ANDROID_NATIVEWINDOW_LIBRARY}
++        ${PLB_ANDROID_CUTILS_LIBRARY})
++endif()
+diff --git a/host/gl/glestranslator/EGL/CMakeLists.txt b/host/gl/glestranslator/EGL/CMakeLists.txt
+index 8a2b7e2..7311dc6 100644
+--- a/host/gl/glestranslator/EGL/CMakeLists.txt
++++ b/host/gl/glestranslator/EGL/CMakeLists.txt
+@@ -15,7 +15,7 @@
+ # Use EGL platform specific definitions.
+ if (APPLE)
+     add_compile_definitions(__APPLE__)
+-elseif(UNIX)
++elseif(UNIX AND NOT ANDROID)
+     add_compile_definitions(USE_X11)
+ endif()
+ 
+@@ -52,6 +52,10 @@ elseif (APPLE)
+         EGL_translator_static
+         ${egl-translator-common-sources}
+         ${egl-translator-darwin-sources})
++elseif (ANDROID)
++    add_library(EGL_translator_static
++        ${egl-translator-common-sources}
++        CoreProfileConfigs_linux.cpp EglOsApi_egl.cpp)
+ elseif (QNX)
+     add_library(
+         EGL_translator_static
+@@ -89,6 +93,8 @@ endif()
+ if (WIN32)
+ elseif (APPLE)
+     target_link_libraries(EGL_translator_static PUBLIC "-framework AppKit -framework IOSurface")
++elseif (ANDROID)
++    target_link_libraries(EGL_translator_static PUBLIC dl)
+ elseif (QNX)
+     target_link_libraries(EGL_translator_static PUBLIC "-lscreen -lregex -lEGL -lGLESv2")
+ else()
+diff --git a/host/vulkan/VkCommonOperations.cpp b/host/vulkan/VkCommonOperations.cpp
+index f615dc6..ccd1fd2 100644
+--- a/host/vulkan/VkCommonOperations.cpp
++++ b/host/vulkan/VkCommonOperations.cpp
+@@ -1994,7 +1994,8 @@ bool VkEmulation::allocExternalMemory(VulkanDispatch* vk, VkEmulation::ExternalM
+     auto allocInfoChain = vk_make_chain_iterator(&allocInfo);
+ 
+     if (mDeviceInfo.supportsExternalMemoryExport) {
+-        if (mDeviceInfo.supportsDmaBuf) {
++        if (mDeviceInfo.supportsDmaBuf &&
++            getDefaultExternalMemoryHandleType() != VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID) {
+             exportAi.handleTypes |= VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
+         }
+ 
+@@ -2018,7 +2019,11 @@ bool VkEmulation::allocExternalMemory(VulkanDispatch* vk, VkEmulation::ExternalM
+ 
+     while (!memoryAllocated) {
+         VkResult allocRes = vk->vkAllocateMemory(mDevice, &allocInfo, nullptr, &info->memory);
+-
++#ifdef __ANDROID__
++        GFXSTREAM_INFO("PLB_AHB_ALLOC result=%d size=%llu type=%u dedicated=%d handles=%u",
++            allocRes, (unsigned long long)allocInfo.allocationSize, allocInfo.memoryTypeIndex,
++            imageForDedicatedAllocation.hasValue(), exportAi.handleTypes);
++#endif
+         if (allocRes != VK_SUCCESS) {
+             GFXSTREAM_DEBUG("allocExternalMemory: failed in vkAllocateMemory: %s",
+                             string_VkResult(allocRes));
+@@ -2082,7 +2087,7 @@ bool VkEmulation::allocExternalMemory(VulkanDispatch* vk, VkEmulation::ExternalM
+         return true;
+     }
+ 
+-    uint32_t streamHandleType = 0;
++    [[maybe_unused]] uint32_t streamHandleType = 0;
+     VkResult exportRes = VK_SUCCESS;
+     bool validHandle = false;
+ #ifdef _WIN32
+@@ -2106,10 +2111,25 @@ bool VkEmulation::allocExternalMemory(VulkanDispatch* vk, VkEmulation::ExternalM
+         .pNext = nullptr,
+         .memory = info->memory,
+     };
+-    AHardwareBuffer* exportHandle = static_cast<AHardwareBuffer*>(reinterpret_cast<void*>(info->handleInfo->handle));
++    AHardwareBuffer* exportHandle = nullptr;
+     exportRes = mDeviceInfo.getMemoryHandleFunc(
+         mDevice, &getAhbInfo, &exportHandle);
+     validHandle = (VK_SUCCESS == exportRes) && (NULL != exportHandle);
++    GFXSTREAM_INFO("PLB_AHB_EXPORT result=%d valid=%d properties_fn=%d", exportRes, validHandle,
++        vk->vkGetAndroidHardwareBufferPropertiesANDROID != nullptr);
++    if (validHandle && imageForDedicatedAllocation.hasValue()) {
++        VkAndroidHardwareBufferPropertiesANDROID properties{
++            VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_PROPERTIES_ANDROID};
++        if (!vk->vkGetAndroidHardwareBufferPropertiesANDROID ||
++            vk->vkGetAndroidHardwareBufferPropertiesANDROID(mDevice, exportHandle, &properties) != VK_SUCCESS ||
++            !properties.allocationSize || !properties.memoryTypeBits) {
++            GFXSTREAM_ERROR("AHB export properties unavailable or empty");
++            AHardwareBuffer_release(exportHandle);
++            return false;
++        }
++        info->size = properties.allocationSize;
++        info->typeIndex = getValidMemoryTypeIndex(properties.memoryTypeBits, 0);
++    }
+     info->handleInfo = ExternalHandleInfo{
+         .handle = reinterpret_cast<ExternalHandleType>(exportHandle),
+         .streamHandleType = STREAM_HANDLE_TYPE_MEM_AHB,
+@@ -2717,7 +2737,44 @@ bool VkEmulation::createVkColorBufferLocked(uint32_t width, uint32_t height, GLe
+     infoPtr->imageCreateInfoShallow = vk_make_orphan_copy(*imageCi);
+     infoPtr->currentQueueFamilyIndex = mQueueFamilyIndex;
+ 
+-    VkMemoryRequirements memReqs;
++    VkMemoryRequirements memReqs{};
++#if defined(__ANDROID__)
++    // VUID-vkGetImageMemoryRequirements-image-04004 forbids querying an
++    // unbound AHB image. Export uses zero size and its dedicated image;
++    // import uses the actual AHardwareBuffer's properties.
++    const bool ahbImage = extImageCiPtr &&
++        (extImageCiPtr->handleTypes &
++         VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID);
++    if (ahbImage) {
++        useDedicated = true;
++        if (extMemHandleInfo) {
++            if (extMemHandleInfo->streamHandleType != STREAM_HANDLE_TYPE_MEM_AHB) {
++                GFXSTREAM_ERROR("Non-AHB handle for Android AHB image");
++                return false;
++            }
++            auto* ahb = reinterpret_cast<AHardwareBuffer*>(extMemHandleInfo->handle);
++            VkAndroidHardwareBufferPropertiesANDROID properties{
++                VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_PROPERTIES_ANDROID};
++            if (!vk->vkGetAndroidHardwareBufferPropertiesANDROID ||
++                vk->vkGetAndroidHardwareBufferPropertiesANDROID(mDevice, ahb, &properties) != VK_SUCCESS) {
++                GFXSTREAM_ERROR("AHB import properties unavailable");
++                return false;
++            }
++            memReqs.size = properties.allocationSize;
++            memReqs.memoryTypeBits = properties.memoryTypeBits;
++        } else {
++            // For export this is only a preference. Read the real type later.
++            for (uint32_t i = 0; i < mDeviceInfo.memProps.memoryTypeCount; i++) {
++                const auto flags = mDeviceInfo.memProps.memoryTypes[i].propertyFlags;
++                if ((flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) &&
++                    !(flags & VK_MEMORY_PROPERTY_PROTECTED_BIT)) {
++                    memReqs.memoryTypeBits |= 1u << i;
++                }
++            }
++        }
++        memReqs.alignment = 1;
++    } else
++#endif
+     if (!useDedicated && vk->vkGetImageMemoryRequirements2KHR) {
+         VkMemoryDedicatedRequirements dedicated_reqs{
+             VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS, nullptr};
+diff --git a/host/vulkan/cereal/common/goldfish_vk_dispatch.cpp b/host/vulkan/cereal/common/goldfish_vk_dispatch.cpp
+index 72eb501..fadd55c 100644
+--- a/host/vulkan/cereal/common/goldfish_vk_dispatch.cpp
++++ b/host/vulkan/cereal/common/goldfish_vk_dispatch.cpp
+@@ -913,13 +913,13 @@ void init_vulkan_dispatch_from_instance(VulkanDispatch* vk, VkInstance instance,
+         (PFN_vkEnumerateDeviceLayerProperties)vk->vkGetInstanceProcAddr(
+             instance, "vkEnumerateDeviceLayerProperties");
+     out->vkCreateInstance =
+-        (PFN_vkCreateInstance)vk->vkGetInstanceProcAddr(instance, "vkCreateInstance");
++        (PFN_vkCreateInstance)vk->vkGetInstanceProcAddr(VK_NULL_HANDLE, "vkCreateInstance");
+     out->vkEnumerateInstanceExtensionProperties =
+         (PFN_vkEnumerateInstanceExtensionProperties)vk->vkGetInstanceProcAddr(
+-            instance, "vkEnumerateInstanceExtensionProperties");
++            VK_NULL_HANDLE, "vkEnumerateInstanceExtensionProperties");
+     out->vkEnumerateInstanceLayerProperties =
+         (PFN_vkEnumerateInstanceLayerProperties)vk->vkGetInstanceProcAddr(
+-            instance, "vkEnumerateInstanceLayerProperties");
++            VK_NULL_HANDLE, "vkEnumerateInstanceLayerProperties");
+     out->vkGetDeviceProcAddr =
+         (PFN_vkGetDeviceProcAddr)vk->vkGetInstanceProcAddr(instance, "vkGetDeviceProcAddr");
+     out->vkGetPhysicalDeviceSparseImageFormatProperties =
+@@ -928,7 +928,7 @@ void init_vulkan_dispatch_from_instance(VulkanDispatch* vk, VkInstance instance,
+ #endif
+ #ifdef VK_VERSION_1_1
+     out->vkEnumerateInstanceVersion = (PFN_vkEnumerateInstanceVersion)vk->vkGetInstanceProcAddr(
+-        instance, "vkEnumerateInstanceVersion");
++        VK_NULL_HANDLE, "vkEnumerateInstanceVersion");
+     out->vkEnumeratePhysicalDeviceGroups =
+         (PFN_vkEnumeratePhysicalDeviceGroups)vk->vkGetInstanceProcAddr(
+             instance, "vkEnumeratePhysicalDeviceGroups");

@@ -266,6 +266,13 @@ static pid_t poll_child(pid_t child, int *status) {
 }
 
 int main(int argc, char **argv) {
+#ifdef PLB_ANDROID4G_VULKAN_DIAGNOSTIC
+    // Retained last_kmsg confirms a host panic during the second VM trial.
+    // Keep this experimental manager disabled, including --check, before any
+    // disk admission or host policy preparation. Ordinary GLES is unaffected.
+    fprintf(stderr, "ANDROID_VULKAN_EXECUTION_DISABLED host_restart_observed=1\n");
+    return 43;
+#endif
     uid_t app_uid = 0;
     int check_only = 0;
 #if defined(PLB_ANDROID_PROBE) && !defined(PLB_ANDROID4G_INTERACTIVE)
@@ -357,6 +364,12 @@ int main(int argc, char **argv) {
 #endif
 #endif
 #ifdef PLB_ANDROID_ADOPTED_PROBE
+#ifdef PLB_ANDROID4G_VULKAN_DIAGNOSTIC
+    if (!private_file(PLB_ANDROID4G_RUNTIME "/libgfxstream_backend.so") ||
+        !pinned_digest(PLB_ANDROID4G_RUNTIME "/libgfxstream_backend.so",
+                       PLB_ANDROID4G_RENDERER_SHA256))
+        return 31;
+#endif
 #ifdef PLB_ANDROID4G_LOADER_COMPAT
 #ifndef PLB_ANDROID4G_COMPAT_SHA256
 #error "Pin the isolated Android loader compatibility library"
@@ -776,6 +789,8 @@ int main(int argc, char **argv) {
     pid_t done = 0;
 #if defined(PLB_ANDROID4G_SURFACE_INTERACTIVE) && !defined(PLB_SURFACE_PRODUCT)
     const int ticks = 1800; /* Separate developer Surface session: at most three minutes. */
+#elif defined(PLB_ANDROID4G_VULKAN_DIAGNOSTIC)
+    const int ticks = 2400; /* Separate headless Vulkan experiment: four minutes. */
 #elif defined(PLB_ANDROID4G_INTERACTIVE)
     const int ticks = 18000;
 #elif defined(PLB_ANDROID_ADOPTED_PROBE)

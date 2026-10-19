@@ -1,0 +1,59 @@
+{
+  "date": "2026-10-20",
+  "mode": "offline retained-log comparison",
+  "new_device_operations_by_analysis": false,
+  "compound_heads_are_gunyah_mapping_counts": false,
+  "records": [
+    {
+      "configured_memory_mib": 4480,
+      "batches": 280,
+      "snapshots_seen": 280,
+      "complete_preparation_snapshot": true,
+      "sampled_pages": 1146880,
+      "thp_pages": 1146880,
+      "thp_coverage_percent": 100.0,
+      "compound_head_observations": 124525,
+      "observed_heads_per_gib": 28462.85714285714,
+      "thp_kib_per_observed_head": 36.84015257980325,
+      "source_has_full_memory_complete_marker": true,
+      "source_has_gunyah_fault_marker": false,
+      "stability_validated_by_this_analysis": false,
+      "gunyah_mapping_count": null,
+      "label": "linux-full-readback-1"
+    },
+    {
+      "configured_memory_mib": 4480,
+      "batches": 280,
+      "snapshots_seen": 280,
+      "complete_preparation_snapshot": true,
+      "sampled_pages": 1146880,
+      "thp_pages": 1146880,
+      "thp_coverage_percent": 100.0,
+      "compound_head_observations": 128431,
+      "observed_heads_per_gib": 29355.657142857144,
+      "thp_kib_per_observed_head": 35.71972498851523,
+      "source_has_full_memory_complete_marker": true,
+      "source_has_gunyah_fault_marker": false,
+      "stability_validated_by_this_analysis": false,
+      "gunyah_mapping_count": null,
+      "label": "linux-full-readback-2"
+    },
+    {
+      "configured_memory_mib": 4096,
+      "batches": 256,
+      "snapshots_seen": 256,
+      "complete_preparation_snapshot": true,
+      "sampled_pages": 1048576,
+      "thp_pages": 1048576,
+      "thp_coverage_percent": 100.0,
+      "compound_head_observations": 181413,
+      "observed_heads_per_gib": 45353.25,
+      "thp_kib_per_observed_head": 23.120195355349395,
+      "source_has_full_memory_complete_marker": false,
+      "source_has_gunyah_fault_marker": true,
+      "stability_validated_by_this_analysis": false,
+      "gunyah_mapping_count": null,
+      "label": "android-gles-apk-transfer-failed"
+    }
+  ]
+}

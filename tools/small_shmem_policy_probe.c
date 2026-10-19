@@ -279,6 +279,11 @@ static int prepare_owned_memory(int lock) {
 #endif
 
 int main(int argc, char **argv) {
+#ifdef PLB_ANDROID4G_VULKAN_DIAGNOSTIC
+    // Refuse before RAM preparation as well as before the first policy write.
+    fprintf(stderr, "ANDROID_VULKAN_EXECUTION_DISABLED host_restart_observed=1\n");
+    return 43;
+#endif
     char model[PROP_VALUE_MAX], sdk[PROP_VALUE_MAX];
 #ifdef PLB_ANDROID4G_INTERACTIVE
     if (argc != 5 || strcmp(argv[1], "--apply-approved-medium-shmem") ||
