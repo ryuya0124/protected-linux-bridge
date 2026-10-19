@@ -12,6 +12,13 @@ exposes a separate per-size `shmem_enabled` policy, currently `never`; changing
 anonymous policy would not enable small shared-memory folios for normal crosvm
 memfd backing. See [the source comparison](droidvm-hugepage-comparison.md).
 
+The later [three-key shared-memory proposal](small-shmem-policy-proposal.md)
+avoids the global defrag change and retains original memfd backing. It is also
+unapproved. The older two-key controller's independently reopened child owner
+lock would conflict with the supervisor; its real application mode is now
+disabled rather than presenting it as a working trial. Its mock restoration
+checks do not establish that real allocation handoff.
+
 ## Concrete trial
 
 | Host runtime setting | Observed current value | Proposed temporary value |

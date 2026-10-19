@@ -136,6 +136,12 @@ int main(int argc, char **argv) {
     char model[PROP_VALUE_MAX], sdk[PROP_VALUE_MAX];
     if (getuid() || argc != 2 || (strcmp(argv[1], "--plan") && strcmp(argv[1], APPLY_OPTION)))
         return 20;
+#ifndef PLB_POLICY_MOCK
+    if (!strcmp(argv[1], APPLY_OPTION)) {
+        puts("PLB_LEGACY_POLICY_APPLY_DISABLED: see small-shmem-policy proposal");
+        return 38;
+    }
+#endif
     __system_property_get("ro.product.model", model);
     __system_property_get("ro.build.version.sdk", sdk);
     if (strcmp(model, "SM-S948Q") || strcmp(sdk, "36"))

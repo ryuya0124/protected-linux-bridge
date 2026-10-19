@@ -1,7 +1,7 @@
 /* MIT. Small, process-local backing allocation experiment; no VM or device ioctl.
  * Default: 16 MiB, one short-range check and two owned 2 MiB collapse requests.
- * Explicit detached/reclaim-4g mode additionally touches/frees at most 4 GiB.
- * A direct parent watchdog supervises only its own worker. No sysfs,
+ * Explicit detached/reclaim-4g mode additionally touches/frees at most 4 GiB (6 GiB with explicit
+ * reclaim-6g or reclaim-8g). A direct parent watchdog supervises only its own worker. No sysfs,
  * global compaction, THP policy, kernel, partition or protection setting writes.
  */
 #define _GNU_SOURCE
@@ -20,9 +20,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../native/profile_lock.h"
+#include "diagnostic_owner_lock.h"
 #include "owned_page_summary.h"
 #include "probe_watchdog.h"
+#include "shmem_refault_probe.h"
 #ifndef MADV_COLLAPSE
 #define MADV_COLLAPSE 25
 #endif
@@ -225,7 +226,7 @@ static uint64_t pressure_pattern(uint64_t value) {
     return value;
 }
 
-static int bounded_reclaim_trial(void) {
+static int bounded_reclaim_trial(size_t cap) {
     /* Explicit opt-in only. The user permits ordinary reclamation of other
      * apps. Give this process the highest OOM victim score; never change another
      * process or any global OOM/reclaim setting. No mlock or global compaction.
@@ -239,7 +240,7 @@ static int bounded_reclaim_trial(void) {
     if (!ok) {
         return -1;
     }
-    const size_t cap = 4096UL * 1024 * 1024, batch = 64UL * 1024 * 1024;
+    const size_t batch = 64UL * 1024 * 1024;
     unsigned char *pressure =
         mmap(NULL, cap, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (pressure == MAP_FAILED) {
@@ -283,13 +284,16 @@ static int bounded_reclaim_trial(void) {
 
 int main(int argc, char **argv) {
     if (getuid() || sysconf(_SC_PAGESIZE) != 4096 || (argc != 2 && argc != 3) ||
-        (strcmp(argv[1], "anon") && strcmp(argv[1], "shared") && strcmp(argv[1], "detached")))
+        (strcmp(argv[1], "anon") && strcmp(argv[1], "shared") && strcmp(argv[1], "detached") &&
+         strcmp(argv[1], "shared-refault")))
         return 20;
     int reclaim = argc == 3;
-    if (reclaim && (strcmp(argv[1], "detached") || strcmp(argv[2], "reclaim-4g"))) {
+    if (reclaim && (strcmp(argv[1], "detached") ||
+                    (strcmp(argv[2], "reclaim-4g") && strcmp(argv[2], "reclaim-6g") &&
+                     strcmp(argv[2], "reclaim-8g")))) {
         return 20;
     }
-    int owner_lock = profile_lock();
+    int owner_lock = diagnostic_owner_lock();
     if (owner_lock < 0) {
         fprintf(stderr, "PLB_ALLOCATION_REJECTED owner_lock errno=%d\n", errno);
         return 24;
@@ -339,7 +343,8 @@ int main(int argc, char **argv) {
     if (map == MAP_FAILED)
         return 22;
     printf("PLB_ALLOCATION_ALIGNMENT virtual_2m=%d file_offset_2m=1\n", (uintptr_t)map % huge == 0);
-    int advice = madvise(map, size, MADV_HUGEPAGE);
+    int refault = !strcmp(argv[1], "shared-refault");
+    int advice = madvise(map, size, refault ? MADV_NOHUGEPAGE : MADV_HUGEPAGE);
     printf("PLB_ALLOCATION_ADVICE mode=%s result=%d\n", argv[1], advice);
     volatile unsigned char *bytes = map;
     for (size_t at = 0; at < size; at += 4096)
@@ -347,7 +352,16 @@ int main(int argc, char **argv) {
     accounting("populated");
     owned_page_flags(map, size);
     mapping_accounting(map);
-    if (reclaim && bounded_reclaim_trial()) {
+    if (refault) {
+        if (madvise(map, size, MADV_HUGEPAGE) || plb_refault_owned_shmem(fd, map, size, 0, 4))
+            return 29;
+        accounting("refaulted");
+        owned_page_flags(map, size);
+    }
+    size_t pressure_mib = reclaim && !strcmp(argv[2], "reclaim-8g")   ? 8192
+                          : reclaim && !strcmp(argv[2], "reclaim-6g") ? 6144
+                                                                      : 4096;
+    if (reclaim && bounded_reclaim_trial(pressure_mib * 1024UL * 1024)) {
         munmap(map, size);
         if (fd >= 0) {
             close(fd);

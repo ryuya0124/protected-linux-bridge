@@ -14,12 +14,39 @@
 #include <string.h>
 #include <stdint.h>
 #include <time.h>
+#include "guest_page_tracker.h"
 
 static void finish(void) {
     fflush(stdout);
     reboot(RB_POWER_OFF);
     for (;;)
         pause();
+}
+
+/* Read only this guest process's page table. Batches keep observation overhead
+ * bounded; the bitmap holds no host PFNs and is never exported. */
+static int observe_pages(int pagemap, const void *memory, size_t bytes, size_t page_size,
+                         unsigned char *seen, size_t pfn_limit, size_t *unique, int round) {
+    uint64_t entries[256];
+    size_t pages = bytes / page_size;
+    struct plb_guest_page_scan scan = {0};
+    for (size_t at = 0; at < pages; at += 256) {
+        size_t count = pages - at < 256 ? pages - at : 256;
+        off_t offset = (off_t)(((uintptr_t)memory / page_size + at) * 8);
+        if (pread(pagemap, entries, count * 8, offset) != (ssize_t)(count * 8))
+            return -1;
+        for (size_t i = 0; i < count; i++)
+            plb_guest_page_observe(&scan, entries[i], seen, pfn_limit);
+    }
+    *unique += scan.new_pages;
+    printf("PLB_MEMORY_PAGES round=%d present=%zu absent=%zu hidden=%zu outside=%zu "
+           "new_pages=%zu cumulative_unique_pages=%zu guest_page=%zu\n",
+           round, scan.present, scan.absent, scan.hidden, scan.outside, scan.new_pages, *unique,
+           page_size);
+    return scan.samples == pages && scan.present == pages && !scan.absent && !scan.hidden &&
+                   !scan.outside
+               ? 0
+               : -1;
 }
 
 int main(void) {
@@ -57,9 +84,14 @@ int main(void) {
     int mib = option ? atoi(option + strlen(" plb.pressuremib=")) : 0;
     option = strstr(cmdline, " plb.rounds=");
     int rounds = option ? atoi(option + strlen(" plb.rounds=")) : 1;
+    option = strstr(cmdline, " plb.discard=");
+    int discard = option ? atoi(option + strlen(" plb.discard=")) : 0;
+    long page_size = sysconf(_SC_PAGESIZE);
     struct sysinfo info;
-    if (mib < 64 || mib > 1024 || rounds < 1 || rounds > 8 || mib * rounds > 3072 ||
-        sysinfo(&info) || (uint64_t)info.freeram * info.mem_unit < ((uint64_t)mib + 48) * 1048576) {
+    if (mib < 64 || mib > 4096 || rounds < 1 || rounds > 8 || mib * rounds > 4096 ||
+        (mib > 1024 && rounds != 1) || discard < 0 || discard > 1 || (discard && rounds < 2) ||
+        (page_size != 4096 && page_size != 16384) || sysinfo(&info) ||
+        (uint64_t)info.freeram * info.mem_unit < ((uint64_t)mib + 48) * 1048576) {
         puts("PLB_MEMORY_TARGET_REJECTED");
         finish();
     }
@@ -73,24 +105,40 @@ int main(void) {
         puts("PLB_MEMORY_MMAP_FAILED");
         finish();
     }
-    printf("PLB_MEMORY_BEGIN mib=%d guest_page=%ld\n", mib, sysconf(_SC_PAGESIZE));
-    printf("PLB_MEMORY_WORKLOAD rounds=%d unique_mib=%d\n", rounds, mib);
+    size_t pfn_limit = (32ULL << 30) / (size_t)page_size;
+    unsigned char *seen = calloc((pfn_limit + 7) / 8, 1);
+    unsigned char *residency = calloc(bytes / (size_t)page_size, 1);
+    int pagemap = open("/proc/self/pagemap", O_RDONLY | O_CLOEXEC);
+    if (!seen || !residency || pagemap < 0) {
+        puts("PLB_MEMORY_OBSERVATION_FAILED");
+        finish();
+    }
+    size_t unique_pages = 0;
+    printf("PLB_MEMORY_BEGIN mib=%d guest_page=%ld\n", mib, page_size);
+    printf("PLB_MEMORY_WORKLOAD rounds=%d allocation_mib=%d discard=%d\n", rounds, mib, discard);
     unsigned errors = 0;
-    /* Every round reuses the same resident allocation, without discard/unmap.
-     * A guest without disks/swap cannot turn repeated coverage into a larger
-     * working set. Fault counters make accidental new allocation observable. */
+    /* Resident mode retains the same pages. Discard mode frees only the guest's
+     * anonymous pages, verifies their absence and checks zero-fill next round.
+     * Neither operation asks the host/Gunyah to reclaim protected pages. */
     for (int round = 1; round <= rounds; round++) {
         for (size_t offset = 0; offset < bytes; offset += 4096) {
+            if (discard && round > 1 && memory[offset] != 0)
+                errors++;
             memory[offset] = (unsigned char)((offset / 4096 + (size_t)round) % 251 + 1);
             if ((offset + 4096) % (64 * 1048576) == 0) {
                 printf("PLB_MEMORY_PROGRESS round=%d mib=%zu\n", round, (offset + 4096) / 1048576);
-                struct timespec step = {0, 200000000};
+                struct timespec step = {0, mib > 1024 ? 50000000 : 200000000};
                 nanosleep(&step, NULL);
             }
         }
         for (size_t offset = 0; offset < bytes; offset += 4096)
             if (memory[offset] != (unsigned char)((offset / 4096 + (size_t)round) % 251 + 1))
                 errors++;
+        if (observe_pages(pagemap, (const void *)memory, bytes, (size_t)page_size, seen, pfn_limit,
+                          &unique_pages, round)) {
+            puts("PLB_MEMORY_OBSERVATION_FAILED");
+            finish();
+        }
         struct rusage usage;
         if (getrusage(RUSAGE_SELF, &usage)) {
             puts("PLB_MEMORY_USAGE_FAILED");
@@ -103,7 +151,25 @@ int main(void) {
             puts("PLB_MEMORY_FAILED");
             finish();
         }
+        if (discard && round < rounds) {
+            if (madvise((void *)memory, bytes, MADV_DONTNEED) ||
+                mincore((void *)memory, bytes, residency)) {
+                puts("PLB_MEMORY_DISCARD_FAILED");
+                finish();
+            }
+            size_t present = 0;
+            for (size_t i = 0; i < bytes / (size_t)page_size; i++)
+                present += !!(residency[i] & 1);
+            printf("PLB_MEMORY_DISCARD round=%d resident_pages=%zu\n", round, present);
+            if (present) {
+                puts("PLB_MEMORY_DISCARD_FAILED");
+                finish();
+            }
+        }
     }
+    close(pagemap);
+    free(seen);
+    free(residency);
     printf("PLB_MEMORY_TOUCHED mib=%d\n", mib);
     printf("PLB_MEMORY_READBACK errors=%u\n", errors);
     struct timespec hold = {5, 0};

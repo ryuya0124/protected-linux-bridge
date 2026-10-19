@@ -54,6 +54,21 @@ class MemoryProbeResult(unittest.TestCase):
     def test_extra_round_is_not_the_requested_workload(self):
         self.assertFalse(PROBE.assess_probe(0, self.repeated_log([1, 2]), "", 256, 1)["complete"])
 
+    def test_discard_markers_must_match_requested_rounds(self):
+        log = self.repeated_log([1, 2, 3])
+        discard = (
+            "PLB_MEMORY_DISCARD round=1 resident_pages=0\n"
+            "PLB_MEMORY_DISCARD round=2 resident_pages=0\n"
+        )
+        self.assertTrue(PROBE.assess_probe(0, discard + log, "", 256, 3, True)["complete"])
+        for markers in (
+            "",
+            discard.replace("round=2", "round=1"),
+            discard.replace("pages=0", "pages=1"),
+        ):
+            self.assertFalse(PROBE.assess_probe(0, markers + log, "", 256, 3, True)["complete"])
+        self.assertFalse(PROBE.assess_probe(0, discard + log, "", 256, 3, False)["complete"])
+
     def test_observed_zero_exit_vcpu_crash(self):
         guest = "PLB_MEMORY_TOUCHED mib=448\n"
         vmm = "unknown gh exit reason: 3\nvcpu crashed\nexiting with success\n"
@@ -82,7 +97,49 @@ class MemoryProbeResult(unittest.TestCase):
         self.assertFalse(PROBE.assess_probe(0, guest, "", 256)["complete"])
 
 
+class BootGuardObservationTest(unittest.TestCase):
+    def test_original_and_extended_success_observations(self):
+        for suffix in (
+            "prefix_mib=64 low_result=0 high_result=0",
+            "prefix_mib=64 tail_mib=0 low_result=0 high_result=0 tail_result=0",
+            "prefix_mib=64 tail_mib=64 low_result=0 high_result=0 tail_result=0",
+        ):
+            with self.subTest(suffix=suffix):
+                self.assertTrue(
+                    PROBE.verified_boot_guard(
+                        "PLB_BACKING_BOOT_GUARD " + suffix + "\nPLB_BACKING_FOLIOS sampled=1"
+                    )
+                )
+
+    def test_failed_or_incomplete_observations_are_rejected(self):
+        valid = "PLB_BACKING_BOOT_GUARD prefix_mib=64 tail_mib=64 low_result=0 high_result=0 tail_result=0"
+        for log in (
+            valid,
+            valid.replace("tail_result=0", "tail_result=-1"),
+            valid.replace("low_result=0", "low_result=-1"),
+            valid.replace("tail_result=0", ""),
+            valid + "\n" + valid.replace("high_result=0", "high_result=-1"),
+        ):
+            with self.subTest(log=log):
+                self.assertFalse(
+                    PROBE.verified_boot_guard(log if log == valid else log + "\nPLB_BACKING_FOLIOS")
+                )
+
+
 class WorkloadBoundsTest(unittest.TestCase):
+    def test_prepared_large_workloads_require_the_fixed_one_pass_profile(self):
+        for memory, touch in ((2048, 1536), (4096, 3072), (5120, 4096)):
+            with self.subTest(memory=memory):
+                self.assertEqual(
+                    PROBE.workload_budget_mib(memory, touch, 1, True, True, prepared=True), memory
+                )
+                with self.assertRaises(ValueError):
+                    PROBE.workload_budget_mib(memory, touch, 1)
+                with self.assertRaises(ValueError):
+                    PROBE.workload_budget_mib(memory, touch, 2, True, True, prepared=True)
+        with self.assertRaises(ValueError):
+            PROBE.workload_budget_mib(5120, 4000, 1, True, True, prepared=True)
+
     def test_large_reservation_is_not_a_large_resident_workload(self):
         self.assertEqual(PROBE.workload_budget_mib(4096, 64, 1), 576)
         self.assertEqual(PROBE.workload_budget_mib(4096, 256, 1), 768)
@@ -91,6 +148,11 @@ class WorkloadBoundsTest(unittest.TestCase):
                 PROBE.workload_budget_mib(4096, 64, 1, **keywords)
         with self.assertRaises(ValueError):
             PROBE.workload_budget_mib(4096, 512, 1)
+
+    def test_discard_requires_reallocation(self):
+        with self.assertRaises(ValueError):
+            PROBE.workload_budget_mib(1024, 256, 1, discard=True)
+        self.assertEqual(PROBE.workload_budget_mib(1024, 256, 8, discard=True), 1024)
 
     def test_repeated_workload_fits_watchdog(self):
         self.assertEqual(PROBE.workload_budget_mib(768, 384, 8), 768)

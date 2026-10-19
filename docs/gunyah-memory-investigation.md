@@ -2,6 +2,21 @@
 
 ## Status, 2026-10-19
 
+The explicitly approved [small-shmem follow-up](small-shmem-policy-proposal.md)
+now includes a successful **2 GiB VM / 1536 MiB resident workload**: 393216
+unique guest pages, zero readback errors and 1572864 KiB guest max RSS. Later
+runs still failed, including one after 1472 MiB progress, so this is not a stable
+large-memory production profile. 4 GiB resident use remains unachieved.
+
+Small-folio backing is measured rather than inferred from an accepted VMM flag.
+All three narrowly approved host settings were restored after each trial.
+Active-slot kernel-image disassembly now confirms the donation-before-map
+sequence and hypervisor-10 to Linux-minus-12 remapping. Android 17 comparisons
+use separate writable files and preserve the original 512 MiB profile. The
+1536 MiB Android guest now completed boot and displayed both lockscreen and home
+in two bounded observations, without a recorded vCPU fault in those runs. See the
+linked trial notes and aggregate data for conditions and limitations.
+
 The [measured follow-up](memory-provisioning-followup.md) now separates a successful
 4 GiB Android-process allocation from failed 2 MiB folio allocation, verifies the
 short-collapse no-op, tests local tmpfs sealing compatibility, and captures the
@@ -26,17 +41,17 @@ The tests used the explicitly selected Galaxy SM-S948Q, Android 16 / One UI 8050
 
 The guest writes one byte per 4 KiB across an anonymous mapping, reads every written byte back, holds briefly, frees it and requests its own guest poweroff. A pass requires zero readback errors and an explicit completion marker, not merely VMM exit status zero.
 
-| Guest kernel | VM RAM | Requested write/readback | Result |
-|---|---:|---:|---|
-| Linux 6.18.57-plb1 | 512 MiB | 256 MiB | Completed, zero errors |
-| Linux 6.18.57-plb1 | 768 MiB | 512 MiB | Completed, zero errors |
-| Linux 6.18.57-plb1 | 1024 MiB | 768 MiB | Failed; last progress marker 448 MiB |
-| Same, VMM-local `--hugepages` | 1024 MiB | 768 MiB | Same failure; last marker 448 MiB |
-| Preinstalled Microdroid | 1024 MiB | 768 MiB | Same failure; last marker 448 MiB |
-| Android 17 Cuttlefish userspace, 2 CPUs | 640 MiB | Android boot | Same map failure at approximately 10 seconds |
-| Android 17 Cuttlefish, 6.12.74 / 4 KiB | 512 MiB | 256 MiB | Completed, zero errors; kernel/initramfs only |
-| Linux 6.18, private anonymous backing experiment | 512 MiB | 256 MiB | Completed, zero errors |
-| Same anonymous backing experiment | 1024 MiB | 768 MiB | Failed; last marker 512 MiB |
+| Guest kernel                                     |   VM RAM | Requested write/readback | Result                                        |
+| ------------------------------------------------ | -------: | -----------------------: | --------------------------------------------- |
+| Linux 6.18.57-plb1                               |  512 MiB |                  256 MiB | Completed, zero errors                        |
+| Linux 6.18.57-plb1                               |  768 MiB |                  512 MiB | Completed, zero errors                        |
+| Linux 6.18.57-plb1                               | 1024 MiB |                  768 MiB | Failed; last progress marker 448 MiB          |
+| Same, VMM-local `--hugepages`                    | 1024 MiB |                  768 MiB | Same failure; last marker 448 MiB             |
+| Preinstalled Microdroid                          | 1024 MiB |                  768 MiB | Same failure; last marker 448 MiB             |
+| Android 17 Cuttlefish userspace, 2 CPUs          |  640 MiB |             Android boot | Same map failure at approximately 10 seconds  |
+| Android 17 Cuttlefish, 6.12.74 / 4 KiB           |  512 MiB |                  256 MiB | Completed, zero errors; kernel/initramfs only |
+| Linux 6.18, private anonymous backing experiment |  512 MiB |                  256 MiB | Completed, zero errors                        |
+| Same anonymous backing experiment                | 1024 MiB |                  768 MiB | Failed; last marker 512 MiB                   |
 
 These are samples, not a universal 448/512 MiB limit. Last progress is rounded to 64 MiB; it is not the exact failing allocation size. VM boot memory and host backing layout differ. Passing a short memory probe does not establish long-term desktop stability.
 
@@ -91,7 +106,6 @@ The 16 KiB Android SDK 37.2 kernel produced no serial output in a separate bound
 Until a cause and correction are verified, retain the conservative experimental preset and the existing stock profile. Do not expose a misleading “Gunyah fixed” or “high-load GPU supported” switch.
 
 The parallel Android 17 userspace probe also encountered guest Linux OOM in a 512 MiB VM after SurfaceFlinger/system_server startup. That message comes from the **guest** kernel and is distinct from host Gunyah address-map `NOMEM`. Its HAL/resource work must be tracked separately; it is not evidence that the larger-memory hypervisor failure was fixed.
-
 
 ## Follow-up measurements: prefaulting and actual host types
 

@@ -35,3 +35,21 @@ Private APKs, device identifiers, console traces, OS images, built kernel artifa
 - The user explicitly requests every source file to be human-readable. Keep first-party Java, C, Python, Gradle, XML, shell and web code expanded and consistently formatted. No hand-minified code.
 - Use the checked-in formatting configuration and `docs/code-style.md`; retain upstream dependency/wrapper source unchanged.
 - Put test C in formatted `tests/fixtures/` files rather than compressed Python string literals. Explain ownership, offline mutation and recovery invariants.
+
+## Narrow runtime THP exception: explicit approval, 2026-10-19
+
+The user explicitly approved temporary changes ONLY to these three host sysfs
+settings, from `never` to `advise`, during bounded developer diagnostics:
+
+- `/sys/kernel/mm/transparent_hugepage/hugepages-16kB/shmem_enabled`
+- `/sys/kernel/mm/transparent_hugepage/hugepages-32kB/shmem_enabled`
+- `/sys/kernel/mm/transparent_hugepage/hugepages-64kB/shmem_enabled`
+
+First verify useful larger folios in a 16 MiB owned allocation; only then proceed
+to diagnostic VMs. Use the prepared independent restoration guardian, restore
+all three original values after each trial, and verify restoration and unchanged
+host boundary. Each trial is limited to 40 seconds. This does not authorize any
+other host/global setting, defrag/compaction/cache-drop write, anonymous THP
+setting, kernel/module/partition/SELinux/protection change, or Android restart.
+Keep all existing Debian disks and unrelated VMs protected as above. The released
+APK must not silently adopt this global policy change.

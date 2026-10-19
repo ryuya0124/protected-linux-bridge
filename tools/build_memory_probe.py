@@ -19,6 +19,11 @@ p.add_argument(
     action="store_true",
     help="Compile the unapproved policy proposal helper; --plan is read-only",
 )
+p.add_argument(
+    "--small-shmem-policy-proposal",
+    action="store_true",
+    help="Compile the unapproved three-key shmem policy supervisor; never execute it",
+)
 a = p.parse_args()
 root = Path(__file__).resolve().parents[1]
 sdk = Path(a.sdk)
@@ -109,9 +114,12 @@ subprocess.run(
 inputs = [
     root / "tools/build_memory_probe.py",
     root / "tools/guest_memory_probe.c",
+    root / "tools/guest_page_tracker.h",
     root / "tools/memory_probe_runner.c",
     root / "tools/memory_backing_probe.c",
+    root / "tools/backing_order_summary.h",
     root / "native/profile_lock.h",
+    root / "tools/diagnostic_owner_lock.h",
     binary,
     runner,
     library,
@@ -120,10 +128,13 @@ inputs = [
 extra_tools = []
 if a.allocation_research:
     inputs += [root / "tools/owned_page_summary.h", root / "tools/probe_watchdog.h"]
+    inputs += [root / "tools/shmem_refault_probe.h"]
     extra_tools += [
         ("backing_allocation_probe.c", "backing-allocation-probe"),
         ("owned_cache_probe.c", "owned-cache-probe"),
     ]
+if a.small_shmem_policy_proposal:
+    extra_tools.append(("small_shmem_policy_probe.c", "small-shmem-policy-probe"))
 if a.policy_proposal:
     extra_tools.append(("memory_policy_probe.c", "memory-policy-probe"))
 for source_name, output_name in extra_tools:

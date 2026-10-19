@@ -15,10 +15,43 @@
 #include <stddef.h>
 
 #define FILES "/data/user/0/net.ryuya_dev.protectedlinux/files"
+#if defined(PLB_ANDROID_GFXSTREAM_VULKAN_PROBE) && !defined(PLB_ANDROID_GFXSTREAM_PROBE)
+#error "The Vulkan diagnostic requires the isolated GPU probe profile"
+#endif
+#if defined(PLB_ANDROID_GFXSTREAM_PROBE) && !defined(PLB_ANDROID_PROBE)
+#error "Unverified GPU probe must never be enabled in the APK"
+#endif
+#if defined(PLB_ANDROID_MEMORY_PROBE) && !defined(PLB_ANDROID_PROBE)
+#error "Android memory diagnostics must never be enabled in the APK"
+#endif
+#if defined(PLB_ANDROID_MEMORY_POLICY) && !defined(PLB_ANDROID_MEMORY_PROBE)
+#error "The policy diagnostic requires the isolated Android memory profile"
+#endif
+#if defined(PLB_ANDROID_MEMORY_PROBE) && defined(PLB_ANDROID_GFXSTREAM_PROBE)
+#error "Keep Android memory and GPU diagnostics independent"
+#endif
+#ifdef PLB_ANDROID_MEMORY_PROBE
+#ifndef PLB_ANDROID_MEMORY_MIB
+#define PLB_ANDROID_MEMORY_MIB 2048
+#endif
+#if PLB_ANDROID_MEMORY_MIB != 1536 && PLB_ANDROID_MEMORY_MIB != 2048
+#error "Only prepared Android memory sizes are permitted"
+#endif
+#define PLB_STRINGIFY_INNER(value) #value
+#define PLB_STRINGIFY(value) PLB_STRINGIFY_INNER(value)
+#define BASE FILES "/android-guests/cf17-mem"
+#elif defined(PLB_ANDROID_GFXSTREAM_PROBE)
+#define BASE FILES "/android-guests/cuttlefish17-gpu-probe"
+#else
 #define BASE FILES "/android-guests/cuttlefish17"
+#endif
 #define KERNEL FILES "/kernels/android17-cuttlefish/Image"
 #define PLB_OWNER_LOCK_FILE FILES "/vm-owner.lock"
+#ifdef PLB_ANDROID_MEMORY_PROBE
+#include "../tools/diagnostic_owner_lock.h"
+#else
 #include "profile_lock.h"
+#endif
 
 #include "android_sensor_transport.h"
 
@@ -29,6 +62,49 @@ static void stop(int signal) {
 }
 
 #include "android_guest_display.h"
+#ifdef PLB_ANDROID_MEMORY_PROBE
+#include "../tools/android_memory_observer.h"
+#endif
+
+#ifdef PLB_ANDROID_GFXSTREAM_PROBE
+#include <pthread.h>
+#include "android_guest_adb.h"
+#include "android_guest_setup.generated.h"
+#include "../tools/android_gpu_console.h"
+/* Configure guest swap as soon as its original adbd is ready, independently
+ * of Mac ADB reconnection delays. Identity is checked before any guest write. */
+static void *diagnostic_guest_setup(void *unused) {
+    (void)unused;
+    unsigned char *output = malloc(ANDROID_ADB_LIMIT + 1);
+    if (!output)
+        return NULL;
+    const char identity[] = "exec:sh -c 'getprop ro.product.device; getprop ro.hardware; "
+                            "getprop ro.build.version.incremental; id -u'";
+    const char expected[] = "vsoc_arm64_only\ncutf_cvm\n16373615\n";
+    for (int i = 0; i < 100 && !stopping; i++) {
+        size_t size;
+        if (!android_adb(identity, output, &size) && size < 256) {
+            output[size] = 0;
+            if (strncmp((char *)output, expected, strlen(expected)))
+                break;
+            const char *uid = (char *)output + strlen(expected);
+            if (!strcmp(uid, "0\n")) {
+                int result = android_adb(android_setup_service, output, &size);
+                fprintf(stderr, "ANDROID_GPU_GUEST_SETUP result=%d ready=%d\n", result,
+                        !result &&
+                            memmem(output, size, "PLB_ANDROID_GUEST_SETUP_READY", 29) != NULL);
+                break;
+            }
+            if (strcmp(uid, "2000\n"))
+                break;
+            android_adb("root:", output, &size);
+        }
+        usleep(100000);
+    }
+    free(output);
+    return NULL;
+}
+#endif
 
 static int private_file(const char *path) {
     struct stat file;
@@ -99,15 +175,40 @@ int main(int argc, char **argv) {
         return 20;
     app_uid = (uid_t)parsed;
 #endif
-    if (!private_file(KERNEL) || !private_file(BASE "/android-base.qcow2") ||
+    if (!private_file(KERNEL) ||
+        !private_file(FILES "/android-guests/cuttlefish17/android-base.qcow2") ||
         !private_file(BASE "/android-work.qcow2") || !private_file(BASE "/android-lowram.cpio") ||
         !private_file(BASE "/android-misc.raw") || !private_file(BASE "/android-frp.raw"))
         return 21;
     if (!pinned_digest(KERNEL,
                        "f722bdd809bfd3485917a564b053b8a6d4938408734091f420c3297a8e3b20c8") ||
         !pinned_digest(BASE "/android-lowram.cpio",
-                       "7e0c04dd3f3b9b92398c1e5ac0161e93d78c450e857d530d55012a6a550315e2"))
+#ifdef PLB_ANDROID_GFXSTREAM_PROBE
+                       "ebf7141a7d287fdd877065109b5e68dfa9339a5a460c8d5795ff7355a36dd143"
+#else
+                       "7e0c04dd3f3b9b92398c1e5ac0161e93d78c450e857d530d55012a6a550315e2"
+#endif
+                       ))
         return 31;
+#ifdef PLB_ANDROID_GFXSTREAM_PROBE
+    const char *vmm_digest = "9b4d56db70be1d3d646a08da0cb3e6eb95637457e5f15cb3b1c627f348e3e847";
+    if (!pinned_digest("/apex/com.android.virt/bin/crosvm", vmm_digest))
+        return 31;
+#ifdef PLB_ANDROID_GFXSTREAM_VULKAN_PROBE
+#ifndef PLB_GFXSTREAM_COMPAT_SHA256
+#error "The Vulkan diagnostic compatibility library must be pinned by the build tool"
+#endif
+    if (!private_file(FILES "/kernel-probes/crosvm-copy") ||
+        !pinned_digest(FILES "/kernel-probes/crosvm-copy", vmm_digest) ||
+        !private_file(FILES "/kernel-probes/gfxstream-libs/libgfxstream_backend.so") ||
+        !pinned_digest(FILES "/kernel-probes/gfxstream-libs/libgfxstream_backend.so",
+                       "41414d640a526f56ce9a151f786e965a6e1fe3769e201790e0e58e7a31ff87da") ||
+        !private_file(FILES "/kernel-probes/libgfxstream_android_compat.so") ||
+        !pinned_digest(FILES "/kernel-probes/libgfxstream_android_compat.so",
+                       PLB_GFXSTREAM_COMPAT_SHA256))
+        return 31;
+#endif
+#endif
     if (check_only)
         return 0;
     FILE *info = fopen("/proc/meminfo", "re");
@@ -119,19 +220,39 @@ int main(int argc, char **argv) {
         if (sscanf(line, "MemAvailable: %llu kB", &available) == 1)
             break;
     fclose(info);
-    if (available < 1280ULL * 1024)
+    if (available <
+#ifdef PLB_ANDROID_MEMORY_PROBE
+        (PLB_ANDROID_MEMORY_MIB + 768ULL) * 1024
+#else
+        1280ULL * 1024
+#endif
+    )
         return 23;
-    int lock = profile_lock();
+    int lock =
+#ifdef PLB_ANDROID_MEMORY_PROBE
+        diagnostic_owner_lock();
+#else
+        profile_lock();
+#endif
     if (lock < 0)
         return 28;
     umask(077);
-    if (clear_log(BASE "/android-console.log"))
+    if (clear_log(BASE "/android-console.log")
+#ifdef PLB_ANDROID_MEMORY_PROBE
+        || clear_log(BASE "/android-memory-frame.png")
+#endif
+    )
         return 24;
     struct sensor_endpoint control, data, oemlock;
     if (sensor_listen(&control, BASE "/sensor-control.sock") ||
         sensor_listen(&data, BASE "/sensor-data.sock") ||
         sensor_listen(&oemlock, BASE "/oemlock.sock"))
         return 30;
+#ifdef PLB_ANDROID_GFXSTREAM_PROBE
+    struct sensor_endpoint console;
+    if (sensor_listen(&console, BASE "/early-console.sock"))
+        return 30;
+#endif
     signal(SIGTERM, stop);
     signal(SIGINT, stop);
     pid_t parent = getpid(), child = fork();
@@ -141,6 +262,40 @@ int main(int argc, char **argv) {
             _exit(25);
         unsetenv("LD_PRELOAD");
         unsetenv("LD_LIBRARY_PATH");
+#ifdef PLB_ANDROID_GFXSTREAM_VULKAN_PROBE
+        /* Development-only Vulkan-loader compatibility. The ordinary GLES
+         * diagnostic uses the installed VMM with no preload or private copy. */
+        if (setenv("ANDROID_EMU_VK_LOADER_PATH", "/system/lib64/libvulkan.so", 1) ||
+            setenv("GFXSTREAM_LOG_VERBOSE", "1", 1) ||
+            setenv("LD_PRELOAD", FILES "/kernel-probes/libgfxstream_android_compat.so", 1) ||
+            setenv("LD_LIBRARY_PATH",
+                   FILES "/kernel-probes/gfxstream-libs:/apex/com.android.virt/lib64:/system/"
+                         "lib64:/system_ext/lib64",
+                   1))
+            _exit(32);
+#endif
+#ifdef PLB_ANDROID_MEMORY_PROBE
+        /* Ordinary per-process OOM preference: the diagnostic is the victim. */
+        int oom = open("/proc/self/oom_score_adj", O_WRONLY | O_CLOEXEC);
+        if (oom < 0 || write(oom, "1000", 4) != 4)
+            _exit(33);
+        close(oom);
+#ifdef PLB_ANDROID_MEMORY_POLICY
+#ifndef PLB_ANDROID_MEMORY_LIBRARY_SHA256
+#error "Pin the diagnostic shared-memory library"
+#endif
+        const char *memory_library = FILES "/kernel-probes/libandroid_memory_backing_probe.so";
+        if (!private_file(memory_library) ||
+            !pinned_digest(memory_library, PLB_ANDROID_MEMORY_LIBRARY_SHA256) ||
+            !pinned_digest(FILES "/kernel-probes/crosvm-copy",
+                           "9b4d56db70be1d3d646a08da0cb3e6eb95637457e5f15cb3b1c627f348e3e847") ||
+            setenv("LD_PRELOAD", memory_library, 1) ||
+            setenv("PLB_ANDROID_BACKING_PROBE", "shared-middle-refault", 1) ||
+            setenv("LD_LIBRARY_PATH",
+                   "/apex/com.android.virt/lib64:/system/lib64:/system_ext/lib64", 1))
+            _exit(34);
+#endif
+#endif
         const char *base_args[] = {
             "crosvm",
             "run",
@@ -153,11 +308,18 @@ int main(int argc, char **argv) {
             "--swiotlb",
             "32",
             "--mem",
+#ifdef PLB_ANDROID_MEMORY_PROBE
+            "size=" PLB_STRINGIFY(PLB_ANDROID_MEMORY_MIB),
+#else
             "size=512",
+#endif
             "--cpus",
             "num-cores=2",
             "--serial",
-#ifdef PLB_ANDROID_PROBE
+#ifdef PLB_ANDROID_GFXSTREAM_PROBE
+            "type=unix-stream,path=" BASE "/early-console.sock,input-unix-stream=true,"
+            "console=true,earlycon=true",
+#elif defined(PLB_ANDROID_PROBE)
             "type=file,path=" BASE "/android-console.log,console=true,earlycon=true",
 #else
             "type=sink,console=true,earlycon=true",
@@ -172,7 +334,19 @@ int main(int argc, char **argv) {
             "androidboot.boot_devices=10000.pci androidboot.hardware.gralloc=minigbm "
             "androidboot.hardware.hwcomposer=ranchu androidboot.hardware.hwcomposer.mode=client "
             "androidboot.hardware.hwcomposer.display_finder_mode=drm "
+#ifdef PLB_ANDROID_GFXSTREAM_VULKAN_PROBE
+            "androidboot.hardware.egl=emulation androidboot.hardware.vulkan=ranchu "
+            "androidboot.hardware.gltransport=virtio-gpu-pipe androidboot.enable_bootanimation=0 "
+            "androidboot.console=ttyS0 "
+#elif defined(PLB_ANDROID_GFXSTREAM_PROBE)
+            "androidboot.hardware.egl=emulation androidboot.hardware.vulkan=pastel "
+            "androidboot.hardware.gltransport=virtio-gpu-pipe androidboot.enable_bootanimation=0 "
+            "androidboot.hardware.guest_hwui_renderer=skiagl "
+            "androidboot.hardware.guest_disable_renderer_preload=true "
+            "androidboot.console=ttyS0 "
+#else
             "androidboot.hardware.egl=angle androidboot.hardware.vulkan=pastel "
+#endif
             "androidboot.vendor.apex.com.android.hardware.gatekeeper=com.android.hardware."
             "gatekeeper.nonsecure "
             "androidboot.vendor.apex.com.android.hardware.keymint=com.android.hardware.keymint."
@@ -181,7 +355,11 @@ int main(int argc, char **argv) {
             "graphics.composer.ranchu "
             "androidboot.vendor.apex.com.google.emulated.camera.provider.hal=com.google.emulated."
             "camera.provider.hal "
+#ifdef PLB_ANDROID_GFXSTREAM_PROBE
+            "androidboot.cpuvulkan.version=4202496 androidboot.opengles.version=196608 "
+#else
             "androidboot.cpuvulkan.version=4202496 androidboot.opengles.version=196609 "
+#endif
             "androidboot.config.low_ram=true androidboot.vsock_lights_port=6900",
             "--vsock",
             "cid=39821",
@@ -192,11 +370,22 @@ int main(int argc, char **argv) {
             "--block",
             "path=" BASE "/android-frp.raw,ro=false",
             "--gpu",
+#ifdef PLB_ANDROID_GFXSTREAM_VULKAN_PROBE
+            "backend=gfxstream,context-types=gfxstream-gles:gfxstream-vulkan:gfxstream-composer,"
+            "egl=true,gles=true,vulkan=true,glx=false,surfaceless=true,width=480,height=800",
+#elif defined(PLB_ANDROID_GFXSTREAM_PROBE)
+            "backend=gfxstream,context-types=gfxstream-gles:gfxstream-composer,"
+            "egl=true,gles=true,vulkan=false,glx=false,surfaceless=true,width=480,height=800",
+#else
             "backend=2d,width=480,height=800",
+#endif
             "--initrd",
             BASE "/android-lowram.cpio",
             KERNEL,
             NULL};
+#ifdef PLB_ANDROID_MEMORY_POLICY
+        /* Keep the original shared memfd/FD contract used by GPU and vsock. */
+#endif
         char serial[4][256];
         const char *args[160];
         size_t n = 0;
@@ -221,13 +410,28 @@ int main(int argc, char **argv) {
             args[n++] = "--serial";
             args[n++] = serial[port];
         }
+#ifdef PLB_ANDROID_MEMORY_POLICY
+        args[n++] = "--hugepages";
+#endif
         args[n++] = KERNEL;
         args[n] = NULL;
+#if defined(PLB_ANDROID_GFXSTREAM_VULKAN_PROBE) || defined(PLB_ANDROID_MEMORY_POLICY)
+        execv(FILES "/kernel-probes/crosvm-copy", (char *const *)args);
+#else
         execv("/apex/com.android.virt/bin/crosvm", (char *const *)args);
+#endif
         _exit(26);
     }
     if (child < 0)
         return 27;
+#ifdef PLB_ANDROID_GFXSTREAM_PROBE
+    pthread_t console_thread;
+    struct gpu_console_context console_context = {&console, child};
+    int console_started =
+        !pthread_create(&console_thread, NULL, gpu_console_worker, &console_context);
+    pthread_t bootstrap;
+    int bootstrap_started = !pthread_create(&bootstrap, NULL, diagnostic_guest_setup, NULL);
+#endif
 #ifndef PLB_ANDROID_PROBE
     int display_started = android_display_start(app_uid) == 0;
     if (!display_started) {
@@ -236,9 +440,15 @@ int main(int argc, char **argv) {
 #else
     (void)app_uid;
 #endif
+#ifdef PLB_ANDROID_MEMORY_PROBE
+    pthread_t observer;
+    int observer_started = !pthread_create(&observer, NULL, android_memory_observer, NULL);
+#endif
     int status = 0;
     pid_t done = 0;
-#ifdef PLB_ANDROID_PROBE
+#ifdef PLB_ANDROID_MEMORY_PROBE
+    const int ticks = 1200;
+#elif defined(PLB_ANDROID_PROBE)
     const int ticks = 3000;
 #else
     const int ticks = 18000;
@@ -252,10 +462,25 @@ int main(int argc, char **argv) {
             break;
         usleep(100000);
     }
+#ifdef PLB_ANDROID_MEMORY_PROBE
+    stopping = 1;
+    if (observer_started)
+        pthread_join(observer, NULL);
+#endif
 #ifndef PLB_ANDROID_PROBE
     stopping = 1;
     if (display_started)
         android_display_stop();
+#endif
+#ifdef PLB_ANDROID_GFXSTREAM_PROBE
+    stopping = 1;
+    if (bootstrap_started)
+        pthread_join(bootstrap, NULL);
+    if (console_started)
+        pthread_join(console_thread, NULL);
+    sensor_close(&console, BASE "/early-console.sock");
+    if (gpu_console_fd >= 0)
+        close(gpu_console_fd);
 #endif
     if (!done) {
 #ifndef PLB_ANDROID_PROBE
@@ -289,5 +514,9 @@ int main(int argc, char **argv) {
     sensor_close(&data, BASE "/sensor-data.sock");
     sensor_close(&oemlock, BASE "/oemlock.sock");
     close(lock);
+#ifdef PLB_ANDROID_GFXSTREAM_PROBE
+    fprintf(stderr, "ANDROID_GPU_VMM_STATUS raw=%d signal=%d\n", status,
+            WIFSIGNALED(status) ? WTERMSIG(status) : 0);
+#endif
     return done > 0 && WIFEXITED(status) ? WEXITSTATUS(status) : 29;
 }

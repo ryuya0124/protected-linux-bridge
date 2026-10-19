@@ -15,7 +15,7 @@
 #include <time.h>
 #define FILES "/data/user/0/net.ryuya_dev.protectedlinux/files"
 #define PLB_OWNER_LOCK_FILE FILES "/vm-owner.lock"
-#include "../native/profile_lock.h"
+#include "diagnostic_owner_lock.h"
 static volatile sig_atomic_t stopping;
 static void stop(int signal) {
     (void)signal;
@@ -24,7 +24,7 @@ static void stop(int signal) {
 static int number(const char *text) {
     char *end;
     long value = strtol(text, &end, 10);
-    return *text && !*end && value >= 0 && value <= 4096 ? (int)value : -1;
+    return *text && !*end && value >= 0 && value <= 5120 ? (int)value : -1;
 }
 static int safe_log(const char *path) {
     struct stat st;
@@ -87,7 +87,7 @@ static pid_t poll_child(pid_t child, int *status) {
     return result;
 }
 int main(int argc, char **argv) {
-    if (getuid() != 0 || (argc < 5 || argc > 8))
+    if (getuid() != 0 || (argc < 5 || argc > 9))
         return 20;
     const char *kernel = !strcmp(argv[1], "linux618")    ? FILES "/kernels/linux-6.18.57-plb1/Image"
                          : !strcmp(argv[1], "sdk37-16k") ? FILES "/kernels/android37-sdk16k/Image"
@@ -98,11 +98,20 @@ int main(int argc, char **argv) {
     int mem = number(argv[2]), touch = number(argv[3]), huge = number(argv[4]);
     int anonymous = argc >= 6 ? number(argv[5]) : 0;
     int dump_fdt = argc >= 7 ? number(argv[6]) : 0;
-    int rounds = argc == 8 ? number(argv[7]) : 1;
-    if (!kernel || (mem != 512 && mem != 768 && mem != 1024 && mem != 4096) || touch < 64 ||
-        touch > mem - 64 || huge < 0 || huge > 1 || anonymous < 0 || anonymous > 2 ||
+    int rounds = argc >= 8 ? number(argv[7]) : 1;
+    int discard = argc == 9 ? number(argv[8]) : 0;
+    int prepared_large = (anonymous == 6 || anonymous == 7 || anonymous == 8) && huge == 1 &&
+                         rounds == 1 && !discard && !dump_fdt &&
+                         ((mem == 2048 && touch == 1536) || (mem == 4096 && touch == 3072) ||
+                          (mem == 5120 && touch == 4096));
+    int lazy_large = mem == 4096 && touch <= 256 && !anonymous && !huge;
+    if (!kernel ||
+        (mem != 512 && mem != 768 && mem != 1024 && mem != 2048 && mem != 4096 && mem != 5120) ||
+        touch < 64 || touch > mem - 64 || huge < 0 || huge > 1 || anonymous < 0 || anonymous > 8 ||
         dump_fdt < 0 || dump_fdt > 1 || (dump_fdt && anonymous) || rounds < 1 || rounds > 8 ||
-        touch * rounds > 3072 || (mem == 4096 && (touch > 256 || anonymous || huge)))
+        touch * rounds > (prepared_large ? 4096 : 3072) || discard < 0 || discard > 1 ||
+        (discard && rounds < 2) || (anonymous >= 5 && !huge) ||
+        (mem >= 2048 && !prepared_large && !lazy_large))
         return 21;
     if (anonymous) {
         struct stat library, copy;
@@ -114,7 +123,7 @@ int main(int argc, char **argv) {
             copy.st_uid || copy.st_nlink != 1 || copy.st_mode & (0222 | 077))
             return 29;
     }
-    int lock = profile_lock();
+    int lock = diagnostic_owner_lock();
     if (lock < 0)
         return 28;
     umask(077);
@@ -122,7 +131,8 @@ int main(int argc, char **argv) {
         return 22;
     if (dump_fdt && safe_log(FILES "/kernel-probes/memory-last.dtb"))
         return 22;
-    printf("PLB_RUNNER_START memory_mib=%d touch_mib=%d rounds=%d\n", mem, touch, rounds);
+    printf("PLB_RUNNER_START memory_mib=%d touch_mib=%d rounds=%d discard=%d\n", mem, touch, rounds,
+           discard);
     fflush(stdout);
     signal(SIGTERM, stop);
     signal(SIGINT, stop);
@@ -131,10 +141,18 @@ int main(int argc, char **argv) {
         prctl(PR_SET_PDEATHSIG, SIGKILL);
         if (getppid() != parent)
             _exit(23);
+        const char *backing_modes[] = {NULL,
+                                       "anonymous",
+                                       "anonymous-prefault",
+                                       "shared-forward",
+                                       "shared-reverse",
+                                       "shared-upper-huge",
+                                       "shared-upper-refault",
+                                       "shared-upper-collapse",
+                                       "shared-upper-locked"};
         if (anonymous &&
             (setenv("LD_PRELOAD", FILES "/kernel-probes/libmemory_backing_probe.so", 1) ||
-             setenv("PLB_DISKLESS_BACKING_PROBE",
-                    anonymous == 2 ? "anonymous-prefault" : "anonymous", 1) ||
+             setenv("PLB_DISKLESS_BACKING_PROBE", backing_modes[anonymous], 1) ||
              setenv("LD_LIBRARY_PATH",
                     "/apex/com.android.virt/lib64:/system/lib64:/system_ext/lib64", 1)))
             _exit(27);
@@ -148,8 +166,8 @@ int main(int argc, char **argv) {
         snprintf(memory, sizeof(memory), "size=%d", mem);
         snprintf(options, sizeof(options),
                  "console=ttyS0 8250.nr_uarts=1 rdinit=/init panic=0 quiet loglevel=3 "
-                 "plb.pressuremib=%d plb.rounds=%d",
-                 touch, rounds);
+                 "plb.pressuremib=%d plb.rounds=%d plb.discard=%d",
+                 touch, rounds, discard);
         const char *args[] = {"crosvm",
                               "run",
                               "--name",
@@ -191,7 +209,8 @@ int main(int argc, char **argv) {
         return 25;
     int status = 0;
     pid_t done = 0;
-    for (int i = 0; i < 250 && !stopping; i++) {
+    int probe_steps = prepared_large ? 300 : 250;
+    for (int i = 0; i < probe_steps && !stopping; i++) {
         done = poll_child(child, &status);
         if (done)
             break;

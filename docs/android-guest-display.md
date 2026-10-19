@@ -1,14 +1,48 @@
 # Android guest display investigation
 
+## Larger-memory diagnostic, 2026-10-19
+
+An isolated **1536 MiB Android 17 Cuttlefish guest** now reached
+`sys.boot_completed=1`, started SystemUI and produced a verified 480×800 lockscreen
+PNG. A second 1536 MiB run also completed boot; waking/dismissing the guest
+keyguard and sending the guest HOME key produced a resumed
+`com.android.launcher3/.uioverrides.QuickstepLauncher` activity and a valid home
+screen PNG. In these approximately two-minute observations, guest MemTotal was 1468784 KiB,
+SurfaceFlinger/SystemUI retained their observed PIDs and no vCPU crash was logged.
+The fixed diagnostic ended at its time budget; this is not a long-term stability,
+hardware-acceleration or full Android compatibility claim.
+
+This result uses the user's narrowly approved, temporary **host-wide** 16/32/64 KiB
+shmem exception and a separately compiled shared-memory diagnostic. All sampled
+middle backing pages had THP flags before donation. The three host settings were
+restored after the first ten seconds, under an independent 40-second guardian,
+before the rest of Android boot. Host boot ID was unchanged and SELinux stayed
+Enforcing. Earlier 1536/2048 MiB trials with base-page fallbacks still reproduced
+the Gunyah map error; merely raising the RAM value is insufficient.
+
+The guest's regular root-verified virtual-HAL/swap bootstrap is required. A first
+read-only observation omitted it and never completed boot, even though it ran
+without a vCPU fault for two minutes. The successful trial includes the same
+bootstrap as the normal 512 MiB viewer. Host device nodes, host swap, partitions,
+kernel and protection settings were not modified.
+
+The writable Android qcow2/misc/FRP files are offline copies in a separate private
+profile. Original writable-file SHA256 values matched before/after. Existing
+Debian and the ordinary 512 MiB Android profile remain preserved; the released
+APK does not apply these host settings or expose this diagnostic as stable.
+Build-only entry: `tools/build_android_memory_probe.py`. Measurements and limits:
+[approved small-shmem trials](small-shmem-policy-proposal.md),
+[aggregate data](data/small-shmem-trials-2026-10-19.json).
+
 Status: 2026-10-19. The release APK retains Debian profiles and adds a separate, limited Android 17 display preview. **A stable, usable Android desktop is not verified.** No Android image is flashed or installed into the host. All downloaded images are ignored development artifacts; phone-side files are confined to Bridge's private data. The existing Debian profiles/disks and stock kernel are retained. [Host prohibitions](host-boundary.md) remain in force.
 
 ## Current boot gates
 
-| Candidate | Verified | Remaining gate |
-|---|---|---|
-| Existing Android 16 SDK / 4 KiB kernel | Diskless kernel boot/poweroff; separate SDK disks reach second-stage init, apexd, servicemanager and system_server attempts | No working SurfaceFlinger; Goldfish emulator HAL/topology mismatch, fresh filesystem feature mismatch |
-| Latest checked SDK 37.2 / Android 17 / 16 KiB | Official repository metadata, bounded kernel/ramdisk download, kernel configuration inspection | No console output in bounded diskless probe; no successful boot claimed |
-| Android 17 Cuttlefish / 4 KiB | Diskless memory pass; separate GPT/qcow disk reaches normal guest AVB/verity mounts, guest SELinux, APEX, BootControl, encrypted F2FS userdata, HWC, SurfaceFlinger and system_server | Boot completion and real boot-animation/lock-screen frame capture observed; integrated viewer/control transport is experimental, with severe 512 MiB pressure and launcher/SystemUI failures |
+| Candidate                                     | Verified                                                                                                                                                                              | Remaining gate                                                                                                                                                                               |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Existing Android 16 SDK / 4 KiB kernel        | Diskless kernel boot/poweroff; separate SDK disks reach second-stage init, apexd, servicemanager and system_server attempts                                                           | No working SurfaceFlinger; Goldfish emulator HAL/topology mismatch, fresh filesystem feature mismatch                                                                                        |
+| Latest checked SDK 37.2 / Android 17 / 16 KiB | Official repository metadata, bounded kernel/ramdisk download, kernel configuration inspection                                                                                        | No console output in bounded diskless probe; no successful boot claimed                                                                                                                      |
+| Android 17 Cuttlefish / 4 KiB                 | Diskless memory pass; separate GPT/qcow disk reaches normal guest AVB/verity mounts, guest SELinux, APEX, BootControl, encrypted F2FS userdata, HWC, SurfaceFlinger and system_server | Boot completion and real boot-animation/lock-screen frame capture observed; integrated viewer/control transport is experimental, with severe 512 MiB pressure and launcher/SystemUI failures |
 
 Cuttlefish build `16373615`, target `aosp_cf_arm64_only_phone-userdebug`, identifies Android 17 `CP2A.260605.016`. Its boot image contains Linux `6.12.74-android16-6-g3ec022196c4e-ab15076761-4k`. The kernel release name does not mean its Android userspace is version 16. The matching vendor ramdisk includes virtio-gpu, virtio-input, virtio-block, virtio-net and vsock modules. These are **guest modules**; none are loaded on Android's host kernel.
 
@@ -136,3 +170,13 @@ about ten seconds, before an interactive screen. Host boot ID remained unchanged
 SELinux stayed Enforcing, and the unrelated trusted VM was untouched. The release
 therefore keeps 512 MiB and does not expose larger values as working. This limitation
 is investigated in [the memory report](gunyah-memory-investigation.md).
+
+## Separate GPU research sources
+
+`tools/build_android_gpu_probe.py` builds independent GLES/Vulkan diagnostics,
+with their own private profile, early guest console/bootstrap and a tightly
+scoped process-local loader comparison. These research sources are retained
+separately from the new memory probe. Both variants compile, but no additional
+hardware-rendering success was established by the larger-memory tests above.
+The successful 1536 MiB screenshots use the software/2D path. No loader shim or
+experimental memory policy is enabled in the ordinary APK build.
