@@ -67,7 +67,18 @@ static const char *settings[] = {
 static const char *allocation_probe = FILES "/kernel-probes/backing-allocation-probe";
 #endif
 #define SETTING_COUNT ((int)(sizeof(settings) / sizeof(settings[0])))
+#if defined(PLB_ANDROID4G_MEDIUM_ONLY) && !defined(PLB_MEDIUM_SHMEM_PROPOSAL)
+#error "The narrowed Android comparison requires the approved six-key guardian"
+#endif
 static const char *trial_mode = "advise";
+static const char *proposed_mode(int index, int only_64k) {
+#ifdef PLB_ANDROID4G_MEDIUM_ONLY
+    /* Leave the three small sizes at their original never; do not enable a new node. */
+    if (index < 3)
+        return "never";
+#endif
+    return only_64k && index != 2 ? "never" : trial_mode;
+}
 static const char *vm_probe = FILES "/kernel-probes/memory-runner";
 struct vm_stage {
     const char *option, *memory, *touch, *backing;
@@ -286,10 +297,16 @@ int main(int argc, char **argv) {
     int vm = stage != NULL || android;
     int refault = argc == 3 && !strcmp(argv[2], "--allocation-refault");
     int preallocated = 0;
+    int adopted_android = 0;
     int preallocated_memory = 0, preallocated_touch = 0;
     int preallocated_chunked = 0;
 #ifdef PLB_PREALLOCATED_VM_POLICY
-    if (argc == 3 && !strcmp(argv[2], "--preallocated-16")) {
+    if (argc == 3 && !strcmp(argv[2], "--android4g")) {
+        preallocated = 1;
+        preallocated_memory = 4096;
+        adopted_android = 1;
+        vm = 1;
+    } else if (argc == 3 && !strcmp(argv[2], "--preallocated-16")) {
         preallocated = 1;
     } else if (argc == 3) {
         if (plb_preallocated_policy(argv[2], &preallocated_memory, &preallocated_touch)) {
@@ -318,8 +335,11 @@ int main(int argc, char **argv) {
         }
     }
 #endif
-    if ((prepare_memory || full_content) &&
-        (!preallocated || !preallocated_memory || !strcmp(argv[1], "--plan")))
+    if (adopted_android && (full_content || only_64k))
+        return 20;
+    if (prepare_memory && (!preallocated || !strcmp(argv[1], "--plan")))
+        return 20;
+    if (full_content && (!preallocated || !preallocated_memory || !strcmp(argv[1], "--plan")))
         return 20;
     if (only_64k && (!preallocated || !strcmp(argv[1], "--plan")))
         return 20;
@@ -341,7 +361,8 @@ int main(int argc, char **argv) {
                         : vm          ? vm_probe
                                       : allocation_probe;
     if (preallocated)
-        probe = full_content          ? FILES "/kernel-probes/preallocated-vm-full-probe"
+        probe = adopted_android       ? FILES "/kernel-probes/android4g-manager"
+                : full_content        ? FILES "/kernel-probes/preallocated-vm-full-probe"
                 : preallocated_memory ? FILES "/kernel-probes/preallocated-vm-probe"
                                       : FILES "/kernel-probes/preallocated-ram-probe";
     /* Android retains its preallocated memory after policy restoration. Only
@@ -381,7 +402,7 @@ int main(int argc, char **argv) {
         if (read_mode(settings[i], mode) || strcmp(mode, "never"))
             return 23;
         printf("PLB_POLICY_PLAN index=%d original=never proposed=%s\n", i,
-               only_64k && i != 2 ? "never" : "advise");
+               proposed_mode(i, only_64k));
     }
     if (!strcmp(argv[1], "--plan"))
         return 0;
@@ -406,14 +427,14 @@ int main(int argc, char **argv) {
          * policy guardian starts afterwards; no policy is changed during this. */
         int prepared = prepare_owned_memory(lock);
         if (prepared || !plb_host_memory_healthy() ||
-            available_kib() < (1536L + preallocated_memory) * 1024) {
+            available_kib() < (1536L + (preallocated_memory ? preallocated_memory : 16)) * 1024) {
             close(lock);
             return prepared ? prepared : 50;
         }
         puts("PLB_PREALLOCATED_ATOMIC_PREPARATION_COMPLETE");
     }
 #endif
-    if (android_gpu1536) {
+    if (android_gpu1536 || adopted_android) {
         /* A developer launch must already be outside an app freezer group.
          * With uid zero this helper accepts only the existing root group and
          * refuses an app group; it never moves another task or changes policy. */
@@ -492,7 +513,7 @@ int main(int argc, char **argv) {
     if (preallocated_memory && pipe2(preparation, O_CLOEXEC | O_NONBLOCK))
         result = 51;
     for (int i = 0; i < SETTING_COUNT && !result; i++)
-        if (write_mode(settings[i], only_64k && i != 2 ? "never" : trial_mode))
+        if (write_mode(settings[i], proposed_mode(i, only_64k)))
             result = 27;
     if (!result) {
 #ifdef PLB_POLICY_MOCK_KILL
@@ -517,7 +538,9 @@ int main(int argc, char **argv) {
                     setenv("PLB_PREALLOCATED_READY_FD", descriptor, 1))
                     _exit(52);
             }
-            if (preallocated && preallocated_memory) {
+            if (adopted_android) {
+                execl(probe, probe, (char *)NULL);
+            } else if (preallocated && preallocated_memory) {
                 char memory[16], touch[16];
                 snprintf(memory, sizeof(memory), "%d", preallocated_memory);
                 snprintf(touch, sizeof(touch), "%d", preallocated_touch);
@@ -603,7 +626,7 @@ int main(int argc, char **argv) {
         WIFEXITED(status) && WEXITSTATUS(status) == 0) {
         int child_status = 0;
         pid_t done = 0;
-        int observation_steps = preallocated ? 250 : 1300;
+        int observation_steps = adopted_android ? 1800 : preallocated ? 250 : 1300;
         for (int i = 0; i < observation_steps && !interrupted; i++) {
             done = sample(child, &child_status);
             if (done)

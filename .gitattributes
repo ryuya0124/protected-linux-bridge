@@ -5,3 +5,5 @@ third_party/gpu/** -whitespace
 
 # Unified diff blank context lines contain a significant single space.
 tools/crosvm_preallocated_ram.patch whitespace=-blank-at-eol
+tools/crosvm_android_headless.patch whitespace=-blank-at-eol
+tools/crosvm_gpu_diagnostics.patch whitespace=-blank-at-eol

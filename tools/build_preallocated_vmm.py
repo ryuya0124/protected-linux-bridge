@@ -37,7 +37,7 @@ def git(source, *arguments, check=True):
     )
 
 
-def prepare_source(source, minijail):
+def prepare_source(source, minijail, android_gpu=False):
     if git(source, "rev-parse", "HEAD").stdout.strip() != VMM_REVISION:
         raise ValueError("Unexpected crosvm source revision")
     if git(minijail, "rev-parse", "HEAD").stdout.strip() != MINIJAIL_REVISION:
@@ -53,6 +53,10 @@ def prepare_source(source, minijail):
         "vm_memory/Cargo.toml",
         "vm_memory/src/guest_memory.rs",
         "third_party/minijail",
+        "rutabaga_gfx/src/gfxstream.rs",
+        "gpu_display/build.rs",
+        "gpu_display/src/lib.rs",
+        "gpu_display/src/sys/linux.rs",
     }
     if not set(git(source, "diff", "--name-only", "HEAD").stdout.splitlines()) <= allowed:
         raise ValueError("Source has unrelated tracked modifications")
@@ -60,6 +64,24 @@ def prepare_source(source, minijail):
     if git(source, "apply", "--reverse", "--check", str(patch), check=False).returncode:
         git(source, "apply", "--check", str(patch))
         git(source, "apply", str(patch))
+    headless_patch = ROOT / "tools/crosvm_android_headless.patch"
+    if android_gpu:
+        if git(
+            source, "apply", "--reverse", "--check", str(headless_patch), check=False
+        ).returncode:
+            git(source, "apply", "--check", str(headless_patch))
+            git(source, "apply", str(headless_patch))
+        diagnostic_patch = ROOT / "tools/crosvm_gpu_diagnostics.patch"
+        if git(
+            source, "apply", "--reverse", "--check", str(diagnostic_patch), check=False
+        ).returncode:
+            git(source, "apply", "--check", str(diagnostic_patch))
+            git(source, "apply", str(diagnostic_patch))
+    elif any(
+        (name.startswith("gpu_display/") or name == "rutabaga_gfx/src/gfxstream.rs")
+        for name in git(source, "diff", "--name-only", "HEAD").stdout.splitlines()
+    ):
+        raise ValueError("Use a separate source checkout for the original non-GPU baseline")
     modules = {
         "tools/crosvm_preallocated_ram.rs": "vm_memory/src/guest_memory/plb_adopt.rs",
         "tools/crosvm_split_lend.rs": "hypervisor/src/gunyah/plb_lend.rs",
@@ -94,7 +116,16 @@ def build(args):
         header = path.read_bytes()[:20]
         if header[:6] != b"\x7fELF\x02\x01" or header[18:20] != b"\xb7\x00":
             raise ValueError("Expected an AArch64 ELF link library")
-    prepare_source(source, minijail)
+    prepare_source(source, minijail, args.android_gpu)
+    if args.android_gpu:
+        gfxstream = libraries / "libgfxstream_backend.so"
+        if (
+            gfxstream.is_symlink()
+            or not gfxstream.is_file()
+            or hashlib.sha256(gfxstream.read_bytes()).hexdigest()
+            != "41414d640a526f56ce9a151f786e965a6e1fe3769e201790e0e58e7a31ff87da"
+        ):
+            raise ValueError("Unexpected captured gfxstream renderer")
     output.mkdir(mode=0o700, parents=True, exist_ok=True)
     pkgconfig = output / "pkgconfig"
     pkgconfig.mkdir(exist_ok=True)
@@ -126,6 +157,12 @@ def build(args):
             "CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS": "-C link-arg=-Wl,-rpath,/apex/com.android.virt/lib64",
         }
     )
+    features = ["gunyah", "plb-preallocated-ram"]
+    if args.split_ram:
+        features.append("plb-split-ram")
+    if args.android_gpu:
+        features += ["gpu", "gfxstream", "qcow", "android-sparse"]
+        environment["GFXSTREAM_PATH"] = str(libraries)
     command = [
         str(rust / "cargo"),
         "build",
@@ -135,7 +172,7 @@ def build(args):
         "aarch64-linux-android",
         "--no-default-features",
         "--features",
-        "gunyah,plb-preallocated-ram" + (",plb-split-ram" if args.split_ram else ""),
+        ",".join(features),
         "--bin",
         "crosvm",
     ]
@@ -174,18 +211,27 @@ def build(args):
         ROOT / "tools/crosvm_split_lend.rs",
         ROOT / "tools/crosvm_preallocated_ram.patch",
     ]
+    if args.android_gpu:
+        inputs.extend(
+            [
+                ROOT / "tools/crosvm_android_headless.patch",
+                ROOT / "tools/crosvm_gpu_diagnostics.patch",
+            ]
+        )
     manifest = {
         "source_revision": VMM_REVISION,
         "minijail_revision": MINIJAIL_REVISION,
-        "features": ["gunyah", "plb-preallocated-ram"]
-        + (["plb-split-ram"] if args.split_ram else []),
+        "features": features,
         "rust_version": subprocess.check_output(
             [str(rust / "rustc"), "--version"], text=True
         ).strip(),
         "vmm_sha256": hashlib.sha256(binary.read_bytes()).hexdigest(),
         "host_library_sha256": {
             p.name: hashlib.sha256(p.read_bytes()).hexdigest()
-            for p in (libraries / n for n in LIBRARIES)
+            for p in (
+                libraries / n
+                for n in (*LIBRARIES, *(("libgfxstream_backend.so",) if args.android_gpu else ()))
+            )
         },
         "patch_sha256": {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs},
         "build_starts_vm": False,
@@ -197,6 +243,11 @@ def build(args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--android-gpu",
+        action="store_true",
+        help="Separate qcow/gfxstream headless Android diagnostic",
+    )
     parser.add_argument(
         "--split-ram", action="store_true", help="Separate 256 MiB registration comparison build"
     )

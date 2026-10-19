@@ -1,0 +1,160 @@
+{
+  "recorded_date": "2026-10-20",
+  "status": "ongoing; no Android boot-complete or verified GPU frame",
+  "combined_explicit_ram_cap_mib": 6144,
+  "host_policy_deadline_ms": 40000,
+  "guest_kernel_sha256": "f722bdd809bfd3485917a564b053b8a6d4938408734091f420c3297a8e3b20c8",
+  "vmm_sha256_trials_1_to_5": "410ab44a456ee58d4f70a3164e8aee78d6e0eb14d4f6cc447c6e98f4f7e686e8",
+  "renderer_sha256": "41414d640a526f56ce9a151f786e965a6e1fe3769e201790e0e58e7a31ff87da",
+  "trials": [
+    {
+      "trial": 1,
+      "configured_memory_mib": 4096,
+      "preparation_order": "normal-zone-first",
+      "mapping_aligned_2m": false,
+      "advised_shmem_sizes_kib": [
+        16,
+        32,
+        64,
+        128,
+        256,
+        512
+      ],
+      "last_snapshot_sampled_pages": 1048576,
+      "last_snapshot_thp_pages": 970236,
+      "last_snapshot_compound_heads": 142588,
+      "last_snapshot_base_pages": 78340,
+      "thp_percent": 92.5289,
+      "ram_adopted": true,
+      "guest_adb_sampled": false,
+      "guest_boot_complete": false,
+      "page_fault_attempt_errors": [
+        -12
+      ],
+      "outer_exit": 33,
+      "both_restorers": true,
+      "final_taint": 4608,
+      "final_selinux": "Enforcing",
+      "gpu_frame_verified": false
+    },
+    {
+      "trial": 2,
+      "configured_memory_mib": 4096,
+      "preparation_order": "ascending",
+      "mapping_aligned_2m": false,
+      "advised_shmem_sizes_kib": [
+        16,
+        32,
+        64,
+        128,
+        256,
+        512
+      ],
+      "last_snapshot_sampled_pages": 1048576,
+      "last_snapshot_thp_pages": 1032420,
+      "last_snapshot_compound_heads": 147455,
+      "last_snapshot_base_pages": 16156,
+      "thp_percent": 98.4592,
+      "ram_adopted": true,
+      "guest_adb_sampled": false,
+      "guest_boot_complete": false,
+      "page_fault_attempt_errors": [
+        -12
+      ],
+      "outer_exit": 33,
+      "both_restorers": true,
+      "final_taint": 4608,
+      "final_selinux": "Enforcing",
+      "gpu_frame_verified": false
+    },
+    {
+      "trial": 3,
+      "configured_memory_mib": 4096,
+      "preparation_order": "ascending",
+      "mapping_aligned_2m": false,
+      "advised_shmem_sizes_kib": [
+        128,
+        256,
+        512
+      ],
+      "last_snapshot_sampled_pages": 1048576,
+      "last_snapshot_thp_pages": 0,
+      "last_snapshot_compound_heads": 0,
+      "last_snapshot_base_pages": 1048576,
+      "thp_percent": 0.0,
+      "ram_adopted": true,
+      "guest_adb_sampled": true,
+      "guest_boot_complete": false,
+      "page_fault_attempt_errors": [
+        -12
+      ],
+      "outer_exit": 33,
+      "both_restorers": true,
+      "final_taint": 4608,
+      "final_selinux": "Enforcing",
+      "gpu_frame_verified": false
+    },
+    {
+      "trial": 4,
+      "configured_memory_mib": 4096,
+      "preparation_order": "ascending",
+      "mapping_aligned_2m": true,
+      "advised_shmem_sizes_kib": [
+        128,
+        256,
+        512
+      ],
+      "last_snapshot_sampled_pages": 1048576,
+      "last_snapshot_thp_pages": 294112,
+      "last_snapshot_compound_heads": 7275,
+      "last_snapshot_base_pages": 754464,
+      "thp_percent": 28.0487,
+      "ram_adopted": true,
+      "guest_adb_sampled": false,
+      "guest_boot_complete": false,
+      "page_fault_attempt_errors": [
+        -12
+      ],
+      "outer_exit": 33,
+      "both_restorers": true,
+      "final_taint": 4608,
+      "final_selinux": "Enforcing",
+      "gpu_frame_verified": false
+    },
+    {
+      "trial": 5,
+      "configured_memory_mib": 4096,
+      "preparation_order": "ascending",
+      "mapping_aligned_2m": true,
+      "advised_shmem_sizes_kib": [
+        16,
+        32,
+        64,
+        128,
+        256,
+        512
+      ],
+      "last_snapshot_sampled_pages": 1048576,
+      "last_snapshot_thp_pages": 1048572,
+      "last_snapshot_compound_heads": 120684,
+      "last_snapshot_base_pages": 4,
+      "thp_percent": 99.9996,
+      "ram_adopted": true,
+      "guest_adb_sampled": true,
+      "guest_boot_complete": false,
+      "page_fault_attempt_errors": [],
+      "outer_exit": 124,
+      "both_restorers": true,
+      "final_taint": 4608,
+      "final_selinux": "Enforcing",
+      "gpu_frame_verified": false
+    }
+  ],
+  "host_renderer_trial_5": "Android Emulator OpenGL ES Translator (Adreno (TM) 840)",
+  "host_renderer_initialized_trial_5": true,
+  "guest_graphics_failure_trial_5": "SurfaceFlinger SIGABRT: no suitable EGLConfig found",
+  "guest_transport_warning_trial_5": "Unrecognized GLES max version string in extensions: pipe:opengles",
+  "original_android_disks_unchanged_at_each_profile_copy": true,
+  "production_apk_changed": false,
+  "raw_logs_identifiers_images_included": false
+}

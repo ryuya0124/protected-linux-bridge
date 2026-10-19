@@ -1,0 +1,86 @@
+diff --git a/gpu_display/build.rs b/gpu_display/build.rs
+index 7554138..29aa9e9 100644
+--- a/gpu_display/build.rs
++++ b/gpu_display/build.rs
+@@ -110,7 +110,7 @@ fn main() {
+     }
+ 
+     match std::env::var("CARGO_CFG_TARGET_OS").as_deref().unwrap() {
+-        "linux" | "android" => {
++        "linux" => {
+             build_wayland();
+         }
+         _ => {}
+diff --git a/gpu_display/src/lib.rs b/gpu_display/src/lib.rs
+index 82138af..cbd0788 100644
+--- a/gpu_display/src/lib.rs
++++ b/gpu_display/src/lib.rs
+@@ -35,7 +35,7 @@ mod gpu_display_android_stub;
+ mod gpu_display_stub;
+ #[cfg(windows)]
+ mod gpu_display_win;
+-#[cfg(any(target_os = "android", target_os = "linux"))]
++#[cfg(target_os = "linux")]
+ mod gpu_display_wl;
+ #[cfg(feature = "x")]
+ mod gpu_display_x;
+diff --git a/gpu_display/src/sys/linux.rs b/gpu_display/src/sys/linux.rs
+index 22851b7..42ee9fb 100644
+--- a/gpu_display/src/sys/linux.rs
++++ b/gpu_display/src/sys/linux.rs
+@@ -6,8 +6,10 @@ use std::path::Path;
+ 
+ use base::AsRawDescriptor;
+ use base::RawDescriptor;
++#[cfg(target_os = "linux")]
+ use base::WaitContext;
+ 
++#[cfg(target_os = "linux")]
+ use crate::gpu_display_wl::DisplayWl;
+ use crate::DisplayEventToken;
+ use crate::DisplayT;
+@@ -49,21 +51,31 @@ pub trait UnixGpuDisplayExt {
+ 
+ impl UnixGpuDisplayExt for GpuDisplay {
+     fn open_wayland<P: AsRef<Path>>(wayland_path: Option<P>) -> GpuDisplayResult<GpuDisplay> {
+-        let display = match wayland_path {
+-            Some(s) => DisplayWl::new(Some(s.as_ref()))?,
+-            None => DisplayWl::new(None)?,
+-        };
++        #[cfg(target_os = "android")]
++        {
++            // This app-private diagnostic is headless on Android. The existing
++            // host display stub is distinct from the real gfxstream renderer.
++            let _ = wayland_path;
++            Err(crate::GpuDisplayError::Unsupported)
++        }
++        #[cfg(target_os = "linux")]
++        {
++            let display = match wayland_path {
++                Some(s) => DisplayWl::new(Some(s.as_ref()))?,
++                None => DisplayWl::new(None)?,
++            };
+ 
+-        let wait_ctx = WaitContext::new()?;
+-        wait_ctx.add(&display, DisplayEventToken::Display)?;
++            let wait_ctx = WaitContext::new()?;
++            wait_ctx.add(&display, DisplayEventToken::Display)?;
+ 
+-        Ok(GpuDisplay {
+-            inner: Box::new(display),
+-            next_id: 1,
+-            event_devices: Default::default(),
+-            surfaces: Default::default(),
+-            wait_ctx,
+-        })
++            Ok(GpuDisplay {
++                inner: Box::new(display),
++                next_id: 1,
++                event_devices: Default::default(),
++                surfaces: Default::default(),
++                wait_ctx,
++            })
++        }
+     }
+ }
+ 

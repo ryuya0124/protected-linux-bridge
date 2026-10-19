@@ -17,7 +17,7 @@ COMPILER = (
 
 @unittest.skipUnless(COMPILER.is_file(), "Requires the pinned Android NDK")
 class AndroidGpuBuildGuardsTest(unittest.TestCase):
-    def compile_manager(self, extra=()):
+    def compile_manager(self, extra=(), adopted=False):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)
             (output / "android_guest_setup.generated.h").write_text(
@@ -33,6 +33,26 @@ class AndroidGpuBuildGuardsTest(unittest.TestCase):
                 )
                 + '\nstatic const char *const gpu_probe_chunks[] = {"exec:true"};\n'
             )
+            (output / "android4g.generated.h").write_text(
+                '#define PLB_ANDROID4G_VMM_SHA256 "' + "0" * 64 + '"\n'
+                '#define PLB_ANDROID4G_PROXY_SHA256 "' + "0" * 64 + '"\n'
+            )
+            modes = (
+                [
+                    "-DPLB_ANDROID_ADOPTED_PROBE=1",
+                    "-DPLB_ANDROID_GFXSTREAM_PROBE=1",
+                    "-DPLB_ANDROID_GPU_RENDER_PROBE=1",
+                ]
+                if adopted
+                else [
+                    "-DPLB_ANDROID_MEMORY_PROBE=1",
+                    "-DPLB_ANDROID_MEMORY_MIB=1536",
+                    "-DPLB_ANDROID_MEMORY_POLICY=1",
+                    "-DPLB_ANDROID_GFXSTREAM_PROBE=1",
+                    "-DPLB_ANDROID_GPU_MEMORY_PROBE=1",
+                    '-DPLB_ANDROID_MEMORY_LIBRARY_SHA256="' + "0" * 64 + '"',
+                ]
+            )
             return subprocess.run(
                 [
                     str(COMPILER),
@@ -42,18 +62,29 @@ class AndroidGpuBuildGuardsTest(unittest.TestCase):
                     "-Werror",
                     "-I",
                     str(output),
-                    "-DPLB_ANDROID_MEMORY_PROBE=1",
-                    "-DPLB_ANDROID_MEMORY_MIB=1536",
-                    "-DPLB_ANDROID_MEMORY_POLICY=1",
-                    "-DPLB_ANDROID_GFXSTREAM_PROBE=1",
-                    "-DPLB_ANDROID_GPU_MEMORY_PROBE=1",
-                    '-DPLB_ANDROID_MEMORY_LIBRARY_SHA256="' + "0" * 64 + '"',
+                    *modes,
                     *extra,
                     str(ROOT / "tools/android_probe_runner.c"),
                 ],
                 capture_output=True,
                 text=True,
             )
+
+    def test_adopted_4g_gles_compiles_and_rejects_hybrid_or_missing_renderer(self):
+        result = self.compile_manager(adopted=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for extra in (
+            ("-DPLB_ANDROID_MEMORY_PROBE=1",),
+            ("-DPLB_ANDROID_LARGE_PROFILE=1",),
+            ("-DPLB_ANDROID_GFXSTREAM_VULKAN_PROBE=1",),
+            ("-DPLB_GPU_WARNING_ONCE=1",),
+            ("-UPLB_ANDROID_GFXSTREAM_PROBE",),
+            ("-UPLB_ANDROID_GPU_RENDER_PROBE",),
+        ):
+            with self.subTest(extra=extra):
+                result = self.compile_manager(extra, adopted=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("isolated healthy-boot 4 GiB GLES diagnostic", result.stderr)
 
     def test_bounded_gles1536_manager_compiles(self):
         result = self.compile_manager()

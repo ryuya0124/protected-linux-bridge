@@ -208,3 +208,15 @@ distinguish the installed CMA file-backed route from an original-style shared
 memfd adoption design. The later [separate VMM validation](preallocated-vmm-validation.md)
 implements that path and verifies a diskless protected 4 GiB all-byte workload
 twice. Android and GPU operation are not established by those tests.
+
+## Android 17 + GPU at 4 GiB
+
+The separate adopted-RAM developer build now boots the Android guest kernel and
+reaches guest adbd with 4096 MiB. The best current comparison initializes the
+host Adreno gfxstream renderer and runs until its observation deadline, but
+guest SurfaceFlinger aborts on EGLConfig selection; Android boot completion and
+a hardware-rendered guest frame are not established.
+[Conditions, failures and guarded build tools](android4g-gpu-investigation.md)
+and [sanitized measurements](data/android4g-gpu-2026-10-20.json) preserve the
+five comparisons. This does not enable the six-key policy or 4 GiB GPU mode in
+the APK.

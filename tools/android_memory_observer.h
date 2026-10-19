@@ -26,7 +26,7 @@ static void *android_memory_observer(void *unused) {
 #ifdef PLB_ANDROID_GPU_RENDER_PROBE
     int render_probe_started = 0, render_probe_captured = 0;
 #endif
-#ifdef PLB_ANDROID_GPU_MEMORY_PROBE
+#if defined(PLB_ANDROID_GPU_MEMORY_PROBE) || defined(PLB_ANDROID_ADOPTED_PROBE)
     int renderer_observed = 0;
 #endif
     for (int tick = 0; tick < 1100 && !stopping; tick++) {
@@ -61,7 +61,7 @@ static void *android_memory_observer(void *unused) {
             continue;
         }
         if (!captured && strstr(uid, "BOOT=1\n")) {
-#ifdef PLB_ANDROID_GPU_MEMORY_PROBE
+#if defined(PLB_ANDROID_GPU_MEMORY_PROBE) || defined(PLB_ANDROID_ADOPTED_PROBE)
             if (!renderer_observed) {
                 const char renderer[] = "exec:sh -c 'getprop ro.hardware.egl; "
                                         "getprop ro.hardware.gltransport; "

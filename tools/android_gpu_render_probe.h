@@ -4,7 +4,7 @@
  * identity checks. Existing Android/Debian host-side disks are never accessed. */
 #ifndef PLB_ANDROID_GPU_RENDER_PROBE_H
 #define PLB_ANDROID_GPU_RENDER_PROBE_H
-#if !defined(PLB_ANDROID_GPU_MEMORY_PROBE)
+#if !defined(PLB_ANDROID_GPU_MEMORY_PROBE) && !defined(PLB_ANDROID_ADOPTED_PROBE)
 #error "The render probe requires the isolated, guarded 1536 MiB GLES diagnostic"
 #endif
 #include <sys/random.h>

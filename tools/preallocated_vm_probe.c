@@ -1,4 +1,4 @@
-/* MIT. Fixed private VMM + diskless guest; prepared RAM is adopted, never copied.
+/* MIT. Private VMM with a diskless guest or isolated Android copy; RAM is adopted, never copied.
  * No policy write, mapped discard, global compaction, production disk or module.
  * Compile pins are generated per build; an owner-lock parent supervises only its
  * direct child and watches new kernel reports. No automatic VMM retry exists.
@@ -25,12 +25,20 @@
 #include "host_memory_health.h"
 #include "preallocated_vm_limits.h"
 #include "preallocated_pin.h"
+#include "diagnostic_kernel_monitor.h"
 #include "preallocated_collapse.h"
 #include "owned_page_summary.h"
 #include "preallocated_ready.h"
 #include "preallocated_vm.generated.h"
 
 #define FILES "/data/user/0/net.ryuya_dev.protectedlinux/files"
+#ifdef PLB_PREALLOCATED_ANDROID_PROXY
+#include "android4g_config.h"
+#define VMM PLB_ANDROID4G_VMM
+#define GUEST_KERNEL FILES "/kernels/android17-cuttlefish/Image"
+#define INITRAMFS PLB_ANDROID4G_BASE "/android-lowram.cpio"
+#include "android4g_arguments.h"
+#else
 #define VMM FILES "/kernel-probes/preallocated-vmm"
 #define GUEST_KERNEL FILES "/kernels/linux-6.18.57-plb1/Image"
 #ifdef PLB_PREALLOCATED_FULL_CONTENT
@@ -38,9 +46,12 @@
 #else
 #define INITRAMFS FILES "/kernel-probes/memory-probe.cpio"
 #endif
+#endif
 #define MIB (1024UL * 1024)
 
+#ifndef PLB_PREALLOCATED_ANDROID_PROXY
 static volatile sig_atomic_t stopping;
+#endif
 
 static long long now_ms(void) {
     struct timespec now;
@@ -48,10 +59,12 @@ static long long now_ms(void) {
     return now.tv_sec * 1000LL + now.tv_nsec / 1000000;
 }
 
+#ifndef PLB_PREALLOCATED_ANDROID_PROXY
 static void stop(int signal) {
     (void)signal;
     stopping = 1;
 }
+#endif
 
 static int private_file(const char *path) {
     struct stat info;
@@ -173,6 +186,8 @@ static int observe_backing(const void *mapping, size_t bytes) {
         printf("PLB_PREALLOCATED_2M folios=%zu windows=%zu\n", summary.sampled_2m_folios,
                bytes / PLB_COLLAPSE_BYTES);
     }
+    printf("PLB_PREALLOCATED_ALIGNMENT virtual_2m=%d file_batch_2m=%d\n",
+           (uintptr_t)mapping % PLB_COLLAPSE_BYTES == 0, bytes % PLB_COLLAPSE_BYTES == 0);
     return pages == bytes / 4096;
 }
 
@@ -236,10 +251,15 @@ static int prepare_and_exec(int memory, int touch, int small_folios, int chunked
         if (base == (size_t)-1) {
             return 86;
         }
+        int aligned = collapse;
+#ifdef PLB_PREALLOCATED_ANDROID_PROXY
+        /* A file/VMA offset mismatch can exclude every requested mTHP size.
+         * Reserve only fresh address space; never remap live backing or punch holes. */
+        aligned = 1;
+#endif
         volatile unsigned char *mapping =
-            collapse
-                ? plb_aligned_shared_mapping(inherited, batch, (off_t)base)
-                : mmap(NULL, batch, PROT_READ | PROT_WRITE, MAP_SHARED, inherited, (off_t)base);
+            aligned ? plb_aligned_shared_mapping(inherited, batch, (off_t)base)
+                    : mmap(NULL, batch, PROT_READ | PROT_WRITE, MAP_SHARED, inherited, (off_t)base);
         if (mapping == MAP_FAILED) {
             return 86;
         }
@@ -309,6 +329,9 @@ static int prepare_and_exec(int memory, int touch, int small_folios, int chunked
     if (plb_preallocated_notify_ready()) {
         return 92;
     }
+#ifdef PLB_PREALLOCATED_ANDROID_PROXY
+    const char *const *arguments = android4g_arguments;
+#else
     const char *arguments[] = {VMM,
                                "--extended-status",
                                "run",
@@ -330,31 +353,12 @@ static int prepare_and_exec(int memory, int touch, int small_folios, int chunked
                                INITRAMFS,
                                GUEST_KERNEL,
                                NULL};
+#endif
     execv(VMM, (char *const *)arguments);
     return 91;
 }
 
-static int kernel_bad(int fd) {
-    char record[8192];
-    for (int i = 0; i < 256; i++) {
-        ssize_t count = read(fd, record, sizeof(record) - 1);
-        if (count < 0 && errno == EINTR) {
-            continue;
-        }
-        if (count < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-            return 0;
-        }
-        if (count <= 0) {
-            return 1;
-        }
-        record[count] = 0;
-        if (strstr(record, "BUG:") || strstr(record, "Oops:") || strstr(record, "Kernel panic") ||
-            strstr(record, "still mapped when deleted")) {
-            return 1;
-        }
-    }
-    return 1;
-}
+#ifndef PLB_PREALLOCATED_ANDROID_PROXY
 
 static void observe_owned_child(pid_t child, int limits) {
     char path[96], line[256];
@@ -384,8 +388,20 @@ static void observe_owned_child(pid_t child, int limits) {
     }
 }
 
+#endif
+
 int main(int argc, char **argv) {
     setvbuf(stdout, NULL, _IONBF, 0);
+#ifdef PLB_PREALLOCATED_ANDROID_PROXY
+    (void)argv;
+    if (argc != 1 || !platform() || !plb_host_memory_healthy()) {
+        return 70;
+    }
+    /* Android boot allocates heavily from the low guest DMA32 zone.
+     * Compare ascending preparation with the retained normal-first trial. */
+    const int normal_first = 0, chunked = 1, small_folios = 1, pin_check = 0, collapse = 0;
+    const long memory = PLB_ANDROID4G_MEMORY_MIB, touch = 0;
+#else
     int normal_first_pin = argc == 4 && !strcmp(argv[3], "--normal-first-pin");
     int collapse = argc == 4 && !strcmp(argv[3], "--normal-first-collapse");
     int normal_first =
@@ -410,6 +426,20 @@ int main(int argc, char **argv) {
         !plb_preallocated_workload_mode((int)memory, (int)touch, pin_check)) {
         return 72;
     }
+#endif
+    if (getenv(PLB_PREALLOCATED_READY_ENV) &&
+        plb_ready_descriptor(getenv(PLB_PREALLOCATED_READY_ENV), 0) < 0) {
+        return 70;
+    }
+#ifdef PLB_PREALLOCATED_ANDROID_PROXY
+    int owner = diagnostic_owner_lock();
+    if (owner < 0) {
+        return 73;
+    }
+    // The manager supervises this same PID, retaining strict console peer checks.
+    return prepare_and_exec((int)memory, (int)touch, small_folios, chunked, pin_check, normal_first,
+                            collapse);
+#else
     int owner = diagnostic_owner_lock();
     int monitor = open("/dev/kmsg", O_RDONLY | O_NONBLOCK | O_CLOEXEC | O_NOFOLLOW);
     if (owner < 0 || monitor < 0 || lseek(monitor, 0, SEEK_END) < 0) {
@@ -442,7 +472,7 @@ int main(int argc, char **argv) {
     long long next_sample = now_ms() + 500;
     int sample_number = 0;
     while (now_ms() < deadline) {
-        if (kernel_bad(monitor) || !plb_host_memory_healthy()) {
+        if (plb_diagnostic_kernel_bad(monitor) || !plb_host_memory_healthy()) {
             fprintf(stderr, "PLB_PREALLOCATED_HOST_FAILURE\n");
             result = 75;
             break;
@@ -488,4 +518,5 @@ int main(int argc, char **argv) {
     close(owner);
     printf("PLB_PREALLOCATED_EXIT code=%d\n", result);
     return result;
+#endif
 }

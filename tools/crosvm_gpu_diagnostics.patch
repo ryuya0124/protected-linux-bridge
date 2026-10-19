@@ -1,0 +1,91 @@
+diff --git a/rutabaga_gfx/src/gfxstream.rs b/rutabaga_gfx/src/gfxstream.rs
+index f46541c..4cdf8ef 100644
+--- a/rutabaga_gfx/src/gfxstream.rs
++++ b/rutabaga_gfx/src/gfxstream.rs
+@@ -20,8 +20,14 @@ use std::panic::catch_unwind;
+ use std::process::abort;
+ use std::ptr::null;
+ use std::ptr::null_mut;
++use std::sync::atomic::{AtomicUsize, Ordering};
+ use std::sync::Arc;
+ 
++// Bounded developer diagnostics; no guest payload or host address is logged.
++static PLB_CONTEXTS: AtomicUsize = AtomicUsize::new(0);
++static PLB_TRANSFER_READS: AtomicUsize = AtomicUsize::new(0);
++static PLB_TRANSFER_WRITES: AtomicUsize = AtomicUsize::new(0);
++
+ use serde::Deserialize;
+ use serde::Serialize;
+ 
+@@ -703,6 +709,20 @@ impl RutabagaComponent for Gfxstream {
+         resource: &mut RutabagaResource,
+         transfer: Transfer3D,
+     ) -> RutabagaResult<()> {
++        let diagnostic = PLB_TRANSFER_WRITES.fetch_add(1, Ordering::Relaxed) < 32;
++        if diagnostic {
++            eprintln!(
++                "PLB_GPU_WRITES ctx={ctx_id} resource={} xyz={},{},{} whd={},{},{} offset={}",
++                resource.resource_id,
++                transfer.x,
++                transfer.y,
++                transfer.z,
++                transfer.w,
++                transfer.h,
++                transfer.d,
++                transfer.offset
++            );
++        }
+         if transfer.is_empty() {
+             return Ok(());
+         }
+@@ -731,6 +751,9 @@ impl RutabagaComponent for Gfxstream {
+                 0,
+             )
+         };
++        if diagnostic {
++            eprintln!("PLB_GPU_WRITES_RETURN result={ret}");
++        }
+         ret_to_res(ret)
+     }
+ 
+@@ -741,6 +764,20 @@ impl RutabagaComponent for Gfxstream {
+         transfer: Transfer3D,
+         buf: Option<IoSliceMut>,
+     ) -> RutabagaResult<()> {
++        let diagnostic = PLB_TRANSFER_READS.fetch_add(1, Ordering::Relaxed) < 32;
++        if diagnostic {
++            eprintln!(
++                "PLB_GPU_READS ctx={ctx_id} resource={} xyz={},{},{} whd={},{},{} offset={}",
++                resource.resource_id,
++                transfer.x,
++                transfer.y,
++                transfer.z,
++                transfer.w,
++                transfer.h,
++                transfer.d,
++                transfer.offset
++            );
++        }
+         if transfer.is_empty() {
+             return Ok(());
+         }
+@@ -783,6 +820,9 @@ impl RutabagaComponent for Gfxstream {
+                 num_iovecs,
+             )
+         };
++        if diagnostic {
++            eprintln!("PLB_GPU_READS_RETURN result={ret}");
++        }
+         ret_to_res(ret)
+     }
+ 
+@@ -896,6 +936,9 @@ impl RutabagaComponent for Gfxstream {
+                 context_init,
+             )
+         };
++        if PLB_CONTEXTS.fetch_add(1, Ordering::Relaxed) < 32 {
++            eprintln!("PLB_GPU_CONTEXT ctx={ctx_id} init={context_init} result={ret}");
++        }
+         ret_to_res(ret)?;
+         Ok(Box::new(GfxstreamContext {
+             ctx_id,

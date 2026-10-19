@@ -203,3 +203,28 @@ long-running stability or an automatic production app profile. Do not silently
 add the six-key global policy to the released APK. Keep new Android/GPU and
 persistent-disk comparisons separate and preserve their original data. Source,
 limits and aggregate results are in docs/preallocated-vmm-validation.md.
+
+## Explicit Android/GPU 4 GiB trial request, 2026-10-19
+
+The user now explicitly requests Android and GPU at 4 GiB. The existing six-key
+temporary shmem exception may be used with this separate developer Android
+profile, retaining the same 40-second guardian, preparation-ready restoration,
+6 GiB combined cap and normal healthy-boot guard. The earlier diskless-only
+validation is not an Android result; do not reuse its success claim. Use a
+verified offline copy of Android working/misc/FRP disks in a new profile, keep
+all original disks and host boundaries intact, and pin the separate source-built
+VMM, guest kernel, ramdisk and renderer. No new affected-boot exception or host
+restart is authorized. This does not silently enable the path in the APK.
+
+## Android 4 GiB GPU developer progress, 2026-10-20
+
+The five separate Android/GLES trials and negative results are recorded in
+docs/android4g-gpu-investigation.md. The aligned six-key comparison reached
+guest adbd/root setup and initialized host Adreno 840 gfxstream, without a
+recorded PAGE_FAULT attempt error during its bounded observation. Guest
+SurfaceFlinger instead aborted on EGLConfig selection; BOOT=1, SystemUI and
+a verified GPU frame were not reached. Do not claim a working Android GPU UI,
+integrate an automatic large GPU profile or discard the prior failed cases.
+Preserve the fixed archived trial profiles and original disks. Follow-up GPU
+protocol logging remains developer-only, bounded and payload/address-free.
+The same healthy-boot, six-key/40-second, 6 GiB and no-host-restart limits apply.
