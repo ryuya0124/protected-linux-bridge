@@ -14,8 +14,8 @@ static volatile int stopping;
 #include "../native/android_guest_adb.h"
 
 int main(int argc, char **argv) {
-    (void)argv;
-    if (getuid() || argc != 1)
+    int frame = argc == 2 && !strcmp(argv[1], "--frame");
+    if (getuid() || (argc != 1 && !frame))
         return 20;
     unsigned char *output = malloc(ANDROID_ADB_LIMIT + 1);
     if (!output)
@@ -35,13 +35,24 @@ int main(int argc, char **argv) {
         free(output);
         return 23;
     }
+    if (frame) {
+        int failed = android_adb("exec:timeout 4 screencap -p", output, &length) || length < 24 ||
+                     memcmp(output, "\211PNG\r\n\032\n", 8);
+        if (!failed)
+            failed = fwrite(output, 1, length, stdout) != length;
+        free(output);
+        return failed ? 26 : 0;
+    }
     const char *const queries[] = {
+        "exec:logcat -d -s PLBGpuProbe:V '*:S'",
+        ("exec:sh -c 'pid=$(pidof net.ryuya_dev.protectedlinux.gpuprobe); "
+         "case \"$pid\" in \"\"|*[!0-9]*) exit 0;; esac; timeout 4 debuggerd -b \"$pid\"'"),
         ("exec:sh -c 'getprop sys.boot_completed; getprop ro.hardware.egl; "
          "getprop ro.hardware.gltransport; getprop ro.boot.hardware.gltransport; "
-         "cat /proc/cmdline; cat /proc/modules; dumpsys SurfaceFlinger'"),
+         "cat /proc/cmdline; cat /proc/modules; timeout 3 dumpsys SurfaceFlinger'"),
         ("exec:sh -c 'uname -r; getenforce; "
          "ps -A -o PID,NAME,ARGS | grep -E \"allocator|gralloc|mapper|surfaceflinger\"; "
-         "service list | grep -E \"graphics|allocator|mapper\"; "
+         "timeout 3 service list | grep -E \"graphics|allocator|mapper\"; "
          "ls -lZ /dev/binder /dev/hwbinder /dev/vndbinder /dev/dri/*; "
          "ls -lZ /dev/dma_heap; ls /sys/class/dma_heap'"),
         ("exec:sh -c 'logcat -d -t 6000 -v brief | "
@@ -59,8 +70,8 @@ int main(int argc, char **argv) {
     for (size_t i = 0; i < sizeof(queries) / sizeof(queries[0]); i++) {
         printf("PLB_ANDROID4G_GUEST_DIAGNOSTIC index=%zu\n", i);
         if (android_adb(queries[i], output, &length)) {
+            fprintf(stderr, "PLB_ANDROID4G_QUERY_FAILED index=%zu partial_bytes=%zu\n", i, length);
             result = 24;
-            break;
         }
         if (fwrite(output, 1, length, stdout) != length) {
             result = 25;

@@ -1,7 +1,8 @@
 # Android 17 at 4 GiB: RAM and GPU investigation
 
-Updated 2026-10-20 JST. Work is ongoing. **Trial 8 reached Android boot-complete and SystemUI with a separate guest
-kernel. A hardware-rendered guest test frame is still unverified.** The released
+Updated 2026-10-20 JST. Work is ongoing. **Trial 16 reached a visible Android home screen and successful two-phase
+Adreno GLES readback. A matching nonce-pattern PNG is not yet verified, and
+trial 17 failed again at Gunyah page allocation: startup is not reliable.** The released
 APK has not been changed by this developer experiment.
 
 ## What is established
@@ -383,3 +384,112 @@ Trial 13's host postflight again retained the same boot, core processes,
 unrelated trusted VM, original Android disk hashes, taint 4608, Enforcing and
 all six shmem policies at `never`. The public helper adds bounded read-only
 Binder/heap diagnostics and a fixed archive option for this failed comparison.
+
+
+## Trial 14: system heap exists; the shared DMA pool becomes the next limit
+
+The separate `6.12.74-plb-android-gpu2` Image built successfully with
+`CONFIG_DMABUF_HEAPS_SYSTEM=y`. The guest exposes `system` and
+`system-uncached` with the existing `dmabuf_system_heap_device` label and
+standard system ownership/mode. Enforcing remains enabled. The first focused
+capture did not show the earlier metadata `memfd_file` denial or Binder EPERM.
+This is a positive comparison, but not proof that every later transaction or
+window succeeds.
+
+The guest reached BOOT=1 and Adreno EGL again. The next blocker is explicit:
+`swiotlb buffer is full`, eventually **16384/16384 slots**, followed by
+virtio-GPU command DMA-mapping failures and guest driver warnings. Graphics
+progress now consumes the restricted 32 MiB DMA bounce pool. The diagnostic APK
+start failed, no test frame was captured, and the manager ended at 160 seconds
+(124). These are guest failures; the host postflight matches the baseline boot,
+core processes, trusted VM, original disks, Enforcing, taint 4608 and all six
+restored policies. Do not interpret guest driver WARN traces as host BAD_PAGE,
+or ignore an actual new host warning if one appears.
+
+The next explicit developer option is `--swiotlb-mib 128`. The pinned VMM's
+[aarch64 memory layout](https://android.googlesource.com/platform/external/crosvm/+/8a4abfbaea5567de24e49cc43874c820098987d0/aarch64/src/lib.rs)
+carves a static SWIOTLB region from the **same configured 4096 MiB**, reducing
+normal guest RAM accordingly. It retains the protected normal-RAM LEND role
+and separate shared device region. It does not enable direct DMA to private RAM,
+patch Gunyah or enlarge total RAM. The ordinary profiles and diagnostic default
+remain 32 MiB; 128 requires the isolated custom system-heap guest. No production
+APK selection is added. This is a bounded sizing comparison, not a guarantee
+that extra pool capacity resolves all command/renderer lifetime problems.
+
+Read-only diagnostics now time-limit service dumps and retain partial output
+when one query fails, so a wedged SurfaceFlinger cannot hide later crash logs.
+
+
+## Trial 15: visible Android lock screen with the larger guest DMA pool
+
+The 128 MiB static restricted DMA pool was confirmed in the guest boot log.
+The same 4096 MiB VM reached BOOT=1, Adreno EGL and a single stable SystemUI
+process throughout subsequent observer samples. The earlier `swiotlb buffer
+is full` and graphics metadata Binder failures were not observed in the focused
+captures. A private 480×800 PNG was retrieved and visually inspected: it shows
+the Android guest's complete lock screen, wallpaper, clock and system indicators.
+This is the first retained visible Android display in this 4 GiB GPU sequence.
+It is a guest screenshot, not a Mac/host screen capture or software-rendered
+mockup. The renderer reports Adreno; a nonce-bound GLES workload is still a
+separate verification requirement.
+
+The fixed APK installed/started but logged its 20-second timeout, with no GLES
+result. The screenshot explains an important test-harness problem: the default
+guest keyguard was still covering the Activity. The observer dismissed keyguard
+only in its later home-capture step, which was unreachable while waiting for the
+GLES result. The next payload wakes/dismisses the **identity-checked guest's**
+keyguard before launching the Activity. It changes no host lock state and does
+not disable any lock-screen security policy. Trial 15 ended at its normal
+160-second observation deadline (124); host/disk/policy postflight passed.
+
+The guest kernel build outputs/provenance and original source archive remain
+private. Only the invocation-owned build container and source/object volume
+were removed after export, returning Mac free space to about 33 GiB. Two new
+native argument tests check that 32/128 MiB selections both keep total RAM at
+4096 MiB and protected-VM operation, and reject the larger pool without the
+isolated custom guest proxy. The full Python/native suite now passes 179 tests.
+
+
+## Trial 16: two-phase Adreno GLES readback succeeds
+
+Waking/dismissing the pinned guest keyguard before the test allowed the GLES
+workload to run. A complete tag-specific log retrieval recovered exactly one
+nonce-bound `plb-gles-v1` result: **480×800, frame 22, phase0=true,
+phase1=true, readback_ok=true**, renderer **Android Emulator OpenGL ES Translator
+(Adreno (TM) 840)**. A separately retrieved/visually inspected PNG shows the
+unlocked Android guest home screen. This establishes the test's actual GLES
+readback and visible Android UI separately; the retained home PNG is not the
+nonce-pattern screenshot required by the combined offline verifier.
+
+The manager still reached its deadline (124) because its collector asked logd
+for only the last 120 raw entries before applying the PLBGpuProbe tag/nonce
+filter. Unrelated emulated-HAL crash logging can displace the result between
+five-second samples. Read-only retrieval without that early tail found the
+successful result. The next comparison removes only this raw-tail restriction;
+it keeps the output tag/nonce filter, final two-line bound, signed test APK,
+identity checks and all host/memory guards. The workload result/PNG verifier is
+unchanged. No fake result or relaxed screenshot matching is used.
+
+Trial 16's host/disk/policy postflight again exactly matched the retained
+baseline. Full screenshot-pattern validation, normal guest shutdown and
+long-running stability remain separate checks.
+
+
+## Trial 17: startup reliability remains unresolved
+
+The collector fix was built and tested, but this separate fresh-copy comparison
+failed before boot completion with two Gunyah PAGE_FAULT attempts `-12` (exit 33).
+Its pre-donation snapshot had 100% THP page coverage, which again demonstrates
+that THP coverage alone does not guarantee hypervisor admission or recovery of
+EL2 mapping resources between VM lifetimes. There was no new verified frame.
+Host boot/core processes/trusted VM, original disks, taint 4608, Enforcing and
+all six restored policies still matched the baseline. No host restart was sent.
+
+The user explicitly requested app integration after the positive rendering
+result. Integration must preserve an independently selected experimental GPU
+profile, per-launch acknowledgement of the six temporary host-wide advice keys,
+the unchanged 40-second independent restoration guardian, 6 GiB budget and
+healthy-host guards. It must show startup/allocation failures, retain old guest
+profiles/data, avoid automatic retries and avoid presenting this as a stable
+production Android/GPU environment. Rendering/readback success and startup
+reliability remain distinct results.

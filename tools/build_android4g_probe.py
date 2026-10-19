@@ -74,6 +74,7 @@ def main():
         "--preparation-order", choices=("ascending", "normal-first"), default="ascending"
     )
     parser.add_argument("--transport", choices=("pipe", "asg"), default="pipe")
+    parser.add_argument("--swiotlb-mib", type=int, choices=(32, 128), default=32)
     parser.add_argument(
         "--buffer-capset",
         action="store_true",
@@ -131,6 +132,8 @@ def main():
             or any("CONFIG_" + option + "=y\n" not in config.read_text() for option in required)
         ):
             parser.error("Custom guest Image/config/provenance does not match the guarded build")
+    if args.swiotlb_mib != 32 and (not custom or not guest_record.get("system_heap")):
+        parser.error("The larger guest DMA pool requires the isolated system-heap guest")
     if shutil.disk_usage(ROOT).free < 21 * 1024**3:
         parser.error("Retain 20 GiB Mac storage headroom")
     manifest = json.loads(args.build_manifest.read_text())
@@ -182,6 +185,8 @@ def main():
         / "bin/aarch64-linux-android35-clang"
     )
     flags = [str(compiler), "-O2", "-Wall", "-Wextra", "-Werror", "-I", str(out)]
+    if args.swiotlb_mib == 128:
+        flags.append("-DPLB_ANDROID4G_LARGER_DMA_POOL=1")
     if args.disable_renderer_vulkan:
         flags.append("-DPLB_ANDROID4G_DISABLE_RENDERER_VULKAN=1")
     if args.buffer_capset:
@@ -290,6 +295,8 @@ def main():
         extra_files.append(identity)
     record = {
         "configured_memory_mib": 4096,
+        "guest_swiotlb_mib": args.swiotlb_mib,
+        "guest_dma_pool_carved_from_configured_ram": True,
         "custom_guest_kernel": custom,
         "guest_kernel_build": guest_record,
         "buffer_format_capset_exposed": args.buffer_capset,

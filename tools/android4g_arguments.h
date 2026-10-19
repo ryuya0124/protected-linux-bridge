@@ -4,20 +4,19 @@
 #ifndef PLB_ANDROID4G_ARGUMENTS_H
 #define PLB_ANDROID4G_ARGUMENTS_H
 static const char *const android4g_arguments[] = {
-    VMM,
-    "--extended-status",
-    "run",
-    "--name",
-    "plb-android17-gpu4096",
-    "--disable-sandbox",
-    "--protected-vm-without-firmware",
-    "--swiotlb",
+    VMM, "--extended-status", "run", "--name", "plb-android17-gpu4096", "--disable-sandbox",
+    "--protected-vm-without-firmware", "--swiotlb",
+#ifdef PLB_ANDROID4G_LARGER_DMA_POOL
+#if !defined(PLB_PREALLOCATED_ANDROID_PROXY) || !defined(PLB_ANDROID4G_CUSTOM_GUEST)
+#error "Larger DMA pool requires the isolated custom-guest Android proxy"
+#endif
+    /* The VMM carves this shared device pool out of the same 4096 MiB RAM.
+     * Normal RAM retains protected LEND; no direct/private DMA is substituted. */
+    "128",
+#else
     "32",
-    "--mem",
-    "size=4096",
-    "--cpus",
-    "num-cores=2",
-    "--serial",
+#endif
+    "--mem", "size=4096", "--cpus", "num-cores=2", "--serial",
     "type=unix-stream,path=" PLB_ANDROID4G_BASE
     "/early-console.sock,input-unix-stream=true,console=true,earlycon=true",
     "--params",
@@ -48,15 +47,9 @@ static const char *const android4g_arguments[] = {
     "provider.hal "
     "androidboot.cpuvulkan.version=4202496 androidboot.opengles.version=196608 "
     "androidboot.config.low_ram=false androidboot.vsock_lights_port=6900",
-    "--vsock",
-    "cid=39821",
-    "--block",
-    "path=" PLB_ANDROID4G_BASE "/android-work.qcow2,ro=false",
-    "--block",
-    "path=" PLB_ANDROID4G_BASE "/android-misc.raw,ro=false",
-    "--block",
-    "path=" PLB_ANDROID4G_BASE "/android-frp.raw,ro=false",
-    "--gpu",
+    "--vsock", "cid=39821", "--block", "path=" PLB_ANDROID4G_BASE "/android-work.qcow2,ro=false",
+    "--block", "path=" PLB_ANDROID4G_BASE "/android-misc.raw,ro=false", "--block",
+    "path=" PLB_ANDROID4G_BASE "/android-frp.raw,ro=false", "--gpu",
     "backend=gfxstream,context-types=gfxstream-gles:"
 #ifdef PLB_ANDROID4G_BUFFER_CAPSET
     "gfxstream-vulkan:"
@@ -74,13 +67,8 @@ static const char *const android4g_arguments[] = {
     "--serial",
     "hardware=virtio-console,num=2,type=unix-stream,path=" PLB_ANDROID4G_BASE
     "/sensor-data.sock,input-unix-stream=true",
-    "--serial",
-    "hardware=virtio-console,num=3,type=sink",
-    "--serial",
+    "--serial", "hardware=virtio-console,num=3,type=sink", "--serial",
     "hardware=virtio-console,num=4,type=unix-stream,path=" PLB_ANDROID4G_BASE
     "/oemlock.sock,input-unix-stream=true",
-    "--initrd",
-    INITRAMFS,
-    GUEST_KERNEL,
-    NULL};
+    "--initrd", INITRAMFS, GUEST_KERNEL, NULL};
 #endif

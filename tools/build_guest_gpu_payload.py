@@ -47,11 +47,12 @@ def commands(data):
         f"pm install --user 0 -r {APK} > {DIRECTORY}/install.log; "
         f"grep -x Success {DIRECTORY}/install.log >/dev/null; "
         f"rm {APK} {DIRECTORY}/install.log; rmdir {DIRECTORY}; "
+        "cmd power wakeup; wm dismiss-keyguard; "
         f"am start -W -n {PACKAGE}/.ProbeActivity --es plb_nonce @NONCE@; "
         "echo PLB_GPU_APK_STARTED"
     )
     cleanup = command(f"rm -f {APK} {DIRECTORY}/install.log; rmdir {DIRECTORY}")
-    collect = command(f"logcat -d -s PLBGpuProbe:I '*:S' -t 120 | grep @NONCE@ | tail -2")
+    collect = command(f"logcat -d -s PLBGpuProbe:I '*:S' | grep @NONCE@ | tail -2")
     poweroff = command("sync; /system/bin/reboot -p")
     return {
         "poweroff": poweroff,

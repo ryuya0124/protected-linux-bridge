@@ -25,6 +25,18 @@ if [ "$#" != 0 ]; then
         custom_guest=1
         archive_suffix=loader
         ;;
+    --archive-custom-keyguard)
+        custom_guest=1
+        archive_suffix=keyguard
+        ;;
+    --archive-custom-dma-pool)
+        custom_guest=1
+        archive_suffix=dma-pool
+        ;;
+    --archive-custom-system-heap)
+        custom_guest=1
+        archive_suffix=system-heap
+        ;;
     --archive-custom-binder-diagnosis)
         custom_guest=1
         archive_suffix=binder-diagnosis
