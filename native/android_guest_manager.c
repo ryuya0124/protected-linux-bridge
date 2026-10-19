@@ -53,6 +53,9 @@
      defined(PLB_ANDROID_GFXSTREAM_VULKAN_PROBE) || defined(PLB_GPU_WARNING_ONCE))
 #error "Adopted Android RAM requires the isolated healthy-boot 4 GiB GLES diagnostic"
 #endif
+#if defined(PLB_ANDROID4G_CUSTOM_GUEST) && !defined(PLB_ANDROID_ADOPTED_PROBE)
+#error "Custom guest kernel requires the isolated adopted-RAM Android diagnostic"
+#endif
 #ifdef PLB_ANDROID_ADOPTED_PROBE
 #include "../tools/android4g_config.h"
 #include "android4g.generated.h"
@@ -87,7 +90,11 @@
 #ifndef CHECK_BASE
 #define CHECK_BASE BASE
 #endif
+#ifdef PLB_ANDROID_ADOPTED_PROBE
+#define KERNEL PLB_ANDROID4G_KERNEL
+#else
 #define KERNEL FILES "/kernels/android17-cuttlefish/Image"
+#endif
 #define PLB_OWNER_LOCK_FILE FILES "/vm-owner.lock"
 #if defined(PLB_ANDROID_MEMORY_PROBE) || defined(PLB_ANDROID_ADOPTED_PROBE)
 #include "../tools/diagnostic_owner_lock.h"
@@ -289,9 +296,16 @@ int main(int argc, char **argv) {
         !private_file(CHECK_BASE "/android-frp.raw"))
         return 21;
     if (!pinned_digest(KERNEL,
-                       "f722bdd809bfd3485917a564b053b8a6d4938408734091f420c3297a8e3b20c8") ||
+#ifdef PLB_ANDROID_ADOPTED_PROBE
+                       PLB_ANDROID4G_KERNEL_SHA256
+#else
+                       "f722bdd809bfd3485917a564b053b8a6d4938408734091f420c3297a8e3b20c8"
+#endif
+                       ) ||
         !pinned_digest(CHECK_BASE "/android-lowram.cpio",
-#ifdef PLB_ANDROID_GFXSTREAM_PROBE
+#ifdef PLB_ANDROID_ADOPTED_PROBE
+                       PLB_ANDROID4G_INITRAMFS_SHA256
+#elif defined(PLB_ANDROID_GFXSTREAM_PROBE)
                        "ebf7141a7d287fdd877065109b5e68dfa9339a5a460c8d5795ff7355a36dd143"
 #else
                        "7e0c04dd3f3b9b92398c1e5ac0161e93d78c450e857d530d55012a6a550315e2"

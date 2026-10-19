@@ -228,3 +228,14 @@ integrate an automatic large GPU profile or discard the prior failed cases.
 Preserve the fixed archived trial profiles and original disks. Follow-up GPU
 protocol logging remains developer-only, bounded and payload/address-free.
 The same healthy-boot, six-key/40-second, 6 GiB and no-host-restart limits apply.
+
+## Mac build storage update, user instruction 2026-10-20
+
+The user explicitly asked to continue the guest-kernel build rather than stop
+at the earlier 20/21 GiB convenience threshold, and clean up after compilation.
+Keep monitoring actual free space and write failures, but do not stop a healthy
+build merely for crossing that earlier threshold. After the build, retain the
+Image, final config, System.map/provenance/logs, exact compressed source archive
+and public reproduction recipe; remove only this build's verified owned source
+extraction/intermediates when no longer needed. Never prune unrelated Docker
+images, caches, projects or device data. Host Android constraints are unchanged.

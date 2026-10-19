@@ -1,0 +1,161 @@
+From 598c1c3e895590f845e04455d5580ea28ffde666 Mon Sep 17 00:00:00 2001
+Subject: [GUEST ONLY] drm/virtio: sync shmem backing on guest-bound transfers
+
+Upstream author: Benjamin Leggett <benjamin@edera.io>.
+Source: https://github.com/torvalds/linux/commit/598c1c3e895590f845e04455d5580ea28ffde666
+License: GPL-2.0-only, as part of the Linux kernel driver.
+This backport is for the separate VM guest kernel, never Android's host kernel.
+
+Backport adaptation: 6.12 lacks the attached field and Xen DMA helper; use its
+existing !virtio_has_dma_quirk() condition. Completion ordering is retained.
+
+diff --git a/drivers/gpu/drm/virtio/virtgpu_drv.h b/drivers/gpu/drm/virtio/virtgpu_drv.h
+--- a/drivers/gpu/drm/virtio/virtgpu_drv.h
++++ b/drivers/gpu/drm/virtio/virtgpu_drv.h
+@@ -92,6 +92,8 @@
+ 	uint32_t hw_res_handle;
+ 	bool dumb;
+ 	bool created;
++	/* a guest-bound transfer is queued and its mapping not yet synced */
++	bool from_host_pending;
+ 	bool host3d_blob, guest_blob;
+ 	uint32_t blob_mem, blob_flags;
+ 
+@@ -170,6 +172,9 @@
+ 	struct list_head list;
+ 
+ 	uint32_t seqno;
++
++	/* guest-bound transfer whose shmem backing needs a CPU sync */
++	bool sync_for_cpu;
+ };
+ 
+ struct virtio_gpu_output {
+diff --git a/drivers/gpu/drm/virtio/virtgpu_ioctl.c b/drivers/gpu/drm/virtio/virtgpu_ioctl.c
+--- a/drivers/gpu/drm/virtio/virtgpu_ioctl.c
++++ b/drivers/gpu/drm/virtio/virtgpu_ioctl.c
+@@ -256,6 +256,27 @@
+ 	if (ret != 0)
+ 		goto err_put_free;
+ 
++	if (virtio_gpu_is_shmem(bo) && !virtio_has_dma_quirk(vgdev->vdev)) {
++		/*
++		 * The sync on completion restores the whole mapping, so an
++		 * earlier transfer has to be done before this one snapshots it.
++		 * Otherwise the snapshot predates anything the CPU wrote once
++		 * that transfer's fence signalled, and the later sync would
++		 * discard it. Nothing can add a fence behind our back here,
++		 * since doing so takes the reservation we already hold.
++		 * This writes the pages, so it waits as a writer does. READ
++		 * usage covers existing readers.
++		 */
++		long wait = dma_resv_wait_timeout(objs->objs[0]->resv,
++						  DMA_RESV_USAGE_READ, true,
++						  MAX_SCHEDULE_TIMEOUT);
++
++		if (wait < 0) {
++			ret = wait;
++			goto err_unlock;
++		}
++	}
++
+ 	fence = virtio_gpu_fence_alloc(vgdev, vgdev->fence_drv.context, 0);
+ 	if (!fence) {
+ 		ret = -ENOMEM;
+@@ -315,6 +336,28 @@
+ 		if (ret != 0)
+ 			goto err_put_free;
+ 
++		/*
++		 * A transfer the other way may have queued without yet syncing
++		 * its mapping. Pushing the guest pages into it now would
++		 * discard what the device wrote there, so wait for that sync:
++		 * it runs before the fence it belongs to is signalled. The
++		 * flag is only set under this reservation, so it cannot appear
++		 * behind our back, and the acquire pairs with the release in
++		 * that sync, so finding it clear means the pages it wrote are
++		 * visible here too.
++		 */
++		if (smp_load_acquire(&bo->from_host_pending)) {
++			long wait = dma_resv_wait_timeout(objs->objs[0]->resv,
++							  DMA_RESV_USAGE_WRITE,
++							  true,
++							  MAX_SCHEDULE_TIMEOUT);
++
++			if (wait < 0) {
++				ret = wait;
++				goto err_unlock;
++			}
++		}
++
+ 		ret = -ENOMEM;
+ 		fence = virtio_gpu_fence_alloc(vgdev, vgdev->fence_drv.context,
+ 					       0);
+diff --git a/drivers/gpu/drm/virtio/virtgpu_vq.c b/drivers/gpu/drm/virtio/virtgpu_vq.c
+--- a/drivers/gpu/drm/virtio/virtgpu_vq.c
++++ b/drivers/gpu/drm/virtio/virtgpu_vq.c
+@@ -212,6 +212,33 @@
+ 	} while (!virtqueue_enable_cb(vgdev->ctrlq.vq));
+ 	spin_unlock(&vgdev->ctrlq.qlock);
+ 
++	/*
++	 * Sync guest-bound transfers before signalling anything, so that a
++	 * waiter cannot read the backing pages while what the device wrote is
++	 * still in a bounce buffer. This cannot be folded into the loop below:
++	 * virtio_gpu_fence_event_process() also signals every earlier fence in
++	 * the same context, so any entry there may signal this entry's fence.
++	 */
++	list_for_each_entry(entry, &reclaim_list, list) {
++		if (entry->sync_for_cpu) {
++			struct virtio_gpu_object *bo =
++				gem_to_virtio_gpu_obj(entry->objs->objs[0]);
++
++			dma_sync_sgtable_for_cpu(vgdev->vdev->dev.parent,
++						 bo->base.sgt, DMA_FROM_DEVICE);
++			/*
++			 * Release, so a transfer the other way that skips its
++			 * wait on the strength of this cannot go on to read
++			 * the backing pages before the sync above is visible.
++			 * Nothing orders the two otherwise: where the mapping
++			 * bounces on a coherent device the sync is a plain
++			 * copy, and dma_direct_sync_sg_for_cpu() emits its
++			 * barrier only for the non-coherent case.
++			 */
++			smp_store_release(&bo->from_host_pending, false);
++		}
++	}
++
+ 	list_for_each_entry(entry, &reclaim_list, list) {
+ 		resp = (struct virtio_gpu_ctrl_hdr *)entry->resp_buf;
+ 
+@@ -1057,11 +1084,30 @@
+ 	struct virtio_gpu_object *bo = gem_to_virtio_gpu_obj(objs->objs[0]);
+ 	struct virtio_gpu_transfer_host_3d *cmd_p;
+ 	struct virtio_gpu_vbuffer *vbuf;
++	bool use_dma_api = !virtio_has_dma_quirk(vgdev->vdev);
+ 
+ 	cmd_p = virtio_gpu_alloc_cmd(vgdev, &vbuf, sizeof(*cmd_p));
+ 	memset(cmd_p, 0, sizeof(*cmd_p));
+ 
+ 	vbuf->objs = objs;
++
++	if (virtio_gpu_is_shmem(bo) && use_dma_api) {
++		/*
++		 * The device writes only the requested box, so prime the
++		 * mapping with the current contents: otherwise the sync on
++		 * completion would hand back whatever a bounce buffer held for
++		 * the regions the device does not touch.
++		 */
++		dma_sync_sgtable_for_device(vgdev->vdev->dev.parent,
++					    bo->base.sgt, DMA_TO_DEVICE);
++		vbuf->sync_for_cpu = true;
++		/*
++		 * Set under the reservation the caller holds, so a transfer
++		 * the other way cannot miss it and push the guest pages into
++		 * the mapping while the device still owns it.
++		 */
++		WRITE_ONCE(bo->from_host_pending, true);
++	}
+ 
+ 	cmd_p->hdr.type = cpu_to_le32(VIRTIO_GPU_CMD_TRANSFER_FROM_HOST_3D);
+ 	cmd_p->hdr.ctx_id = cpu_to_le32(ctx_id);

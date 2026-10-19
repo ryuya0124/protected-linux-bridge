@@ -9,6 +9,9 @@ import platform
 import shutil
 import shlex
 import subprocess
+import stat
+
+from android_ramdisk import entries
 
 from build_android_gpu_probe import gles_ramdisk, early_command
 from build_guest_gpu_payload import build as build_payload
@@ -20,6 +23,46 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def custom_ramdisk(original, record):
+    """Keep guest init/AVB/properties, overriding only the module load list.
+
+    This kernel has the needed virtual devices built in and disallows modules;
+    never try to load the retained original guest's ABI-incompatible .ko files.
+    """
+    contents = {name: (mode, payload) for name, mode, payload in entries(original)}
+    module_list = contents.get("lib/modules/modules.load")
+    if module_list is None or not stat.S_ISREG(module_list[0]):
+        raise ValueError("Expected the pinned first-stage guest module list")
+    marker = (
+        json.dumps(
+            {
+                "guest_only": True,
+                "kernel_sha256": record["kernel_sha256"],
+                "kernel_release": record["kernel_release"],
+            },
+            indent=2,
+        ).encode()
+        + b"\n"
+    )
+    extra = bytearray()
+    for inode, name, mode, payload in (
+        (100010, "lib/modules/modules.load", stat.S_IFREG | 0o644, b""),
+        (100011, "plb-guest-kernel.json", stat.S_IFREG | 0o400, marker),
+        (100012, "TRAILER!!!", 0, b""),
+    ):
+        encoded = name.encode() + b"\0"
+        fields = [inode, mode, 0, 0, 1, 0, len(payload), 0, 0, 0, 0, len(encoded), 0]
+        extra.extend(b"070701" + "".join(f"{v:08x}" for v in fields).encode() + encoded)
+        extra.extend(b"\0" * (-len(extra) % 4))
+        extra.extend(payload)
+        extra.extend(b"\0" * (-len(extra) % 4))
+    result = original + extra
+    final = {name: payload for name, mode, payload in entries(result)}
+    if final["lib/modules/modules.load"] or final["plb-guest-kernel.json"] != marker:
+        raise ValueError("Guest override archive did not round trip")
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sdk", type=Path, required=True)
@@ -28,7 +71,43 @@ def main():
     parser.add_argument("--guest-render-apk", type=Path, required=True)
     parser.add_argument("--minimum-folio-kib", type=int, choices=(16, 128), default=16)
     parser.add_argument("--transport", choices=("pipe", "asg"), default="pipe")
+    parser.add_argument("--guest-kernel", type=Path)
+    parser.add_argument("--guest-kernel-manifest", type=Path)
     args = parser.parse_args()
+    custom = args.guest_kernel is not None
+    if custom != (args.guest_kernel_manifest is not None):
+        parser.error("Select both the separate guest Image and its completed build manifest")
+    guest_record = None
+    if custom:
+        guest_record = json.loads(args.guest_kernel_manifest.read_text())
+        config = args.guest_kernel_manifest.parent / "output/.config"
+        required = (
+            "DRM_VIRTIO_GPU",
+            "VIRTIO_BLK",
+            "VIRTIO_PCI",
+            "VIRTIO_CONSOLE",
+            "VIRTIO_VSOCKETS",
+            "F2FS_FS",
+            "DM_DEFAULT_KEY",
+            "DM_VERITY",
+            "ANDROID_BINDER_IPC",
+            "SECURITY_SELINUX",
+        )
+        if (
+            guest_record.get("kernel_sha256") != digest(args.guest_kernel)
+            or guest_record.get("source_commit") != "3ec022196c4e9d5c1434599cdda63f622dd6f586"
+            or guest_record.get("upstream_fix") != "598c1c3e895590f845e04455d5580ea28ffde666"
+            or guest_record.get("kernel_release") != "6.12.74-plb-android-gpu1"
+            or guest_record.get("config_sha256") != digest(config)
+            or guest_record.get("patch_sha256")
+            != digest(ROOT / "kernels/android-gpu/guest-bound-dma-sync.patch")
+            or guest_record.get("guest_only") is not True
+            or guest_record.get("android_host_modified") is not False
+            or guest_record.get("vm_started_by_build") is not False
+            or "# CONFIG_MODULES is not set\n" not in config.read_text()
+            or any("CONFIG_" + option + "=y\n" not in config.read_text() for option in required)
+        ):
+            parser.error("Custom guest Image/config/provenance does not match the guarded build")
     if shutil.disk_usage(ROOT).free < 21 * 1024**3:
         parser.error("Retain 20 GiB Mac storage headroom")
     manifest = json.loads(args.build_manifest.read_text())
@@ -52,7 +131,8 @@ def main():
         )
     ):
         parser.error("Use the pinned separate Android GPU VMM build")
-    out = ROOT / "artifacts/android4g-gpu/probe-build"
+    out = ROOT / "artifacts/android4g-gpu" / ("probe-build-custom" if custom else "probe-build")
+    label = "android4g-custom" if custom else "android4g"
     out.mkdir(mode=0o700, parents=True, exist_ok=True)
     ramdisk = out / "android-lowram.cpio"
     ramdisk.write_bytes(
@@ -60,9 +140,15 @@ def main():
             (ROOT / "artifacts/android-display/cuttlefish17/android-lowram.cpio").read_bytes()
         )
     )
+    if custom:
+        ramdisk.write_bytes(custom_ramdisk(ramdisk.read_bytes(), guest_record))
     pins = {
         "VMM": digest(args.vmm),
-        "KERNEL": "f722bdd809bfd3485917a564b053b8a6d4938408734091f420c3297a8e3b20c8",
+        "KERNEL": (
+            digest(args.guest_kernel)
+            if custom
+            else "f722bdd809bfd3485917a564b053b8a6d4938408734091f420c3297a8e3b20c8"
+        ),
         "INITRAMFS": digest(ramdisk),
     }
     (out / "preallocated_vm.generated.h").write_text(
@@ -82,7 +168,9 @@ def main():
     flags = [str(compiler), "-O2", "-Wall", "-Wextra", "-Werror", "-I", str(out)]
     if args.transport == "asg":
         flags.append("-DPLB_ANDROID4G_ASG=1")
-    proxy = out / "android4g-adopt-vmm"
+    if custom:
+        flags.append("-DPLB_ANDROID4G_CUSTOM_GUEST=1")
+    proxy = out / (label + "-adopt-vmm")
     subprocess.run(
         flags
         + [
@@ -96,6 +184,8 @@ def main():
     (out / "android4g.generated.h").write_text(
         f'#define PLB_ANDROID4G_VMM_SHA256 "{pins["VMM"]}"\n'
         f'#define PLB_ANDROID4G_PROXY_SHA256 "{digest(proxy)}"\n'
+        f'#define PLB_ANDROID4G_KERNEL_SHA256 "{pins["KERNEL"]}"\n'
+        f'#define PLB_ANDROID4G_INITRAMFS_SHA256 "{pins["INITRAMFS"]}"\n'
     )
     setup = (ROOT / "native/android_guest_setup.sh").read_text()
     (out / "android_guest_setup.generated.h").write_text(
@@ -109,7 +199,7 @@ def main():
         + ";\n"
     )
     apk_sha = build_payload(args.guest_render_apk, args.sdk, out / "android_gpu_probe.generated.h")
-    manager = out / "android4g-manager"
+    manager = out / (label + "-manager")
     subprocess.run(
         flags
         + [
@@ -123,7 +213,7 @@ def main():
         ],
         check=True,
     )
-    controller = out / "android4g-policy"
+    controller = out / (label + "-policy")
     subprocess.run(
         flags
         + [
@@ -145,8 +235,15 @@ def main():
         flags + [str(ROOT / "tools/android4g_guest_diagnostics.c"), "-o", str(diagnostics)],
         check=True,
     )
+    extra_files = []
+    if custom:
+        identity = out / "android4g-custom-ramdisk.sha256"
+        identity.write_text(pins["INITRAMFS"] + "\n")
+        extra_files.append(identity)
     record = {
         "configured_memory_mib": 4096,
+        "custom_guest_kernel": custom,
+        "guest_kernel_build": guest_record,
         "guest_graphics_transport": "virtio-gpu-" + args.transport,
         "advised_shmem_sizes_kib": (
             [16, 32, 64, 128, 256, 512] if args.minimum_folio_kib == 16 else [128, 256, 512]
@@ -168,6 +265,7 @@ def main():
                 copy,
                 diagnostics,
                 ROOT / "tools/prepare_android4g_profile.sh",
+                *extra_files,
             )
         },
         "vm_started_by_build": False,

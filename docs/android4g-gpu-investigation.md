@@ -29,7 +29,7 @@ adbd access establishes a booted Android desktop or GPU rendering.
 
 ## Controlled comparisons
 
-Each VM used 4096 MiB, two CPUs, the same pinned guest kernel/ramdisk, a fresh
+Trials 1–7 used 4096 MiB, two CPUs, the same pinned guest kernel/ramdisk, a fresh
 offline copy of the original three writable Android disks, a 480×800 GLES
 configuration and a 256 MiB GPU BAR address window. The BAR size is an address
 aperture, not a claim of 256 MiB physical GPU allocation. Vulkan was disabled.
@@ -178,3 +178,27 @@ Android's F2FS/encryption configuration and cannot be assumed to boot this
 Android image. Investigate a separately built guest kernel/module with the
 correct Android filesystem and DMA support; retain the original guest kernel
 and all host prohibitions.
+
+## Separate Android guest kernel build
+
+The [guest-only build recipe](../kernels/android-gpu/README.md) now backports
+the upstream completion-sync fix to Android common commit
+`3ec022196c4e9d5c1434599cdda63f622dd6f586`. It retains Android filesystem,
+encryption, Binder and SELinux support, builds required virtual devices in,
+and uses a different Image, ramdisk and copied-disk profile. The stock Android
+guest kernel, host kernel and Debian environment are retained. The paired
+Image/manifest inputs are checked before custom diagnostic helpers are built.
+
+Build preparation exposed a Mac filesystem issue: Linux contains both
+`net/netfilter/xt_hl.c` and `xt_HL.c`. Extraction/build on a case-insensitive
+Mac volume loses that distinction. The recipe therefore extracts and compiles
+on an invocation-owned Linux Docker volume, checks that the two files are
+distinct, and exports only completed artifacts. Guest-only unused nested
+KVM/VM-manager interfaces are disabled for the built-in-only configuration.
+This does not disable the outer host hypervisor or protected-VM checks.
+
+The user approved continuing compilation beyond the earlier convenience disk
+threshold and cleaning owned intermediates afterwards. The build preserves
+the Image, config, System.map, logs/provenance and exact compressed source.
+No unrelated Docker data is pruned. A successful build alone will not be
+reported as a successful Android/GPU trial.

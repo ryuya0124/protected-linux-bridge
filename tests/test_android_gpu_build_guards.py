@@ -36,6 +36,8 @@ class AndroidGpuBuildGuardsTest(unittest.TestCase):
             (output / "android4g.generated.h").write_text(
                 '#define PLB_ANDROID4G_VMM_SHA256 "' + "0" * 64 + '"\n'
                 '#define PLB_ANDROID4G_PROXY_SHA256 "' + "0" * 64 + '"\n'
+                '#define PLB_ANDROID4G_KERNEL_SHA256 "' + "0" * 64 + '"\n'
+                '#define PLB_ANDROID4G_INITRAMFS_SHA256 "' + "0" * 64 + '"\n'
             )
             modes = (
                 [
@@ -88,6 +90,28 @@ class AndroidGpuBuildGuardsTest(unittest.TestCase):
 
     def test_bounded_gles1536_manager_compiles(self):
         result = self.compile_manager()
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_custom_kernel_requires_the_separate_adopted_profile(self):
+        result = self.compile_manager(("-DPLB_ANDROID4G_CUSTOM_GUEST=1",), adopted=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        result = self.compile_manager(("-DPLB_ANDROID4G_CUSTOM_GUEST=1",))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Custom guest kernel requires", result.stderr)
+
+    def test_fixed_copy_supervisor_compiles(self):
+        result = subprocess.run(
+            [
+                str(COMPILER),
+                "-fsyntax-only",
+                "-Wall",
+                "-Wextra",
+                "-Werror",
+                str(ROOT / "tools/android4g_profile_copy.c"),
+            ],
+            capture_output=True,
+            text=True,
+        )
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_fixed_payload_render_build_compiles_only_in_the_gpu_diagnostic(self):

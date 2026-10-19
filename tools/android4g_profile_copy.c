@@ -14,13 +14,14 @@
 #include "probe_watchdog.h"
 
 int main(int argc, char **argv) {
+    int custom = argc == 2 && !strcmp(argv[1], "--custom-guest");
     int archive =
         argc == 2 &&
         (!strcmp(argv[1], "--archive-normal-first") || !strcmp(argv[1], "--archive-ascending") ||
          !strcmp(argv[1], "--archive-medium-only") ||
          !strcmp(argv[1], "--archive-medium-aligned") ||
          !strcmp(argv[1], "--archive-all-aligned") || !strcmp(argv[1], "--archive-pipe-trace"));
-    if (getuid() || (argc != 1 && !archive))
+    if (getuid() || (argc != 1 && !archive && !custom))
         return 20;
     int lock = diagnostic_owner_lock();
     if (lock < 0)
@@ -40,7 +41,7 @@ int main(int argc, char **argv) {
         if (prctl(PR_SET_PDEATHSIG, SIGKILL) || getppid() != parent || fcntl(lock, F_SETFD, 0) ||
             setenv("PLB_ANDROID4G_COPY_FD", descriptor, 1))
             _exit(22);
-        if (archive)
+        if (archive || custom)
             execl("/system/bin/sh", "sh", script, argv[1], (char *)NULL);
         else
             execl("/system/bin/sh", "sh", script, (char *)NULL);

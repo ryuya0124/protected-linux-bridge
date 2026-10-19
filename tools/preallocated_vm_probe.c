@@ -31,11 +31,14 @@
 #include "preallocated_ready.h"
 #include "preallocated_vm.generated.h"
 
+#if defined(PLB_ANDROID4G_CUSTOM_GUEST) && !defined(PLB_PREALLOCATED_ANDROID_PROXY)
+#error "Custom guest kernel requires the isolated adopted-RAM Android proxy"
+#endif
 #define FILES "/data/user/0/net.ryuya_dev.protectedlinux/files"
 #ifdef PLB_PREALLOCATED_ANDROID_PROXY
 #include "android4g_config.h"
 #define VMM PLB_ANDROID4G_VMM
-#define GUEST_KERNEL FILES "/kernels/android17-cuttlefish/Image"
+#define GUEST_KERNEL PLB_ANDROID4G_KERNEL
 #define INITRAMFS PLB_ANDROID4G_BASE "/android-lowram.cpio"
 #include "android4g_arguments.h"
 #else

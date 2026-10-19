@@ -25,8 +25,12 @@
 #define PLB_OWNER_LOCK_FILE FILES "/vm-owner.lock"
 #include "../native/profile_lock.h"
 #include "host_memory_health.h"
+#if defined(PLB_ANDROID4G_CUSTOM_GUEST) && !defined(PLB_PREALLOCATED_VM_POLICY)
+#error "Custom guest kernel requires the isolated adopted-RAM policy diagnostic"
+#endif
 #ifdef PLB_PREALLOCATED_VM_POLICY
 #include "preallocated_vm_limits.h"
+#include "android4g_config.h"
 #include "preallocated_ready.h"
 #endif
 #include "../native/android_owned_process.h"
@@ -361,7 +365,7 @@ int main(int argc, char **argv) {
                         : vm          ? vm_probe
                                       : allocation_probe;
     if (preallocated)
-        probe = adopted_android       ? FILES "/kernel-probes/android4g-manager"
+        probe = adopted_android       ? PLB_ANDROID4G_MANAGER
                 : full_content        ? FILES "/kernel-probes/preallocated-vm-full-probe"
                 : preallocated_memory ? FILES "/kernel-probes/preallocated-vm-probe"
                                       : FILES "/kernel-probes/preallocated-ram-probe";

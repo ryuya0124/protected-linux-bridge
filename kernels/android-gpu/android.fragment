@@ -1,0 +1,28 @@
+# Separate VM guest only; retain Android F2FS, dm-default-key, binder and SELinux.
+CONFIG_LOCALVERSION="-plb-android-gpu1"
+# CONFIG_LOCALVERSION_AUTO is not set
+# All required virtual devices are built in. This isolated profile loads no modules.
+# CONFIG_MODULES is not set
+# No nested hypervisor is used inside this guest; host protection is unchanged.
+# CONFIG_KVM is not set
+# CONFIG_GUNYAH is not set
+# CONFIG_GUNYAH_HYPERCALLS is not set
+# CONFIG_GUNYAH_PLATFORM_HOOKS is not set
+# CONFIG_AUTOFDO_CLANG is not set
+# CONFIG_TRIM_UNUSED_KSYMS is not set
+CONFIG_VIRTIO_PCI=y
+CONFIG_VIRTIO_PCI_LIB=y
+CONFIG_VIRTIO_PCI_LIB_LEGACY=y
+CONFIG_VIRTIO_MMIO=y
+CONFIG_VIRTIO_BLK=y
+CONFIG_VIRTIO_CONSOLE=y
+CONFIG_VIRTIO_NET=y
+CONFIG_VIRTIO_INPUT=y
+CONFIG_HW_RANDOM_VIRTIO=y
+CONFIG_VIRTIO_VSOCKETS=y
+CONFIG_VIRTIO_VSOCKETS_COMMON=y
+CONFIG_VIRTIO_PMEM=y
+CONFIG_VIRTIO_DMA_SHARED_BUFFER=y
+CONFIG_SND_VIRTIO=y
+CONFIG_DRM_VIRTIO_GPU=y
+CONFIG_DRM_VIRTIO_GPU_KMS=y
