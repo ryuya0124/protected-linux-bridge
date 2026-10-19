@@ -197,3 +197,10 @@ single-boot log, and emits no raw addresses or paths. It cannot identify the exa
 EL2 allocator or infer a guest pass from VMM exit zero. The
 [source and chronology review](gunyah-root-cause-review.md) records the evidence
 and the earlier overlooked host page-cache bursts.
+
+`tools/inspect_crosvm_minidebug.py` verifies the pinned saved VMM and extracts its
+existing MiniDebugInfo entirely offline. It writes address-bearing ELF/symbol/
+assembly output only into a fresh directory under ignored artifacts, without
+executing or patching the VMM. [Actual memory-ingress findings](preallocated-ram-handoff.md)
+distinguish the installed CMA file-backed route from an original-style shared
+memfd adoption design; neither a handoff nor another guest boot is claimed.

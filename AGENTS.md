@@ -130,3 +130,15 @@ same unchanged boot (710 retained distinct records total). Do not call reverse
 order the first occurrence or treat all earlier trials as clean. Initial map-10
 failures predated these warnings; multiple failure stages must stay separate.
 This source/log review authorizes no new VM, allocation or host setting change.
+
+## Preallocated-RAM static review, later 2026-10-19
+
+The pinned installed crosvm's MiniDebugInfo identifies its actual RAM functions.
+Its file-backed region path sends GH_VM_ANDROID_MAP_CMA_MEM; the active-slot
+kernel's CMA parcel path checks dedicated gunyah_cma_fops. Do not pass an ordinary
+memfd through that option as a presumed normal-RAM import or probe it with an
+invalid FD. The ordinary shared constructor creates a memfd by raw syscall,
+ftruncates and applies seals before mapping. A potential adoption path belongs
+there in a separately reviewed private userspace VMM, preserving all region
+roles/offsets/seals and protection flags. It is not implemented or boot-tested;
+no new VM/allocation or host-setting permission is implied by this design.

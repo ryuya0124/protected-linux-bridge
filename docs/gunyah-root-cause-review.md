@@ -197,6 +197,12 @@ Android UI authorizes resetting the consumed exception or another load trial.
 
 ## Preallocating or freeing Android memory first
 
+**Subsequent static binary result:** the installed VMM's MiniDebugInfo allowed
+inspection of its actual constructor. File-backed mappings take the dedicated
+CMA ioctl, and the active-slot kernel verifies dedicated CMA file operations.
+Ordinary memfd adoption needs a different ingress in the normal shared-RAM
+constructor. [Pinned binary evidence and proposed boundary](preallocated-ram-handoff.md).
+
 Releasing an application's own pages can help its available-memory admission;
 it cannot force unrelated live/pinned pages to move or increase an EL2 heap.
 The earlier 6112 MiB ordinary allocation/release preparation did not eliminate
