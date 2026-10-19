@@ -1,8 +1,44 @@
 # Android guest display investigation
 
-Current app: **0.4.0-preview.7**, with a separate unverified 1792 MiB selection.
-[Current presets and on-device refusal checks](android-large-profile.md#preview7-separate-1792-mib-selection).
-The historical 1536 MiB screenshots below do not validate the current runtime.
+Current app: **0.4.0-preview.8**, with a separate experimental 4 GiB Adreno profile.
+The historical 1536 MiB screenshots below do not validate other runtime profiles.
+
+## Preview.8 experimental 4 GiB Adreno profile
+
+Select **4096 MiB / Adreno GLES** in Bridge's Android guest selector, review the
+per-launch six-key confirmation and start the viewer. This requires the measured
+Galaxy build and separately prepared Android 17 Cuttlefish images; the APK does
+not download or redistribute the Android OS. Missing optional kernel/VMM bundle
+inputs produce a visible error. No additional Vector scope is required.
+
+This profile has reached Android's lock screen and home with actual Adreno GLES
+readback. Startup remains unreliable: a later fresh-copy trial failed Gunyah
+admission before boot. There is no automatic retry or host reboot. Rendering is
+accelerated, but viewer transfer still captures PNGs slowly; it is not a smooth
+GPU/zero-copy display. Android networking, audio, physical USB and Vulkan remain
+unsupported. Tap and single-finger swipe are forwarded within the 480×800 guest
+image; letterbox touches and multi-touch are ignored. The **Unlock** button wakes
+and requests dismissal of the guest's keyguard. It cannot bypass a guest PIN or
+change the host's screen lock.
+
+Each launch explicitly acknowledges temporary host-wide advice for exactly six
+shmem sizes: 16/32/64/128/256/512 KiB. Preparation stays within the 6 GiB combined
+RAM budget and the existing memory/host-health gates. The unchanged independent
+guardian limits each policy window to 40 seconds, restoring on preparation ready
+or failure. A kernel/hypervisor hang can prevent restoration. There is no host
+kernel, module, partition, SELinux or boot change. The 128 MiB shared I/O pool is
+inside the 4096 MiB total, with normal RAM retaining protected LEND semantics.
+
+Guest kernel and VMM copies live under app-private `files/android-gpu4g-runtime/`.
+On first launch, original writable disks are verified and cloned offline into
+`files/android-guests/cf17-gpu4096/`; subsequent changes persist there. Debian and
+the earlier Android profiles are retained. Closing the viewer stops only this
+owned VM, with a 30-minute session limit. If launch fails, read the displayed
+reason and return to a legacy profile. Do not delete app data to troubleshoot:
+that also deletes the persistent guest disks.
+
+[Investigation and negative results](android4g-gpu-investigation.md) ·
+[Bundled component sources/licenses](../third_party/android-gpu4g/SOURCES.md)
 
 ## Preview.6 memory safety update
 

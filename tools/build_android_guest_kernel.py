@@ -17,6 +17,7 @@ COMMIT = "3ec022196c4e9d5c1434599cdda63f622dd6f586"
 ARCHIVE_SHA = "13ab707b031ace652b6d7d111dfe4f877e186e1bc0c80925ea19c34dc0c3e531"
 CONFIG_SHA = "4c065ae7247d878dc34438e61230fb4c3e4a9ce286cd585bf49db03dd7e69726"
 FIX = "598c1c3e895590f845e04455d5580ea28ffde666"
+FINAL_CONFIG_SHA = "9829760cab00bedf092bc93c0dfc05fe7a78aab7ec7121df44ed446f38cac513"
 
 
 def digest(path):
@@ -52,7 +53,11 @@ def main():
     if shutil.disk_usage(ROOT).free < 2 * 1024**3:
         parser.error("Retain 2 GiB emergency space; clean owned intermediates after the build")
     output.mkdir(parents=True, mode=0o700, exist_ok=True)
-    if digest(args.source_archive) != ARCHIVE_SHA or digest(args.base_config) != CONFIG_SHA:
+    allowed_configs = {CONFIG_SHA, FINAL_CONFIG_SHA} if args.system_heap else {CONFIG_SHA}
+    if (
+        digest(args.source_archive) != ARCHIVE_SHA
+        or digest(args.base_config) not in allowed_configs
+    ):
         parser.error("Use the pinned Android common archive and original guest config")
     if (output / "build.json").exists():
         parser.error("Refuse replacing a completed guest kernel build")
@@ -173,7 +178,7 @@ def main():
         "system_heap": args.system_heap,
         "source_commit": COMMIT,
         "source_archive_sha256": ARCHIVE_SHA,
-        "base_config_sha256": CONFIG_SHA,
+        "base_config_sha256": digest(args.base_config),
         "upstream_fix": FIX,
         "docker_image_id": image,
         "kernel_sha256": digest(kernel),

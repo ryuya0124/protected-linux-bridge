@@ -100,3 +100,13 @@ preferred reserved metadata backing. It does not reserve host hugepages, modify
 the Android host kernel, change host/guest SELinux policy or establish GPU
 success by itself. The motivation and actual comparisons are recorded in the
 investigation document above.
+
+
+The complete measured gpu2 configuration is now included as
+`system-heap.config`. With `--system-heap`, the builder accepts its exact SHA256
+as an alternative to the originally extracted config. For source reproduction,
+pass `--base-config kernels/android-gpu/system-heap.config` and a fresh output
+directory. The source archive and patch pins are unchanged. A rebuild's final
+binary identity must still be reviewed/pinned before an app can use it; this
+does not accept arbitrary kernels or promise bit-identical compiler/certificate
+outputs on another builder.

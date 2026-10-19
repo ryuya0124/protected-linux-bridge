@@ -1,7 +1,14 @@
 /* MIT. Separate developer profile; never the existing Android/Debian disks. */
 #ifndef PLB_ANDROID4G_CONFIG_H
 #define PLB_ANDROID4G_CONFIG_H
-#ifdef PLB_ANDROID4G_CUSTOM_GUEST
+#ifdef PLB_ANDROID4G_INTERACTIVE
+#define PLB_ANDROID4G_RUNTIME FILES "/android-gpu4g-runtime"
+#define PLB_ANDROID4G_BASE FILES "/android-guests/cf17-gpu4096"
+#define PLB_ANDROID4G_KERNEL PLB_ANDROID4G_RUNTIME "/guest.Image"
+#define PLB_ANDROID4G_PROXY PLB_ANDROID4G_RUNTIME "/adopt-vmm"
+#define PLB_ANDROID4G_MANAGER PLB_ANDROID4G_RUNTIME "/manager"
+#define PLB_ANDROID4G_VMM PLB_ANDROID4G_RUNTIME "/crosvm"
+#elif defined(PLB_ANDROID4G_CUSTOM_GUEST)
 #define PLB_ANDROID4G_BASE FILES "/android-guests/cf17-gpu4096-dma-sync"
 #define PLB_ANDROID4G_KERNEL FILES "/kernel-probes/android4g-custom-guest.Image"
 #define PLB_ANDROID4G_PROXY FILES "/kernel-probes/android4g-custom-adopt-vmm"
@@ -12,7 +19,9 @@
 #define PLB_ANDROID4G_MANAGER FILES "/kernel-probes/android4g-manager"
 #define PLB_ANDROID4G_BASE FILES "/android-guests/cf17-gpu4096-adopted"
 #endif
+#ifndef PLB_ANDROID4G_VMM
 #define PLB_ANDROID4G_VMM FILES "/kernel-probes/android4g-crosvm"
+#endif
 #define PLB_ANDROID4G_COMPAT FILES "/kernel-probes/android4g-loader-compat.so"
 #define PLB_ANDROID4G_MEMORY_MIB 4096
 #endif

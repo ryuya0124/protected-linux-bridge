@@ -2,10 +2,11 @@
  * Frame capture is deliberately bounded and slow in this experimental profile.
  * No claim of hardware acceleration, sound, guest networking or zero-copy.
  */
-#ifndef PLB_ANDROID_PROBE
+#if !defined(PLB_ANDROID_PROBE) || defined(PLB_ANDROID4G_INTERACTIVE)
 #include <pthread.h>
 #include <stdatomic.h>
 #include "android_guest_adb.h"
+#include "android_guest_input.h"
 #include "android_guest_setup.generated.h"
 
 #define ANDROID_DISPLAY_SOCKET "net.ryuya_dev.protectedlinux.android-display"
@@ -138,25 +139,15 @@ static void *android_display_worker(void *unused) {
                 break;
             continue;
         }
-        char service[128];
+        char service[256];
         if (command == 'F') {
             strcpy(service, "exec:screencap -p");
-        } else if (command == 'T') {
-            uint32_t xy[2];
-            if (android_io(client, xy, sizeof(xy), 0) || xy[0] >= 480 || xy[1] >= 800)
-                break;
-            snprintf(service, sizeof(service), "exec:cmd input tap %u %u", xy[0], xy[1]);
-        } else if (command == 'K') {
-            uint32_t key;
-            if (android_io(client, &key, sizeof(key), 0) ||
-                (key != 3 && key != 4 && key != 82 && key != 187 && key != 224))
-                break;
-            snprintf(service, sizeof(service), "exec:cmd input keyevent %u", key);
-        } else if (command == 'U') {
-            strcpy(service, "exec:cmd power wakeup; wm dismiss-keyguard; settings put system "
-                            "screen_off_timeout 1800000");
         } else {
-            break;
+            uint32_t values[5] = {0};
+            size_t count = command == 'T' ? 2 : command == 'S' ? 5 : command == 'K' ? 1 : 0;
+            if ((count && android_io(client, values, count * sizeof(*values), 0)) ||
+                android_input_service(service, sizeof(service), command, values))
+                break;
         }
         size_t length;
         int error = android_adb(service, output, &length);
@@ -169,6 +160,8 @@ static void *android_display_worker(void *unused) {
                 (size && android_io(client, output, size, 1)))
                 break;
         } else {
+            if (!error && !memmem(output, length, ANDROID_INPUT_OK, sizeof(ANDROID_INPUT_OK) - 1))
+                error = -1;
             unsigned char reply = error ? 1 : 0;
             if (android_io(client, &reply, 1, 1))
                 break;

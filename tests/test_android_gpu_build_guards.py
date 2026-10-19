@@ -89,6 +89,21 @@ class AndroidGpuBuildGuardsTest(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("isolated healthy-boot 4 GiB GLES diagnostic", result.stderr)
 
+    def test_interactive_gpu_uses_the_custom_guest_without_diagnostic_payload(self):
+        flags = (
+            "-DPLB_ANDROID4G_INTERACTIVE=1",
+            "-DPLB_ANDROID4G_CUSTOM_GUEST=1",
+            "-UPLB_ANDROID_GPU_RENDER_PROBE",
+        )
+        result = self.compile_manager(flags, adopted=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for extra in (("-UPLB_ANDROID4G_CUSTOM_GUEST",), ("-DPLB_ANDROID_GPU_RENDER_PROBE=1",)):
+            result = self.compile_manager(flags + extra, adopted=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("Interactive GPU requires", result.stderr)
+        result = self.compile_manager(flags)
+        self.assertNotEqual(result.returncode, 0)
+
     def test_bounded_gles1536_manager_compiles(self):
         result = self.compile_manager()
         self.assertEqual(result.returncode, 0, result.stderr)

@@ -1,6 +1,6 @@
 {
   "recorded_date": "2026-10-20",
-  "status": "ongoing; trials 8/9/12 reached Android boot-complete and guest Adreno EGL; GPU frame and usable desktop unverified",
+  "status": "ongoing; trial16 Adreno GLES two-phase readback and separate Android home PNG verified; trial17 startup failed; preview8 explicit app profile reached lockscreen",
   "combined_explicit_ram_cap_mib": 6144,
   "host_policy_deadline_ms": 40000,
   "guest_kernel_sha256": "f722bdd809bfd3485917a564b053b8a6d4938408734091f420c3297a8e3b20c8",
@@ -636,7 +636,7 @@
   "guest_graphics_failure_trial_5": "SurfaceFlinger SIGABRT: no suitable EGLConfig found",
   "guest_transport_warning_trial_5": "Unrecognized GLES max version string in extensions: pipe:opengles",
   "original_android_disks_unchanged_at_each_profile_copy": true,
-  "production_apk_changed": false,
+  "production_apk_changed": true,
   "raw_logs_identifiers_images_included": false,
   "guest_dma_sync_candidate": {
     "upstream_commit": "598c1c3e895590f845e04455d5580ea28ffde666",
@@ -649,5 +649,25 @@
     "separate_profile_trial": 8,
     "combined_kernel_config_resolved_observed_eglconfig_failure": true,
     "single_patch_causality_isolated": false
+  },
+  "app_integration": {
+    "version": "0.4.0-preview.8",
+    "memory_mib": 4096,
+    "separate_profile": true,
+    "per_launch_six_key_acknowledgement": true,
+    "policy_deadline_ms": 40000,
+    "swiotlb_inside_total_ram_mib": 128,
+    "startup_reliable": false,
+    "initial_lock_screen_visible": true,
+    "swipe_command_unlocked_guest": true,
+    "unlock_command_completion_verified": true,
+    "updated_viewer_finger_test_verified": false,
+    "falsing_disabled": false,
+    "legacy_profiles_retained": true,
+    "host_restart_sent": false,
+    "python_native_tests": 182,
+    "release_lint_passed": true,
+    "signed_release_installed": true,
+    "nonce_pattern_png_matched": false
   }
 }

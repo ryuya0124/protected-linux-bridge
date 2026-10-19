@@ -6,6 +6,7 @@ import android.net.LocalSocket;
 import android.net.LocalSocketAddress;
 import android.os.Bundle;
 import android.view.MotionEvent;
+import android.view.ViewConfiguration;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -41,6 +42,7 @@ public final class AndroidGuestActivity extends AppCompatActivity {
   private Bitmap currentFrame;
   private int memoryMib;
   private volatile int runtimeFailure;
+  private final AndroidGuestTouch touch = new AndroidGuestTouch();
 
   @Override
   public void onCreate(Bundle state) {
@@ -63,21 +65,35 @@ public final class AndroidGuestActivity extends AppCompatActivity {
     page.addView(display, new LinearLayout.LayoutParams(-1, 0, 1));
     display.setOnTouchListener(
         (view, event) -> {
-          if (event.getAction() == MotionEvent.ACTION_UP) {
-            float scale = Math.min(display.getWidth() / 480f, display.getHeight() / 800f);
-            if (scale <= 0) return true;
-            int x = (int) ((event.getX() - (display.getWidth() - 480 * scale) / 2) / scale);
-            int y = (int) ((event.getY() - (display.getHeight() - 800 * scale) / 2) / scale);
-            if (x >= 0 && x < 480 && y >= 0 && y < 800) commands.offer(packet('T', x, y));
+          if (event.getPointerCount() != 1
+              || event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+            touch.cancel();
+          } else if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
+            touch.begin(
+                event.getX(),
+                event.getY(),
+                display.getWidth(),
+                display.getHeight(),
+                event.getEventTime());
+          } else if (event.getActionMasked() == MotionEvent.ACTION_UP) {
+            int[] gesture =
+                touch.end(
+                    event.getX(),
+                    event.getY(),
+                    display.getWidth(),
+                    display.getHeight(),
+                    event.getEventTime(),
+                    ViewConfiguration.get(this).getScaledTouchSlop());
+            if (gesture != null) enqueue(packet(gesture.length == 2 ? 'T' : 'S', gesture));
             view.performClick();
           }
           return true;
         });
     LinearLayout controls = new LinearLayout(this);
     page.addView(controls);
-    control(controls, R.string.android_guest_unlock, () -> commands.offer(packet('U')));
-    control(controls, R.string.android_guest_back, () -> commands.offer(packet('K', 4)));
-    control(controls, R.string.android_guest_home, () -> commands.offer(packet('K', 3)));
+    control(controls, R.string.android_guest_unlock, () -> enqueue(packet('U')));
+    control(controls, R.string.android_guest_back, () -> enqueue(packet('K', 4)));
+    control(controls, R.string.android_guest_home, () -> enqueue(packet('K', 3)));
     control(controls, R.string.android_guest_close, this::finish);
     setContentView(page);
     ViewCompat.setOnApplyWindowInsetsListener(
@@ -97,6 +113,10 @@ public final class AndroidGuestActivity extends AppCompatActivity {
     button.setText(label);
     row.addView(button, new LinearLayout.LayoutParams(0, -2, 1));
     button.setOnClickListener(view -> action.run());
+  }
+
+  private void enqueue(byte[] command) {
+    if (!commands.offer(command)) status.setText(R.string.android_guest_input_busy);
   }
 
   private static byte[] packet(char command, int... values) {
@@ -131,10 +151,17 @@ public final class AndroidGuestActivity extends AppCompatActivity {
                   while ((line = reader.readLine()) != null) {
                     android.util.Log.i("ProtectedLinuxAndroid", line);
                     if (line.contains("ANDROID_BACKING_UNSUITABLE")) runtimeFailure = 89;
+                    if (line.contains("PLB_GUNYAH_PAGE_FAULT")) runtimeFailure = 33;
+                    if (line.contains("PLB_ANDROID_ADOPTED_HOST_FAILURE")) runtimeFailure = 42;
+                    if (line.contains("PLB_ANDROID_ADOPTED_RESOURCE_LIMIT")) runtimeFailure = 23;
+                    if (line.contains("PLB_POLICY_RESTORED=0")
+                        || line.contains("PLB_POLICY_GUARDIAN_RESTORED=0")) runtimeFailure = 38;
                     if (line.contains("ANDROID_SMALL_SHMEM_RESTORED=0")
                         || line.contains("ANDROID_SMALL_SHMEM_GUARDIAN_RESTORED=0"))
                       runtimeFailure = 38;
-                    if (line.startsWith("ANDROID_MEMORY_PREPARING"))
+                    if (line.startsWith("ANDROID_MEMORY_PREPARING")
+                        || line.contains("PLB_ALLOCATION_STAGE")
+                        || line.contains("PLB_PREALLOCATED_BATCH"))
                       runOnUiThread(
                           () -> {
                             if (!closed) status.setText(R.string.android_guest_preparing);
@@ -183,7 +210,10 @@ public final class AndroidGuestActivity extends AppCompatActivity {
           output.write(command);
           int reply = input.read();
           if (reply < 0) throw new EOFException();
-          if (reply != 0) android.util.Log.w("ProtectedLinuxAndroid", "INPUT_DELAYED");
+          if (reply != 0) {
+            android.util.Log.w("ProtectedLinuxAndroid", "INPUT_REJECTED");
+            runOnUiThread(() -> status.setText(R.string.android_guest_input_failed));
+          }
         }
         if (!resumed) {
           output.write('P');

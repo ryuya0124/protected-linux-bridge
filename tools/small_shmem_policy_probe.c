@@ -32,6 +32,9 @@
 #include "preallocated_vm_limits.h"
 #include "android4g_config.h"
 #include "preallocated_ready.h"
+#ifdef PLB_ANDROID4G_INTERACTIVE
+#include "diagnostic_owner_lock.h"
+#endif
 #endif
 #include "../native/android_owned_process.h"
 #ifdef PLB_GPU_WARNING_ONCE
@@ -60,7 +63,11 @@ static const char *settings[] = {
     "/sys/kernel/mm/transparent_hugepage/hugepages-256kB/shmem_enabled",
     "/sys/kernel/mm/transparent_hugepage/hugepages-512kB/shmem_enabled",
 };
+#ifdef PLB_ANDROID4G_INTERACTIVE
+static const char *allocation_probe = PLB_ANDROID4G_RUNTIME "/allocation-probe";
+#else
 static const char *allocation_probe = FILES "/kernel-probes/backing-allocation-probe";
+#endif
 #else
 #define APPLY_OPTION "--apply-approved-small-shmem"
 static const char *settings[] = {
@@ -226,7 +233,12 @@ static long available_kib(void) {
 
 #ifdef PLB_PREALLOCATED_VM_POLICY
 static int prepare_owned_memory(int lock) {
-    const char *path = FILES "/kernel-probes/preallocated-pressure-check";
+    const char *path =
+#ifdef PLB_ANDROID4G_INTERACTIVE
+        PLB_ANDROID4G_RUNTIME "/pressure-check";
+#else
+        FILES "/kernel-probes/preallocated-pressure-check";
+#endif
     struct stat info;
     if (lstat(path, &info) || !S_ISREG(info.st_mode) || info.st_uid || info.st_nlink != 1 ||
         info.st_mode & 077) {
@@ -268,6 +280,16 @@ static int prepare_owned_memory(int lock) {
 
 int main(int argc, char **argv) {
     char model[PROP_VALUE_MAX], sdk[PROP_VALUE_MAX];
+#ifdef PLB_ANDROID4G_INTERACTIVE
+    if (argc != 5 || strcmp(argv[1], "--apply-approved-medium-shmem") ||
+        strcmp(argv[2], "--android4g") || strcmp(argv[3], "--prepare-memory") ||
+        strlen(argv[4]) != 5 || strspn(argv[4], "0123456789") != 5 ||
+        strtoul(argv[4], NULL, 10) < 10000 || strtoul(argv[4], NULL, 10) > 19999)
+        return 20;
+    const char *interactive_uid = argv[4];
+    uid_t app_uid = (uid_t)strtoul(interactive_uid, NULL, 10);
+    argc = 4;
+#endif
     int prepare_memory = 0;
     int full_content = 0;
     int only_64k = 0;
@@ -422,10 +444,19 @@ int main(int argc, char **argv) {
     if (lstat(probe, &executable) || !S_ISREG(executable.st_mode) || executable.st_uid ||
         executable.st_nlink != 1 || executable.st_mode & 077)
         return 24;
-    int lock = profile_lock();
+    int lock =
+#ifdef PLB_ANDROID4G_INTERACTIVE
+        diagnostic_owner_lock();
+#else
+        profile_lock();
+#endif
     if (lock < 0)
         return 28;
 #ifdef PLB_PREALLOCATED_VM_POLICY
+#ifdef PLB_ANDROID4G_INTERACTIVE
+    if (android_isolate_owned_controller(app_uid))
+        return 41;
+#endif
     if (prepare_memory) {
         /* Keep one owner across pressure, release, preparation and VM. The
          * policy guardian starts afterwards; no policy is changed during this. */
@@ -442,7 +473,13 @@ int main(int argc, char **argv) {
         /* A developer launch must already be outside an app freezer group.
          * With uid zero this helper accepts only the existing root group and
          * refuses an app group; it never moves another task or changes policy. */
-        if (android_isolate_owned_controller(0))
+        if (android_isolate_owned_controller(
+#ifdef PLB_ANDROID4G_INTERACTIVE
+                app_uid
+#else
+                0
+#endif
+                ))
             return 41;
 #ifdef PLB_GPU_WARNING_ONCE
         if (plb_gpu_once_watch_open())
@@ -543,7 +580,11 @@ int main(int argc, char **argv) {
                     _exit(52);
             }
             if (adopted_android) {
+#ifdef PLB_ANDROID4G_INTERACTIVE
+                execl(probe, probe, interactive_uid, (char *)NULL);
+#else
                 execl(probe, probe, (char *)NULL);
+#endif
             } else if (preallocated && preallocated_memory) {
                 char memory[16], touch[16];
                 snprintf(memory, sizeof(memory), "%d", preallocated_memory);
@@ -630,7 +671,14 @@ int main(int argc, char **argv) {
         WIFEXITED(status) && WEXITSTATUS(status) == 0) {
         int child_status = 0;
         pid_t done = 0;
-        int observation_steps = adopted_android ? 1800 : preallocated ? 250 : 1300;
+        int observation_steps =
+#ifdef PLB_ANDROID4G_INTERACTIVE
+            18100;
+#else
+            adopted_android ? 1800
+            : preallocated  ? 250
+                            : 1300;
+#endif
         for (int i = 0; i < observation_steps && !interrupted; i++) {
             done = sample(child, &child_status);
             if (done)

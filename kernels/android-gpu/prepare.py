@@ -19,7 +19,10 @@ archive = Path("/inputs/archive.tar.gz")
 base = Path("/inputs/base.config")
 if digest(archive) != "13ab707b031ace652b6d7d111dfe4f877e186e1bc0c80925ea19c34dc0c3e531":
     raise ValueError("Source archive identity mismatch")
-if digest(base) != "4c065ae7247d878dc34438e61230fb4c3e4a9ce286cd585bf49db03dd7e69726":
+if digest(base) not in (
+    "4c065ae7247d878dc34438e61230fb4c3e4a9ce286cd585bf49db03dd7e69726",
+    "9829760cab00bedf092bc93c0dfc05fe7a78aab7ec7121df44ed446f38cac513",
+):
     raise ValueError("Original guest config identity mismatch")
 patch = Path("/recipe/guest-bound-dma-sync.patch")
 patched = {

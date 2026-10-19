@@ -6,6 +6,7 @@ from fetch_gpu_runtime import fetch as fetch_gpu
 from build_clipboard_worker import build as build_clipboard
 from build_tun import build as build_tun
 from fetch_storage_runtime import fetch as fetch_storage
+from build_android_gpu4g_app import build as build_android_gpu4g
 
 p = argparse.ArgumentParser()
 p.add_argument("--sdk", required=True)
@@ -127,6 +128,8 @@ for memory in (1536, 1792):
         ],
         check=True,
     )
+
+build_android_gpu4g(root, Path(a.sdk), out, clang)
 
 fetch_gpu(root, out)
 build_clipboard(root, Path(a.sdk), out)

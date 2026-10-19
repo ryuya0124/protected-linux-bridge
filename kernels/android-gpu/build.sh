@@ -6,7 +6,12 @@ export KBUILD_BUILD_TIMESTAMP='Tue Oct 20 00:00:00 UTC 2026' KBUILD_BUILD_VERSIO
 source=/work/kernel_common-3ec022196c4e9d5c1434599cdda63f622dd6f586
 output=/work/output
 [ -f "$source/Makefile" ]
-printf '%s\n' '4c065ae7247d878dc34438e61230fb4c3e4a9ce286cd585bf49db03dd7e69726  /work/base.config' | sha256sum -c -
+config_sha=$(sha256sum /work/base.config | cut -d ' ' -f 1)
+case "$config_sha" in
+4c065ae7247d878dc34438e61230fb4c3e4a9ce286cd585bf49db03dd7e69726) ;;
+9829760cab00bedf092bc93c0dfc05fe7a78aab7ec7121df44ed446f38cac513) [ "${PLB_SYSTEM_HEAP:-0}" = 1 ] ;;
+*) exit 1 ;;
+esac
 mkdir -p "$output"
 cp /work/base.config "$output/.config"
 cd "$source"

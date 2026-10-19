@@ -23,7 +23,7 @@ Android標準の「ターミナル」から、Snapdragon / Gunyahの保護VM上�
 - クリップボードの手動共有、任意でバックグラウンド双方向共有
 - 有線・USB・Bluetooth音声の接続先選択（実物の周辺機器では未検証）
 - 既存Microdroidと、独立したディスクを使う実験用Linux 6.18ゲストの選択
-- Android 17ゲストの画面表示プレビュー（1536MiB／未検証の1792MiB／従来の512MiBを選択。構成ごとにデータを保存します。事前準備・root・起動時の確認が必要。v0.4.0-preview.7はホストのページ管理エラーを検出すると大容量構成を起動しません。[使い方と制限](docs/android-guest-display.md#integrated-15-gib-selection-040-preview5)）
+- Android 17ゲストの画面表示プレビュー。実験用4096MiBではAdreno GLES描画、それ以外は1536MiB／未検証1792MiB／従来512MiBのソフトウェア描画。タップ・スワイプ・解除ボタンで操作できます。画面転送は低速で、起動もまだ不安定です。構成ごとにデータを保存し、事前準備・root・起動時の確認が必要です。[使い方と制限](docs/android-guest-display.md#preview8-experimental-4-gib-adreno-profile)
 - Material 3の「ホーム」「画面」「連携」「設定」、root・Vectorの状態表示、VM停止
 
 Android上のchrootやPRootではなく、独立したカーネルの実行インスタンスを持つVMです。Android本体のカーネルは変更せず、端末に元からあるAVF用Microdroidカーネルファイルをゲストとして起動します。実験用プロファイルでは、専用領域のLinux 6.18.57-plb1をゲストとして起動します。AndroidのAVBと、ゲストカーネルの起動は別です。ただし、この経路は **pvmfwによる検証済み起動・アテステーションを提供しません**。通常の検証済みAVFゲストと同じ保証はありません。
@@ -180,7 +180,7 @@ plb-udp-forward 5353 1.1.1.1 53
 
 RAMの設定値は、安定して使える実メモリ容量の保証ではありません。大容量を実際に使うとGunyahのメモリ障害が起きる場合があり、現在も調査中です。[実機検証の範囲](docs/memory-working-set-probes.md)を公開しています。
 
-開発用の別VMMでは、保護Linux VMの4 GiB全バイト検査が2回成功しました。追加の一時THP設定を明示的に許可した条件での結果です。[Linuxの検証記録](docs/preallocated-vmm-validation.md)を公開しています。続く4 GiBのAndroid 17＋GPU試験では、ゲストADBとホストAdrenoの初期化まで確認しましたが、ゲストのEGLエラーで起動完了・画面描画は未達です。アプリの通常設定には適用していません。[Android／GPUの調査記録](docs/android4g-gpu-investigation.md)を参照してください。
+開発用の別VMMでは、保護Linux VMの4 GiB全バイト検査が2回成功しました。[Linuxの検証記録](docs/preallocated-vmm-validation.md)を公開しています。続く4 GiBのAndroid 17＋GPU試験では、実際のAdreno GLES読み戻しとAndroidホームの表示を確認しました。アプリにも独立した実験構成として追加しました。起動失敗が残り、滑らかな画面転送や長時間の安定性は未確認です。起動ごとに、最大6 GiBの準備用RAMとホスト全体の16〜512 KiBの6種類の一時shmem設定について確認を表示します。既存の構成とデータは維持します。[Android／GPUの調査記録](docs/android4g-gpu-investigation.md)を参照してください。
 
 標準のディスク設定はこの専用ディスクに適用できないため無効にしています。LinuxパッケージのインストールはVMの中だけで行われます。
 

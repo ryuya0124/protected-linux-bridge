@@ -275,3 +275,18 @@ but window allocation -129 and SystemUI crashes remained. No frame is verified.
 All host/disk/policy postflight checks passed. Android Binder also uses -129
 for EX_TRANSACTION_FAILED, and Gralloc5 propagates that exception code; do not
 call this a cryptographic-key failure or RAM shortage from strerror alone.
+
+## Explicit GPU app integration, user request after real rendering, 2026-10-20
+
+Trial 16 established nonce-bound two-phase Adreno GLES readback and a separate
+visible Android home PNG. Trial 17 still failed Gunyah admission before boot;
+startup reliability and the combined nonce-pattern PNG check remain unresolved.
+The user explicitly requested app integration. Preview.8 therefore adds only a
+separately selected 4096 MiB experimental profile, with per-launch visible
+six-key acknowledgement, original 40-second guardian/preparation-ready restore,
+6 GiB budget, healthy-host/platform/artifact guards and no automatic retry.
+Keep legacy profiles, original OS disks and Debian intact. The 128 MiB I/O pool
+is inside 4096 MiB; normal protected LEND and host boundaries are unchanged.
+The app's initial 4 GiB launch showed a real guest lock screen. Input repair
+forwards bounded swipes instead of converting every gesture into a tap; do not
+disable falsing/security policy or send guest unlock commands to host Android.

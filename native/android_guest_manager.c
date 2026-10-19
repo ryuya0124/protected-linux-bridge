@@ -48,9 +48,10 @@
 #endif
 #if defined(PLB_ANDROID_ADOPTED_PROBE) &&                                                          \
     (!defined(PLB_ANDROID_PROBE) || !defined(PLB_ANDROID_GFXSTREAM_PROBE) ||                       \
-     !defined(PLB_ANDROID_GPU_RENDER_PROBE) || defined(PLB_ANDROID_MEMORY_PROBE) ||                \
-     defined(PLB_ANDROID_GPU_MEMORY_PROBE) || defined(PLB_ANDROID_LARGE_PROFILE) ||                \
-     defined(PLB_ANDROID_GFXSTREAM_VULKAN_PROBE) || defined(PLB_GPU_WARNING_ONCE))
+     (!defined(PLB_ANDROID_GPU_RENDER_PROBE) && !defined(PLB_ANDROID4G_INTERACTIVE)) ||            \
+     defined(PLB_ANDROID_MEMORY_PROBE) || defined(PLB_ANDROID_GPU_MEMORY_PROBE) ||                 \
+     defined(PLB_ANDROID_LARGE_PROFILE) || defined(PLB_ANDROID_GFXSTREAM_VULKAN_PROBE) ||          \
+     defined(PLB_GPU_WARNING_ONCE))
 #error "Adopted Android RAM requires the isolated healthy-boot 4 GiB GLES diagnostic"
 #endif
 #if defined(PLB_ANDROID4G_CUSTOM_GUEST) && !defined(PLB_ANDROID_ADOPTED_PROBE)
@@ -59,6 +60,11 @@
 #if defined(PLB_ANDROID4G_LOADER_COMPAT) &&                                                        \
     (!defined(PLB_ANDROID_ADOPTED_PROBE) || !defined(PLB_ANDROID4G_BUFFER_CAPSET))
 #error "Loader compatibility requires the isolated Android buffer-capset manager"
+#endif
+#if defined(PLB_ANDROID4G_INTERACTIVE) &&                                                          \
+    (!defined(PLB_ANDROID_ADOPTED_PROBE) || !defined(PLB_ANDROID4G_CUSTOM_GUEST) ||                \
+     defined(PLB_ANDROID_GPU_RENDER_PROBE))
+#error "Interactive GPU requires the separate adopted custom guest without the render probe"
 #endif
 #ifdef PLB_ANDROID_ADOPTED_PROBE
 #include "../tools/android4g_config.h"
@@ -122,7 +128,8 @@ static void stop(int signal) {
 }
 
 #include "android_guest_display.h"
-#if defined(PLB_ANDROID_MEMORY_PROBE) || defined(PLB_ANDROID_ADOPTED_PROBE)
+#if (defined(PLB_ANDROID_MEMORY_PROBE) || defined(PLB_ANDROID_ADOPTED_PROBE)) &&                   \
+    !defined(PLB_ANDROID4G_INTERACTIVE)
 #include "../tools/android_memory_observer.h"
 #endif
 
@@ -255,7 +262,7 @@ static pid_t poll_child(pid_t child, int *status) {
 int main(int argc, char **argv) {
     uid_t app_uid = 0;
     int check_only = 0;
-#ifdef PLB_ANDROID_PROBE
+#if defined(PLB_ANDROID_PROBE) && !defined(PLB_ANDROID4G_INTERACTIVE)
     check_only = argc == 2 && !strcmp(argv[1], "--check");
     if (getuid() || (!check_only && argc != 1))
         return 20;
@@ -705,7 +712,7 @@ int main(int argc, char **argv) {
     int bootstrap_started = !pthread_create(&bootstrap, NULL, diagnostic_guest_setup, NULL);
 #endif
 #endif
-#ifndef PLB_ANDROID_PROBE
+#if !defined(PLB_ANDROID_PROBE) || defined(PLB_ANDROID4G_INTERACTIVE)
     int display_started = android_display_start(app_uid) == 0;
     if (!display_started) {
         stopping = 1;
@@ -713,13 +720,16 @@ int main(int argc, char **argv) {
 #else
     (void)app_uid;
 #endif
-#if defined(PLB_ANDROID_MEMORY_PROBE) || defined(PLB_ANDROID_ADOPTED_PROBE)
+#if (defined(PLB_ANDROID_MEMORY_PROBE) || defined(PLB_ANDROID_ADOPTED_PROBE)) &&                   \
+    !defined(PLB_ANDROID4G_INTERACTIVE)
     pthread_t observer;
     int observer_started = !pthread_create(&observer, NULL, android_memory_observer, NULL);
 #endif
     int status = 0;
     pid_t done = 0;
-#ifdef PLB_ANDROID_ADOPTED_PROBE
+#ifdef PLB_ANDROID4G_INTERACTIVE
+    const int ticks = 18000;
+#elif defined(PLB_ANDROID_ADOPTED_PROBE)
     const int ticks = 1600;
 #elif defined(PLB_ANDROID_MEMORY_PROBE)
     const int ticks = 1200;
@@ -769,12 +779,13 @@ int main(int argc, char **argv) {
     if (plb_shmem_finish(&policy))
         large_error = 38;
 #endif
-#if defined(PLB_ANDROID_MEMORY_PROBE) || defined(PLB_ANDROID_ADOPTED_PROBE)
+#if (defined(PLB_ANDROID_MEMORY_PROBE) || defined(PLB_ANDROID_ADOPTED_PROBE)) &&                   \
+    !defined(PLB_ANDROID4G_INTERACTIVE)
     stopping = 1;
     if (observer_started)
         pthread_join(observer, NULL);
 #endif
-#ifndef PLB_ANDROID_PROBE
+#if !defined(PLB_ANDROID_PROBE) || defined(PLB_ANDROID4G_INTERACTIVE)
     stopping = 1;
     if (display_started)
         android_display_stop();
@@ -792,7 +803,7 @@ int main(int argc, char **argv) {
         close(gpu_console_fd);
 #endif
     if (!done) {
-#ifndef PLB_ANDROID_PROBE
+#if !defined(PLB_ANDROID_PROBE) || defined(PLB_ANDROID4G_INTERACTIVE)
         android_guest_shutdown();
         for (int i = 0; i < 120 && !done; i++) {
             sensor_poll(&control, 0);

@@ -893,9 +893,15 @@ public final class MainActivity extends AppCompatActivity {
                       options, R.string.android_guest_memory_label, R.array.android_guest_memories);
               memory.setText(
                   getResources().getStringArray(R.array.android_guest_memories)[0], false);
+              TextView gpuConditions = text(getString(R.string.android_guest_gpu_conditions), 14);
+              gpuConditions.setVisibility(View.GONE);
+              options.addView(gpuConditions);
               memory.setOnItemClickListener(
-                  (parent, item, position, id) ->
-                      selectedMemory[0] = AndroidGuestProfile.memoryAt(position));
+                  (parent, item, position, id) -> {
+                    selectedMemory[0] = AndroidGuestProfile.memoryAt(position);
+                    gpuConditions.setVisibility(
+                        selectedMemory[0] == 4096 ? View.VISIBLE : View.GONE);
+                  });
               android.widget.ScrollView scroll = new android.widget.ScrollView(this);
               scroll.addView(options);
               new MaterialAlertDialogBuilder(this)
@@ -904,16 +910,30 @@ public final class MainActivity extends AppCompatActivity {
                   .setNegativeButton(android.R.string.cancel, null)
                   .setPositiveButton(
                       R.string.android_guest_open,
-                      (dialog, which) ->
-                          startActivity(
-                              new Intent(this, AndroidGuestActivity.class)
-                                  .putExtra(
-                                      AndroidGuestActivity.EXTRA_MEMORY_MIB, selectedMemory[0])
-                                  .putExtra(
-                                      AndroidGuestActivity.EXTRA_POLICY_ACKNOWLEDGED,
-                                      AndroidGuestProfile.guarded(selectedMemory[0]))))
+                      (dialog, which) -> confirmAndroidGuest(selectedMemory[0]))
                   .show();
             });
+  }
+
+  private void confirmAndroidGuest(int memoryMib) {
+    Runnable launch =
+        () ->
+            startActivity(
+                new Intent(this, AndroidGuestActivity.class)
+                    .putExtra(AndroidGuestActivity.EXTRA_MEMORY_MIB, memoryMib)
+                    .putExtra(
+                        AndroidGuestActivity.EXTRA_POLICY_ACKNOWLEDGED,
+                        AndroidGuestProfile.guarded(memoryMib)));
+    if (memoryMib != 4096) {
+      launch.run();
+      return;
+    }
+    new MaterialAlertDialogBuilder(this)
+        .setTitle(R.string.android_guest_gpu_title)
+        .setMessage(R.string.android_guest_gpu_conditions)
+        .setNegativeButton(android.R.string.cancel, null)
+        .setPositiveButton(R.string.android_guest_open, (dialog, which) -> launch.run())
+        .show();
   }
 
   private void resourcesCard(LinearLayout page) {

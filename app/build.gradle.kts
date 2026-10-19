@@ -16,8 +16,8 @@ android {
     applicationId = "net.ryuya_dev.protectedlinux"
     minSdk = 36
     targetSdk = 36
-    versionCode = 12
-    versionName = "0.4.0-preview.7"
+    versionCode = 13
+    versionName = "0.4.0-preview.8"
   }
   signingConfigs {
     if (!signing.isEmpty)
@@ -59,6 +59,20 @@ val buildNative =
     inputs.file(rootProject.file("third_party/hev/sources.json"))
     inputs.dir(rootProject.file("native"))
     inputs.dir(rootProject.file("tools"))
+    // Optional measured GPU inputs invalidate a prior legacy-only build.
+    inputs.files(
+      rootProject.fileTree("artifacts/android4g-gpu/guest-kernel-system-heap") {
+        include("Image-android17-dma-sync", "build.json")
+      },
+      rootProject.fileTree(
+        "artifacts/android4g-gpu/vmm-build/target/aarch64-linux-android/release"
+      ) {
+        include("crosvm")
+      },
+      rootProject.fileTree("artifacts/android-display/cuttlefish17") {
+        include("android-lowram.cpio")
+      },
+    )
     outputs.dir(nativeAssets)
     doLast {
       val local =
@@ -194,6 +208,10 @@ val dependencyLicenses =
             rootProject.file("third_party/zerofree/NOTICE.txt").readText() +
             "\n" +
             rootProject.file("third_party/zerofree/GPL-2.txt").readText() +
+            "\nOptional Android GPU4G guest runtime (crosvm / ARM64 Linux guest)\n" +
+            rootProject.file("third_party/android-gpu4g/SOURCES.md").readText() +
+            "\n" +
+            rootProject.file("third_party/android-gpu4g/DEPENDENCY_LICENSES.txt").readText() +
             "\nOptional Linux guest kernel (separately imported)\nCorresponding source: https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.18.57.tar.xz\nConfiguration/build: https://github.com/ryuya0124/protected-linux-bridge/tree/main/kernels\n" +
             rootProject
               .file("third_party/linux")

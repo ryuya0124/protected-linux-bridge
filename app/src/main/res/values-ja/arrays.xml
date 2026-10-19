@@ -24,5 +24,6 @@
     <item>1.5GiB（実験・準備は最大6GiB）</item>
     <item>1792MiB（1.75GiB・未検証の実験設定）</item>
     <item>512MiB（従来の構成）</item>
+    <item>4GiB＋Adreno GPU（実験・起動失敗あり）</item>
   </string-array>
 </resources>

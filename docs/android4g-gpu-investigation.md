@@ -493,3 +493,41 @@ healthy-host guards. It must show startup/allocation failures, retain old guest
 profiles/data, avoid automatic retries and avoid presenting this as a stable
 production Android/GPU environment. Rendering/readback success and startup
 reliability remain distinct results.
+
+## Preview.8 integration and the guest lock-screen input fix
+
+The user requested integration after the positive rendering result. The signed
+release-variant preview.8 adds an explicitly selected 4096 MiB Adreno profile,
+using the measured system-heap guest kernel, source-built VMM and 128 MiB I/O
+pool. Its own initial launch reached a visible Android lock screen. Policy
+readback while it was running showed all six original `never` values, taint
+4608 and SELinux Enforcing. The diagnostic test APK and original Android OS
+ramdisk/disks are not bundled in the interactive APK. Existing guest profiles
+and disks are retained. The build can omit the optional pinned GPU artifacts
+and still build the legacy modes, with a visible missing-bundle error for 4 GiB.
+
+The user then reported that touch would not unlock and a **false touch rejected**
+toast appeared. The viewer had forwarded only ACTION_UP as a tap, losing the
+swipe's start point and movement. Read-only guest logs showed BrightLineFalsingManager
+`bad history` and repeated false-event records, with guest keyguard showing.
+A bounded touchscreen swipe from (240,690) to (240,160) over 400 ms, sent through
+the same identity-checked guest ADB endpoint, returned success and changed guest
+policy to `showing=false`, `inputRestricted=false`. A fixed unlock command also
+returned its success marker. No falsing toggle, host input, credential or
+SELinux-policy change was used.
+
+The viewer now maps single-finger start/end coordinates through FIT_CENTER
+letterboxing, forwards bounded swipes, discards cancelled/multi-touch gestures
+and retains taps. Native coordinates, durations and keycodes are independently
+validated. The Unlock button uses KEYCODE_WAKEUP and guest `wm dismiss-keyguard`,
+with command completion checked by a fixed marker; ADB stream closure alone no
+longer counts as input success. This cannot dismiss a secure guest credential.
+
+The input-fixed signed release APK was installed without uninstalling app data.
+Its Java gesture tests, full 182 Python/native tests, Release Lint and signed
+release build passed. The owned interactive VM was stopped before update; all
+six advice keys again read `never`, with taint 4608 and Enforcing. The valid
+swipe/unlock commands were tested in the running app-owned guest before update;
+the updated viewer's end-to-end finger gesture remains a separate user check.
+Long-running stability, reliable repeated startup, smooth display transport and
+nonce-pattern PNG matching remain unverified.

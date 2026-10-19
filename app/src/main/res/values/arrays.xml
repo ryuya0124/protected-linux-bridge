@@ -71,5 +71,6 @@
     <item>1.5 GiB (experimental; preparation up to 6 GiB)</item>
     <item>1792 MiB (1.75 GiB, unverified experiment)</item>
     <item>512 MiB (original profile)</item>
+    <item>4 GiB + Adreno GPU (experimental)</item>
   </string-array>
 </resources>

@@ -44,10 +44,11 @@ final class AndroidGuestRuntime {
       case 23 -> R.string.android_guest_headroom;
       case 28, 30 -> R.string.android_guest_busy;
       case 31 -> R.string.android_guest_integrity;
+      case 33 -> R.string.android_guest_gpu_allocation_failed;
       case 35 -> R.string.android_guest_profile_copy_failed;
       case 38 -> R.string.android_guest_policy_failed;
       case 39 -> R.string.android_guest_large_unsupported;
-      case 40 -> R.string.android_guest_preparation_failed;
+      case 40, 45, 46, 47, 48, 49, 50 -> R.string.android_guest_preparation_failed;
       case 41 -> R.string.android_guest_process_isolation_failed;
       case 42, 90 -> R.string.android_guest_host_memory_warning;
       case 89 -> R.string.android_guest_fragmented;
@@ -63,7 +64,25 @@ final class AndroidGuestRuntime {
     boolean large = AndroidGuestProfile.guarded(memoryMib);
     if (!AndroidGuestProfile.supported(memoryMib) || (large && !policyAcknowledged))
       throw new java.io.IOException(context.getString(R.string.android_guest_policy_consent));
-    if (large) install(context, AndroidGuestProfile.library(memoryMib));
+    if (memoryMib == 4096) {
+      try {
+        for (String name :
+            new String[] {
+              "crosvm",
+              "guest.Image",
+              "ramdisk-tail.cpio",
+              "adopt-vmm",
+              "manager",
+              "policy",
+              "allocation-probe",
+              "pressure-check"
+            }) {
+          install(context, "gpu4g-" + name);
+        }
+      } catch (java.io.FileNotFoundException missing) {
+        throw new java.io.IOException(context.getString(R.string.android_guest_gpu_bundle_missing));
+      }
+    } else if (large) install(context, AndroidGuestProfile.library(memoryMib));
     File executable = install(context, AndroidGuestProfile.executable(memoryMib));
     Process check =
         new ProcessBuilder("su", "-M", "-c", executable + " --check")
@@ -90,7 +109,7 @@ final class AndroidGuestRuntime {
                 + executable
                 + " "
                 + android.os.Process.myUid()
-                + (large ? " --ack-small-shmem" : ""))
+                + (memoryMib == 4096 ? " --ack-six-shmem" : large ? " --ack-small-shmem" : ""))
         .redirectErrorStream(true)
         .start();
   }

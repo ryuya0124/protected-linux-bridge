@@ -2,16 +2,16 @@ package net.ryuya_dev.protectedlinux;
 
 /** Exact selectable Android presets. No value implies a successful guest boot. */
 final class AndroidGuestProfile {
-  private static final int[] MEMORY_CHOICES = {1536, 1792, 512};
+  private static final int[] MEMORY_CHOICES = {1536, 1792, 512, 4096};
 
   private AndroidGuestProfile() {}
 
   static boolean supported(int memoryMib) {
-    return memoryMib == 512 || memoryMib == 1536 || memoryMib == 1792;
+    return memoryMib == 512 || memoryMib == 1536 || memoryMib == 1792 || memoryMib == 4096;
   }
 
   static boolean guarded(int memoryMib) {
-    return memoryMib == 1536 || memoryMib == 1792;
+    return memoryMib == 1536 || memoryMib == 1792 || memoryMib == 4096;
   }
 
   static int memoryAt(int position) {
@@ -25,6 +25,7 @@ final class AndroidGuestProfile {
       case 512 -> "android-bridge";
       case 1536 -> "android-large-bridge";
       case 1792 -> "android-large1792-bridge";
+      case 4096 -> "android-gpu4g-bridge";
       default -> throw new IllegalArgumentException("Android memory preset");
     };
   }
