@@ -9,12 +9,10 @@
   "version": "0.5.0-alpha.2",
   "version_code": 21,
   "scope": "Android 17 host only",
-  "apk_sha256": "f474dc8543b53f34231ae14a92016553b57715b3d5d5316431c0d6359f1cf717",
-  "apk_bytes": 20774561,
   "jvm_tests": 69,
   "python_native_tests": 219,
   "lint_errors": 0,
-  "lint_warnings": 30,
+  "lint_warnings": 32,
   "android_guest_enabled": false,
   "vulkan_enabled": false,
   "usb_galaxy_detected": false,
@@ -27,12 +25,29 @@
     "display_backend_linkage": "passed-no-display-calls",
     "cpu_probes": "512 MiB 1 vCPU diskless and read-only Debian; nonce-bound 16 MiB readback",
     "source_disk_hash": "unchanged",
-    "new_backup_restore_ui": "not-tested",
-    "new_debian_installer_ui": "not-tested",
+    "new_backup_restore_ui": "emulator only; Galaxy UI not operated",
+    "new_debian_installer_ui": "emulator only; Galaxy UI not operated",
     "new_in_app_terminal_ui": "not-tested",
     "display_presentation": "not-tested-disabled",
-    "current_access": "paused-at-user-request"
+    "current_access": "non-GUI checks explicitly resumed",
+    "synthetic_backup_restore": "passed: 2 MiB, production codec/JNI lock, owned temporary roots only; no real-disk restore"
   },
   "host_real_debian_archive_codec": "full pinned archive install/hash passed; temporary image removed",
-  "backup_native_sha256": "c149e8f538648f9d09d05c25b919225b7a2d9a07a7770356426292b4c293d575"
+  "backup_native_sha256": "c149e8f538648f9d09d05c25b919225b7a2d9a07a7770356426292b4c293d575",
+  "artifact_record_pending": true,
+  "emulator_ui_checks": {
+    "sdk": 37,
+    "architecture": "arm64",
+    "languages": [
+      "en",
+      "ja"
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "font_scale": 1.4,
+    "rotation": "portrait and landscape",
+    "vm_started": false
+  }
 }

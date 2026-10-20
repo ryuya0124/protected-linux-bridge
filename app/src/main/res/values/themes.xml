@@ -6,6 +6,16 @@
     <item name="colorSecondary">#586249</item>
     <item name="colorOnSecondary">#FFFFFF</item>
     <item name="android:fontFamily">sans</item>
-    <item name="android:windowLightStatusBar">false</item>
+    <item name="android:windowLightStatusBar">?attr/isLightTheme</item>
+    <item name="android:windowLightNavigationBar">?attr/isLightTheme</item>
+  </style>
+  <style name="ThemeOverlay.ProtectedLinux.Button.Filled" parent="">
+    <item name="materialButtonStyle">@style/Widget.Material3.Button</item>
+  </style>
+  <style name="ThemeOverlay.ProtectedLinux.Button.Outlined" parent="">
+    <item name="materialButtonStyle">@style/Widget.Material3.Button.OutlinedButton</item>
+  </style>
+  <style name="ThemeOverlay.ProtectedLinux.Button.Text" parent="">
+    <item name="materialButtonStyle">@style/Widget.Material3.Button.TextButton</item>
   </style>
 </resources>

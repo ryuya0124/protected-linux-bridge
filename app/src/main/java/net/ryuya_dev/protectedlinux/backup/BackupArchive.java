@@ -241,7 +241,9 @@ public final class BackupArchive {
       Info info = metadata(zip);
       if (!info.roots().containsAll(selected)) throw new IOException("ARCHIVE_SELECTION");
       for (String root : selected) privateDirectory(stage.resolve(root));
-      FileStore store = Files.getFileStore(stage);
+      // Query this path directly. Android root app_process may be killed while
+      // NIO enumerates host mount tables in getFileStore(); statvfs needs none.
+      File storage = stage.toFile();
       long nextSpaceCheck = 0, written = 0;
       byte[] buffer = new byte[65536];
       long total = 0;
@@ -304,7 +306,7 @@ public final class BackupArchive {
               if (zero) file.position(file.position() + count);
               else {
                 if (written >= nextSpaceCheck) {
-                  if (store.getUsableSpace() < 512L * 1024 * 1024)
+                  if (storage.getUsableSpace() < 512L * 1024 * 1024)
                     throw new IOException("ARCHIVE_SPACE");
                   nextSpaceCheck = written + 64L * 1024 * 1024;
                 }

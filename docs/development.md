@@ -54,6 +54,16 @@ Dependency licensing checks the resolved runtime set. Full bundled web/native li
 
 ## Testing
 
+`tools/build_backup_probe.py --sdk /path/to/Android/sdk` builds an opt-in shell-only
+Android codec probe. It is not included in the app and does not invoke ADB.
+Provide a freshly created private `files/backup-jobs/probe-<32 hex characters>`
+directory, its read-only probe JAR and the exact built `libbackup-lock.so`, then
+run `BackupProbe` as root with that directory and library SHA256. It takes the
+production owner/maintenance locks, refuses pending real restores and touches
+only synthetic roots inside that directory. Remove the verified owned probe
+directory afterward. Do not substitute any actual guest directory or run it
+against another app. See [backup validation](backup-and-restore.md).
+
 `tests/test_stream_relay.py` runs the real relay with socketpairs, binary data larger than buffers, simultaneous backpressure, half-close, final PTY output and idle deadlines. It needs a host C compiler.
 
 `tests/proxy_policy_probe.c` includes the real proxy policy functions. Compile it with NDK clang and run on Android as an unprivileged UID (or build on Linux); it starts neither proxy nor VM. It checks authority parsing and forbidden address families. `tools/vm_console_probe.c` is an explicit device diagnostic; run only as the selected Terminal UID. It refuses root and checks root server credentials. It is not packaged in the APK.

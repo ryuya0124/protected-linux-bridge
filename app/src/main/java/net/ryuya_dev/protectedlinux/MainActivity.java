@@ -72,95 +72,263 @@ public final class MainActivity extends AppCompatActivity {
     return (BridgeApplication) getApplication();
   }
 
+  private enum Detail {
+    GRAPHICS(1, R.string.ui_debian_graphics),
+    RESOURCES(1, R.string.ui_debian_resources),
+    DISK(1, R.string.ui_debian_disk),
+    KERNEL(1, R.string.ui_debian_kernel),
+    NETWORK(2, R.string.ui_debian_network),
+    AUDIO(2, R.string.ui_debian_audio),
+    CLIPBOARD(2, R.string.ui_debian_clipboard),
+    TERMINAL(3, R.string.ui_terminal_integration),
+    ABOUT(3, R.string.ui_about);
+    final int tab, title;
+
+    Detail(int tab, int title) {
+      this.tab = tab;
+      this.title = title;
+    }
+  }
+
+  private final java.util.Map<Detail, View> detailViews = new java.util.EnumMap<>(Detail.class);
+  private final java.util.List<MaterialButton> sessionButtons = new java.util.ArrayList<>();
+  private FrameLayout pageHost, detailHost;
+  private LinearLayout rootView;
+  private com.google.android.material.bottomnavigation.BottomNavigationView navigation;
+  private MaterialSwitch connectionToggle;
+  private Detail selectedDetail;
+  private androidx.activity.OnBackPressedCallback detailBack;
+
   @Override
   public void onCreate(Bundle saved) {
     DynamicColors.applyToActivityIfAvailable(this);
     super.onCreate(saved);
     EdgeToEdge.enable(this);
-    LinearLayout root = column();
-    FrameLayout content = new FrameLayout(this);
-    root.addView(content, new LinearLayout.LayoutParams(-1, 0, 1));
-    com.google.android.material.bottomnavigation.BottomNavigationView navigation =
-        new com.google.android.material.bottomnavigation.BottomNavigationView(this);
+    rootView = column();
+    pageHost = new FrameLayout(this);
+    rootView.addView(pageHost, new LinearLayout.LayoutParams(-1, 0, 1));
+    navigation = new com.google.android.material.bottomnavigation.BottomNavigationView(this);
     navigation.setLabelVisibilityMode(
         com.google.android.material.navigation.NavigationBarView.LABEL_VISIBILITY_LABELED);
-    root.addView(navigation, new LinearLayout.LayoutParams(-1, -2));
+    rootView.addView(navigation, new LinearLayout.LayoutParams(-1, -2));
     int[] labels = {
-      R.string.tab_home, R.string.tab_display, R.string.tab_integration, R.string.tab_settings
+      R.string.ui_overview, R.string.ui_vm_tab, R.string.ui_devices_tab, R.string.tab_settings
     };
     int[] icons = {
-      R.drawable.ic_terminal, R.drawable.ic_display, R.drawable.ic_link, R.drawable.ic_settings
+      R.drawable.ic_console, R.drawable.ic_vm, R.drawable.ic_link, R.drawable.ic_settings
     };
     LinearLayout[] pages = new LinearLayout[4];
-    for (int n = 0; n < 4; n++) {
+    for (int index = 0; index < 4; index++) {
       ScrollView scroll = new ScrollView(this);
       scroll.setFillViewport(true);
-      pages[n] = column();
-      pages[n].setPadding(dp(20), dp(12), dp(20), dp(28));
-      scroll.addView(pages[n]);
-      content.addView(scroll, new FrameLayout.LayoutParams(-1, -1));
-      scroll.setVisibility(n == 0 ? View.VISIBLE : View.GONE);
-      navigation.getMenu().add(0, 100 + n, n, labels[n]).setIcon(icons[n]);
+      pages[index] = column();
+      pages[index].setPadding(dp(20), dp(8), dp(20), dp(28));
+      scroll.addView(pages[index]);
+      pageHost.addView(scroll, new FrameLayout.LayoutParams(-1, -1));
+      scroll.setVisibility(index == 0 ? View.VISIBLE : View.GONE);
+      navigation.getMenu().add(0, 100 + index, index, labels[index]).setIcon(icons[index]);
     }
+    detailHost = new FrameLayout(this);
+    detailHost.setVisibility(View.GONE);
+    pageHost.addView(detailHost, new FrameLayout.LayoutParams(-1, -1));
+    detailBack =
+        new androidx.activity.OnBackPressedCallback(false) {
+          @Override
+          public void handleOnBackPressed() {
+            closeDetail();
+          }
+        };
+    getOnBackPressedDispatcher().addCallback(this, detailBack);
     navigation.setOnItemSelectedListener(
         item -> {
           selectedTab = item.getItemId() - 100;
-          for (int n = 0; n < 4; n++)
-            content.getChildAt(n).setVisibility(n == selectedTab ? View.VISIBLE : View.GONE);
+          closeDetail();
           return true;
         });
-    setContentView(root);
+    setContentView(rootView);
     ViewCompat.setOnApplyWindowInsetsListener(
-        root,
-        (v, insets) -> {
+        rootView,
+        (view, insets) -> {
           var bars =
               insets.getInsets(
                   WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
-          v.setPadding(bars.left, bars.top, bars.right, 0);
+          view.setPadding(
+              bars.left,
+              bars.top,
+              bars.right,
+              navigation.getVisibility() == View.VISIBLE ? 0 : bars.bottom);
           return insets;
         });
-    LinearLayout page = pages[0];
-    MaterialToolbar toolbar = new MaterialToolbar(this);
-    toolbar.setTitle(R.string.app_name);
-    toolbar.setLogo(R.drawable.ic_terminal);
-    page.addView(toolbar);
-    page.addView(text(getString(R.string.intro), 20));
-    page.addView(text(getString(R.string.experimental), 13));
-    runtime = new StatusCard(page, R.string.root_title);
-    framework = new StatusCard(page, R.string.framework_title);
-    MaterialCardView toggleCard = card(page);
-    LinearLayout toggleBody = column();
-    toggleBody.setPadding(dp(16), dp(8), dp(16), dp(8));
-    toggleCard.addView(toggleBody);
-    MaterialSwitch toggle = new MaterialSwitch(this);
-    toggle.setText(R.string.enabled);
-    toggle.setChecked(getSharedPreferences("config", 0).getBoolean("enabled", true));
-    toggleBody.addView(toggle);
-    toggleBody.addView(text(getString(R.string.enabled_detail), 13));
-    pages[1].addView(text(getString(R.string.tab_display), 24));
-    graphicsCard(pages[1]);
-    pages[2].addView(text(getString(R.string.tab_integration), 24));
-    networkCard(pages[2]);
-    integrationCard(pages[2]);
-    audioDevicesCard(pages[2]);
-    pages[3].addView(text(getString(R.string.tab_settings), 24));
-    androidGuestCard(pages[3]);
-    kernelCard(pages[3]);
-    resourcesCard(pages[3]);
-    button(R.string.asset_title, pages[3])
-        .setOnClickListener(v -> startActivity(new Intent(this, StorageManagementActivity.class)));
-    storageCard(pages[3]);
-    button(R.string.backup_title, pages[3])
-        .setOnClickListener(v -> startActivity(new Intent(this, BackupActivity.class)));
-    button(R.string.debian_setup, page)
-        .setOnClickListener(v -> startActivity(new Intent(this, DebianSetupActivity.class)));
-    button(R.string.debian_terminal, page)
-        .setOnClickListener(v -> startActivity(new Intent(this, StandaloneTerminalActivity.class)));
-    button(R.string.enable_terminal, page).setOnClickListener(v -> setupTerminal(false));
-    button(R.string.install_linux, page).setOnClickListener(v -> setupTerminal(true));
-    button(R.string.open_fullscreen, page).setOnClickListener(v -> openDesktop());
-    button(R.string.open_fullscreen, pages[1]).setOnClickListener(v -> openDesktop());
-    open = button(R.string.open_terminal, page);
+
+    LinearLayout home = pages[0];
+    UiKit.heading(home, R.string.app_name, 0);
+    home.addView(
+        text(
+            getString(
+                R.string.ui_host_context, android.os.Build.VERSION.RELEASE, android.os.Build.MODEL),
+            14));
+    runtime = new StatusCard(home, R.string.ui_debian_launcher);
+    MaterialCardView session = card(home);
+    LinearLayout sessionBody = column();
+    sessionBody.setPadding(dp(20), dp(16), dp(20), dp(16));
+    session.addView(sessionBody);
+    sessionBody.addView(
+        UiKit.text(
+            this,
+            getText(R.string.ui_debian_name),
+            com.google.android.material.R.style.TextAppearance_Material3_HeadlineSmall));
+    sessionBody.addView(text(getString(R.string.ui_debian_session), 14));
+    LinearLayout launch = UiKit.actions(sessionBody);
+    MaterialButton console =
+        UiKit.action(launch, R.string.ui_terminal_short, R.drawable.ic_console, true);
+    console.setOnClickListener(
+        v -> startActivity(new Intent(this, StandaloneTerminalActivity.class)));
+    sessionButtons.add(console);
+    MaterialButton desktop =
+        UiKit.action(launch, R.string.ui_desktop_short, R.drawable.ic_display, false);
+    desktop.setOnClickListener(v -> openDesktop());
+    sessionButtons.add(desktop);
+    connectionToggle = new MaterialSwitch(this);
+    connectionToggle.setText(R.string.enabled);
+    connectionToggle.setChecked(getSharedPreferences("config", 0).getBoolean("enabled", true));
+    sessionBody.addView(connectionToggle);
+    sessionBody.addView(text(getString(R.string.enabled_detail), 13));
+    LinearLayout control = UiKit.actions(sessionBody);
+    prepare = UiKit.action(control, R.string.ui_prepare_short, 0, false);
+    prepare.setOnClickListener(v -> startRuntime());
+    UiKit.action(control, R.string.ui_stop_short, R.drawable.ic_stop, false)
+        .setOnClickListener(v -> confirmStop());
+    UiKit.section(home, R.string.ui_android_name);
+    androidGuestCard(home);
+    UiKit.section(home, R.string.ui_quick_access);
+    LinearLayout shortcuts = UiKit.group(home);
+    UiKit.row(
+        shortcuts,
+        R.drawable.ic_backup,
+        R.string.backup_title,
+        R.string.ui_backup_summary,
+        () -> startActivity(new Intent(this, BackupActivity.class)));
+    UiKit.row(
+        shortcuts,
+        R.drawable.ic_storage,
+        R.string.asset_title,
+        R.string.ui_assets_summary,
+        () -> startActivity(new Intent(this, StorageManagementActivity.class)));
+
+    UiKit.heading(pages[1], R.string.ui_vm_tab, R.string.ui_vm_description);
+    UiKit.section(pages[1], R.string.ui_debian_name);
+    LinearLayout debian = UiKit.group(pages[1]);
+    UiKit.row(
+        debian,
+        R.drawable.ic_folder,
+        R.string.debian_setup,
+        R.string.ui_setup_summary,
+        () -> startActivity(new Intent(this, DebianSetupActivity.class)));
+    UiKit.row(
+        debian,
+        R.drawable.ic_display,
+        R.string.ui_graphics_title,
+        R.string.ui_graphics_summary,
+        () -> showDetail(Detail.GRAPHICS));
+    UiKit.row(
+        debian,
+        R.drawable.ic_vm,
+        R.string.resources_title,
+        R.string.ui_resources_summary,
+        () -> showDetail(Detail.RESOURCES));
+    UiKit.row(
+        debian,
+        R.drawable.ic_storage,
+        R.string.storage_title,
+        R.string.ui_disk_summary,
+        () -> showDetail(Detail.DISK));
+    UiKit.row(
+        debian,
+        R.drawable.ic_kernel,
+        R.string.kernel_title,
+        R.string.ui_kernel_summary,
+        () -> showDetail(Detail.KERNEL));
+    UiKit.section(pages[1], R.string.ui_android_name);
+    androidGuestCard(pages[1]);
+
+    UiKit.heading(pages[2], R.string.ui_devices_tab, R.string.ui_devices_description);
+    UiKit.section(pages[2], R.string.ui_debian_sharing);
+    LinearLayout devices = UiKit.group(pages[2]);
+    UiKit.row(
+        devices,
+        R.drawable.ic_network,
+        R.string.ui_network_short,
+        R.string.ui_network_summary,
+        () -> showDetail(Detail.NETWORK));
+    UiKit.row(
+        devices,
+        R.drawable.ic_audio,
+        R.string.ui_audio_short,
+        R.string.ui_audio_summary,
+        () -> showDetail(Detail.AUDIO));
+    UiKit.row(
+        devices,
+        R.drawable.ic_clipboard,
+        R.string.ui_clipboard_short,
+        R.string.ui_clipboard_summary,
+        () -> showDetail(Detail.CLIPBOARD));
+
+    UiKit.heading(pages[3], R.string.tab_settings, R.string.ui_settings_description);
+    UiKit.section(pages[3], R.string.ui_app_data);
+    LinearLayout data = UiKit.group(pages[3]);
+    UiKit.row(
+        data,
+        R.drawable.ic_backup,
+        R.string.backup_title,
+        R.string.ui_backup_summary,
+        () -> startActivity(new Intent(this, BackupActivity.class)));
+    UiKit.row(
+        data,
+        R.drawable.ic_storage,
+        R.string.asset_title,
+        R.string.ui_assets_summary,
+        () -> startActivity(new Intent(this, StorageManagementActivity.class)));
+    UiKit.section(pages[3], R.string.ui_optional);
+    LinearLayout optional = UiKit.group(pages[3]);
+    UiKit.row(
+        optional,
+        R.drawable.ic_link,
+        R.string.ui_terminal_integration,
+        R.string.ui_terminal_summary,
+        () -> showDetail(Detail.TERMINAL));
+    LinearLayout about = UiKit.group(pages[3]);
+    UiKit.row(
+        about,
+        R.drawable.ic_help,
+        R.string.ui_about,
+        R.string.ui_about_summary,
+        () -> showDetail(Detail.ABOUT));
+    UiKit.row(about, R.drawable.ic_help, R.string.licenses, 0, this::licenses);
+
+    graphicsCard(detailPage(Detail.GRAPHICS));
+    resourcesCard(detailPage(Detail.RESOURCES));
+    storageCard(detailPage(Detail.DISK));
+    kernelCard(detailPage(Detail.KERNEL));
+    networkCard(detailPage(Detail.NETWORK));
+    LinearLayout audio = detailPage(Detail.AUDIO), clipboard = detailPage(Detail.CLIPBOARD);
+    integrationCards(audio, clipboard);
+    audioDevicesCard(audio);
+    LinearLayout terminal = detailPage(Detail.TERMINAL);
+    framework = new StatusCard(terminal, R.string.framework_title);
+    LinearLayout terminalActions = UiKit.group(terminal);
+    UiKit.row(
+        terminalActions,
+        R.drawable.ic_link,
+        R.string.enable_terminal,
+        R.string.ui_terminal_enable_summary,
+        () -> setupTerminal(false));
+    UiKit.row(
+        terminalActions,
+        R.drawable.ic_folder,
+        R.string.install_linux,
+        R.string.ui_stock_installer_summary,
+        () -> setupTerminal(true));
+    open = UiKit.action(terminal, R.string.open_terminal, R.drawable.ic_console, true);
     open.setOnClickListener(
         v -> {
           try {
@@ -172,37 +340,21 @@ public final class MainActivity extends AppCompatActivity {
             runtime.show(0, R.string.terminal_missing);
           }
         });
-    prepare = button(R.string.prepare, page);
-    prepare.setOnClickListener(v -> startRuntime());
-    button(R.string.stop_vm, page)
-        .setOnClickListener(
-            v ->
-                new MaterialAlertDialogBuilder(this)
-                    .setTitle(R.string.stop_vm)
-                    .setMessage(R.string.stop_detail)
-                    .setNegativeButton(android.R.string.cancel, null)
-                    .setPositiveButton(
-                        android.R.string.ok,
-                        (d, w) -> {
-                          runtime.show(-1, R.string.checking);
-                          worker.submit(
-                              () -> {
-                                boolean ok = RuntimeSetup.stop(this);
-                                runOnUiThread(
-                                    () -> {
-                                      if (!isDestroyed())
-                                        runtime.show(
-                                            ok ? 1 : 0,
-                                            ok ? R.string.runtime_stopped : R.string.stop_failed);
-                                    });
-                              });
-                        })
-                    .show());
-    toggle.setOnCheckedChangeListener(
-        (v, on) -> {
+    LinearLayout help = detailPage(Detail.ABOUT);
+    info(help, R.string.host17_title, R.string.host17_detail);
+    info(help, R.string.setup_title, R.string.setup);
+    info(help, R.string.limits_title, R.string.limits);
+    info(help, R.string.network_title, R.string.network_detail);
+    info(help, R.string.tools_title, R.string.tools_detail);
+    info(help, R.string.gpu_title, R.string.gpu_detail);
+    info(help, R.string.safety_title, R.string.safety);
+    info(help, R.string.protection_title, R.string.host_protection);
+    connectionToggle.setOnCheckedChangeListener(
+        (view, on) -> {
           getSharedPreferences("config", 0).edit().putBoolean("enabled", on).apply();
           app().publish();
           open.setEnabled(on);
+          sessionButtons.forEach(button -> button.setEnabled(on));
           if (on) startRuntime();
           else {
             getSharedPreferences("config", 0)
@@ -214,24 +366,89 @@ public final class MainActivity extends AppCompatActivity {
             runtime.show(1, R.string.runtime_disabled);
           }
         });
-    open.setEnabled(toggle.isChecked());
-    page = pages[3];
-    info(page, R.string.host17_title, R.string.host17_detail);
-    info(page, R.string.setup_title, R.string.setup);
-    info(page, R.string.limits_title, R.string.limits);
-    info(page, R.string.network_title, R.string.network_detail);
-    info(page, R.string.tools_title, R.string.tools_detail);
-    info(page, R.string.gpu_title, R.string.gpu_detail);
-    info(page, R.string.safety_title, R.string.safety);
-    info(page, R.string.protection_title, R.string.host_protection);
-    button(R.string.licenses, page).setOnClickListener(v -> licenses());
+    open.setEnabled(connectionToggle.isChecked());
+    sessionButtons.forEach(button -> button.setEnabled(connectionToggle.isChecked()));
     navigation.setSelectedItemId(100 + (saved == null ? 0 : saved.getInt("selectedTab", 0)));
+    if (saved != null) {
+      String key = saved.getString("selectedDetail");
+      if (key != null)
+        try {
+          showDetail(Detail.valueOf(key));
+        } catch (IllegalArgumentException ignored) {
+        }
+    }
     startRuntime();
+  }
+
+  private LinearLayout detailPage(Detail detail) {
+    LinearLayout panel = column();
+    panel.setBackgroundColor(UiKit.color(this, com.google.android.material.R.attr.colorSurface));
+    MaterialToolbar toolbar = new MaterialToolbar(this);
+    toolbar.setTitle(detail.title);
+    toolbar.setNavigationIcon(R.drawable.ic_back);
+    toolbar.setNavigationContentDescription(R.string.asset_back);
+    toolbar.setNavigationOnClickListener(v -> closeDetail());
+    panel.addView(toolbar);
+    ScrollView scroll = new ScrollView(this);
+    LinearLayout body = column();
+    body.setPadding(dp(20), dp(8), dp(20), dp(28));
+    scroll.addView(body);
+    panel.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+    detailHost.addView(panel, new FrameLayout.LayoutParams(-1, -1));
+    detailViews.put(detail, panel);
+    panel.setVisibility(View.GONE);
+    return body;
+  }
+
+  private void showDetail(Detail detail) {
+    if (selectedTab != detail.tab) navigation.setSelectedItemId(100 + detail.tab);
+    selectedDetail = detail;
+    for (var entry : detailViews.entrySet())
+      entry.getValue().setVisibility(entry.getKey() == detail ? View.VISIBLE : View.GONE);
+    detailHost.setVisibility(View.VISIBLE);
+    navigation.setVisibility(View.GONE);
+    detailBack.setEnabled(true);
+    ViewCompat.requestApplyInsets(rootView);
+  }
+
+  private void closeDetail() {
+    selectedDetail = null;
+    detailHost.setVisibility(View.GONE);
+    navigation.setVisibility(View.VISIBLE);
+    detailBack.setEnabled(false);
+    for (int index = 0; index < 4; index++)
+      pageHost.getChildAt(index).setVisibility(index == selectedTab ? View.VISIBLE : View.GONE);
+    ViewCompat.requestApplyInsets(rootView);
+  }
+
+  private void confirmStop() {
+    new MaterialAlertDialogBuilder(this)
+        .setTitle(R.string.stop_vm)
+        .setMessage(R.string.stop_detail)
+        .setNegativeButton(android.R.string.cancel, null)
+        .setPositiveButton(
+            android.R.string.ok,
+            (dialog, which) -> {
+              runtime.show(-1, R.string.checking);
+              worker.submit(
+                  () -> {
+                    boolean ok = RuntimeSetup.stop(this);
+                    runOnUiThread(
+                        () -> {
+                          if (!isDestroyed())
+                            runtime.show(
+                                ok ? 1 : 0, ok ? R.string.runtime_stopped : R.string.stop_failed);
+                        });
+                  });
+            })
+        .show();
   }
 
   @Override
   protected void onResume() {
     super.onResume();
+    if (connectionToggle != null)
+      connectionToggle.setChecked(getSharedPreferences("config", 0).getBoolean("enabled", true));
     getSharedPreferences("config", 0).registerOnSharedPreferenceChangeListener(preferencesChanged);
     updateMicrophoneState();
     if (deviceCallback == null) {
@@ -315,6 +532,12 @@ public final class MainActivity extends AppCompatActivity {
                   loadStorage();
                   loadNetwork();
                   applyClipboard();
+                } else {
+                  int message = RuntimeSetup.message(result);
+                  graphicsStatus.setText(message);
+                  resourceStatus.setText(message);
+                  storageStatus.setText(message);
+                  networkStatus.setText(message);
                 }
               });
         });
@@ -411,7 +634,7 @@ public final class MainActivity extends AppCompatActivity {
           app().publish();
           graphicsStatus.setText(R.string.graphics_view_saved);
         });
-    button(R.string.gpu_light_preset, body)
+    UiKit.textAction(body, R.string.gpu_light_preset)
         .setOnClickListener(
             v ->
                 new MaterialAlertDialogBuilder(this)
@@ -420,9 +643,10 @@ public final class MainActivity extends AppCompatActivity {
                     .setNegativeButton(android.R.string.cancel, null)
                     .setPositiveButton(android.R.string.ok, (d, w) -> lightGpuPreset())
                     .show());
-    graphicsSave = button(R.string.graphics_save, body);
+    LinearLayout graphicsActions = UiKit.actions(body);
+    graphicsSave = UiKit.action(graphicsActions, R.string.ui_save_short, 0, true);
     graphicsSave.setOnClickListener(v -> saveGraphics(false));
-    graphicsRestart = button(R.string.graphics_restart, body);
+    graphicsRestart = UiKit.action(graphicsActions, R.string.ui_save_restart_short, 0, false);
     graphicsRestart.setOnClickListener(
         v ->
             new MaterialAlertDialogBuilder(this)
@@ -484,8 +708,10 @@ public final class MainActivity extends AppCompatActivity {
     networkStatus = text(getString(R.string.checking), 14);
     body.addView(networkStatus);
     info(body, R.string.network_title, R.string.tun_detail);
-    button(R.string.tun_refresh, body).setOnClickListener(v -> loadNetwork());
-    networkSave = button(R.string.tun_apply, body);
+    LinearLayout networkActions = UiKit.actions(body);
+    UiKit.action(networkActions, R.string.tun_refresh, 0, false)
+        .setOnClickListener(v -> loadNetwork());
+    networkSave = UiKit.action(networkActions, R.string.tun_apply, 0, true);
     networkSave.setOnClickListener(
         v ->
             new MaterialAlertDialogBuilder(this)
@@ -671,9 +897,10 @@ public final class MainActivity extends AppCompatActivity {
                     : R.string.kernel_stock_state),
             14);
     body.addView(kernelStatus);
-    button(R.string.kernel_import, body)
+    LinearLayout kernelActions = UiKit.actions(body);
+    UiKit.action(kernelActions, R.string.kernel_import, 0, false)
         .setOnClickListener(v -> kernelImporter.launch(new String[] {"*/*"}));
-    MaterialButton apply = button(R.string.kernel_apply, body);
+    MaterialButton apply = UiKit.action(kernelActions, R.string.ui_apply_short, 0, true);
     apply.setOnClickListener(
         v ->
             new MaterialAlertDialogBuilder(this)
@@ -715,67 +942,92 @@ public final class MainActivity extends AppCompatActivity {
   private com.google.android.material.textfield.TextInputEditText storageSize;
   private final java.util.ArrayList<MaterialButton> storageButtons = new java.util.ArrayList<>();
   private boolean storageBusy;
+  private MaterialButton storageCancel;
 
   private static String capacity(long bytes) {
     return String.format(java.util.Locale.getDefault(), "%.2f GiB", bytes / 1073741824.0);
   }
 
   private void storageCard(LinearLayout page) {
-    MaterialCardView c = card(page);
+    MaterialCardView card = card(page);
     LinearLayout body = column();
-    body.setPadding(dp(18), dp(10), dp(18), dp(12));
-    c.addView(body);
+    body.setPadding(dp(18), dp(14), dp(18), dp(16));
+    card.addView(body);
     body.addView(text(getString(R.string.storage_title), 20));
+    LinearLayout header = UiKit.actions(body);
     storageStatus = text(getString(R.string.checking), 14);
     storageStatus.setTextIsSelectable(true);
-    body.addView(storageStatus);
-    MaterialButton refresh = button(R.string.storage_refresh, body);
+    header.addView(storageStatus, new LinearLayout.LayoutParams(0, -2, 1));
+    MaterialButton refresh = UiKit.textAction(header, R.string.storage_refresh);
     storageButtons.add(refresh);
-    refresh.setOnClickListener(v -> loadStorage());
-    TextInputLayout field = new TextInputLayout(this);
-    field.setHint(getString(R.string.storage_capacity));
-    storageSize = new com.google.android.material.textfield.TextInputEditText(field.getContext());
-    storageSize.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
-    field.addView(storageSize);
-    body.addView(field);
+    refresh.setOnClickListener(view -> loadStorage());
     int[] labels = {
       R.string.storage_resize,
       R.string.storage_compact,
       R.string.storage_restore,
       R.string.storage_discard
     };
-    String[] actions = {"resize", "compact", "restore", "discard"};
-    for (int i = 0; i < labels.length; i++) {
-      String action = actions[i];
-      MaterialButton b = button(labels[i], body);
-      storageButtons.add(b);
-      b.setOnClickListener(
-          v -> {
-            int gib = 0;
-            if (action.equals("resize")) {
-              try {
-                gib = Integer.parseInt(String.valueOf(storageSize.getText()));
-                if (gib < 1 || gib > 128) throw new NumberFormatException();
-              } catch (NumberFormatException e) {
-                field.setError(getString(R.string.storage_invalid));
-                return;
-              }
+    String[] commands = {"resize", "compact", "restore", "discard"};
+    int[] selected = {0};
+    TextInputLayout operation = new TextInputLayout(this);
+    operation.setHint(R.string.ui_operation);
+    operation.setBoxBackgroundMode(TextInputLayout.BOX_BACKGROUND_OUTLINE);
+    operation.setEndIconMode(TextInputLayout.END_ICON_DROPDOWN_MENU);
+    MaterialAutoCompleteTextView menu = new MaterialAutoCompleteTextView(operation.getContext());
+    menu.setInputType(0);
+    menu.setSimpleItems(
+        java.util.Arrays.stream(labels).mapToObj(this::getString).toArray(String[]::new));
+    menu.setText(getString(labels[0]), false);
+    operation.addView(menu);
+    body.addView(operation);
+    TextInputLayout field = new TextInputLayout(this);
+    field.setHint(getString(R.string.storage_capacity));
+    field.setBoxBackgroundMode(TextInputLayout.BOX_BACKGROUND_OUTLINE);
+    storageSize = new com.google.android.material.textfield.TextInputEditText(field.getContext());
+    storageSize.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+    field.addView(storageSize);
+    body.addView(field);
+    MaterialButton execute = UiKit.action(body, labels[0], R.drawable.ic_storage, true);
+    storageButtons.add(execute);
+    menu.setOnItemClickListener(
+        (parent, view, index, id) -> {
+          selected[0] = index;
+          field.setVisibility(index == 0 ? View.VISIBLE : View.GONE);
+          field.setError(null);
+          execute.setText(labels[index]);
+        });
+    execute.setOnClickListener(
+        view -> {
+          int target = 0;
+          String action = commands[selected[0]];
+          if (action.equals("resize"))
+            try {
+              target = Integer.parseInt(String.valueOf(storageSize.getText()));
+              if (target < 1 || target > 128) throw new NumberFormatException();
+            } catch (NumberFormatException invalid) {
+              field.setError(getString(R.string.storage_invalid));
+              return;
             }
-            field.setError(null);
-            int target = gib;
-            new MaterialAlertDialogBuilder(this)
-                .setTitle(b.getText())
-                .setMessage(
-                    action.equals("discard")
-                        ? R.string.storage_discard_warning
-                        : R.string.storage_warning)
-                .setNegativeButton(android.R.string.cancel, null)
-                .setPositiveButton(android.R.string.ok, (d, w) -> runStorage(action, target))
-                .show();
-          });
-    }
-    MaterialButton cancel = button(R.string.storage_cancel, body);
-    cancel.setOnClickListener(v -> RuntimeSetup.cancelStorage(this));
+          field.setError(null);
+          int capacity = target;
+          new MaterialAlertDialogBuilder(this)
+              .setTitle(labels[selected[0]])
+              .setMessage(
+                  action.equals("discard")
+                      ? R.string.storage_discard_warning
+                      : R.string.storage_warning)
+              .setNegativeButton(android.R.string.cancel, null)
+              .setPositiveButton(
+                  android.R.string.ok, (dialog, which) -> runStorage(action, capacity))
+              .show();
+        });
+    storageCancel = UiKit.textAction(body, R.string.storage_cancel);
+    storageCancel.setVisibility(View.GONE);
+    storageCancel.setOnClickListener(
+        view -> {
+          storageCancel.setEnabled(false);
+          java.util.concurrent.CompletableFuture.runAsync(() -> RuntimeSetup.cancelStorage(this));
+        });
     body.addView(text(getString(R.string.storage_detail), 13));
   }
 
@@ -815,6 +1067,8 @@ public final class MainActivity extends AppCompatActivity {
   private void runStorage(String action, int gib) {
     if (storageBusy) return;
     storageBusy = true;
+    storageCancel.setVisibility(View.VISIBLE);
+    storageCancel.setEnabled(true);
     storageButtons.forEach(b -> b.setEnabled(false));
     storageStatus.setText(R.string.storage_running);
     worker.submit(
@@ -841,6 +1095,7 @@ public final class MainActivity extends AppCompatActivity {
                     prepared ? 2 : 0,
                     prepared ? R.string.runtime_ready : R.string.runtime_unavailable);
                 storageBusy = false;
+                storageCancel.setVisibility(View.GONE);
                 storageButtons.forEach(b -> b.setEnabled(true));
                 storageStatus.setText(
                     result == 0 && prepared
@@ -876,15 +1131,20 @@ public final class MainActivity extends AppCompatActivity {
   private TextView resourceStatus;
 
   private void androidGuestCard(LinearLayout page) {
-    MaterialCardView card = card(page);
-    LinearLayout body = column();
-    body.setPadding(dp(18), dp(14), dp(18), dp(14));
-    card.addView(body);
-    body.addView(text(getString(R.string.android_guest_title), 20));
     if (!HostContract.ANDROID_GUEST_READY) {
-      body.addView(text(getString(R.string.host17_android_pending), 14));
+      UiKit.row(
+          UiKit.group(page),
+          R.drawable.ic_vm,
+          R.string.ui_android_unavailable,
+          R.string.host17_android_pending,
+          null);
       return;
     }
+    MaterialCardView card = card(page);
+    LinearLayout body = column();
+    body.setPadding(dp(18), dp(14), dp(18), dp(16));
+    card.addView(body);
+    body.addView(text(getString(R.string.android_guest_title), 20));
     body.addView(text(getString(R.string.android_guest_description), 14));
     button(R.string.android_guest_open, body)
         .setOnClickListener(
@@ -996,8 +1256,10 @@ public final class MainActivity extends AppCompatActivity {
     body.addView(text(getString(R.string.resources_hint), 13));
     resourceStatus = text(getString(R.string.checking), 14);
     body.addView(resourceStatus);
-    button(R.string.resources_save, body).setOnClickListener(v -> saveResources(false));
-    button(R.string.resources_restart, body)
+    LinearLayout resourceActions = UiKit.actions(body);
+    UiKit.action(resourceActions, R.string.ui_save_short, 0, true)
+        .setOnClickListener(v -> saveResources(false));
+    UiKit.action(resourceActions, R.string.ui_save_restart_short, 0, false)
         .setOnClickListener(
             v ->
                 new MaterialAlertDialogBuilder(this)
@@ -1078,7 +1340,7 @@ public final class MainActivity extends AppCompatActivity {
         });
   }
 
-  private void integrationCard(LinearLayout page) {
+  private void integrationCards(LinearLayout page, LinearLayout clipboardPage) {
     MaterialCardView c = card(page);
     LinearLayout body = column();
     body.setPadding(dp(18), dp(10), dp(18), dp(12));
@@ -1137,6 +1399,11 @@ public final class MainActivity extends AppCompatActivity {
                   != android.content.pm.PackageManager.PERMISSION_GRANTED)
             requestPermissions(new String[] {android.Manifest.permission.POST_NOTIFICATIONS}, 23);
         });
+    MaterialCardView clipboardCard = card(clipboardPage);
+    body = column();
+    body.setPadding(dp(18), dp(12), dp(18), dp(16));
+    clipboardCard.addView(body);
+    body.addView(text(getString(R.string.ui_clipboard_short), 20));
     body.addView(text(getString(R.string.clipboard_auto_hint), 13));
     MaterialSwitch automatic = new MaterialSwitch(this);
     automatic.setText(R.string.clipboard_auto);
@@ -1168,9 +1435,10 @@ public final class MainActivity extends AppCompatActivity {
         });
     clipboardStatus = text("", 14);
     body.addView(clipboardStatus);
-    button(R.string.clip_to_linux, body)
+    LinearLayout transferActions = UiKit.actions(body);
+    UiKit.action(transferActions, R.string.clip_to_linux, 0, false)
         .setOnClickListener(v -> ClipboardBridge.transfer(this, true, clipboardStatus::setText));
-    button(R.string.clip_to_android, body)
+    UiKit.action(transferActions, R.string.clip_to_android, 0, false)
         .setOnClickListener(v -> ClipboardBridge.transfer(this, false, clipboardStatus::setText));
   }
 
@@ -1226,7 +1494,7 @@ public final class MainActivity extends AppCompatActivity {
         };
     refreshAudioDevices = refresh;
     refresh.run();
-    button(R.string.audio_refresh_devices, body).setOnClickListener(v -> refresh.run());
+    UiKit.textAction(body, R.string.audio_refresh_devices).setOnClickListener(v -> refresh.run());
     body.addView(text(getString(R.string.usb_direct_unavailable), 13));
   }
 
@@ -1296,6 +1564,7 @@ public final class MainActivity extends AppCompatActivity {
   protected void onSaveInstanceState(Bundle state) {
     super.onSaveInstanceState(state);
     state.putInt("selectedTab", selectedTab);
+    if (selectedDetail != null) state.putString("selectedDetail", selectedDetail.name());
   }
 
   private int dp(int n) {
@@ -1309,45 +1578,48 @@ public final class MainActivity extends AppCompatActivity {
   }
 
   private TextView text(String value, int size) {
-    TextView t = new TextView(this);
-    t.setText(value);
-    t.setTextSize(size);
-    t.setPadding(0, dp(8), 0, dp(8));
-    return t;
+    int appearance =
+        size >= 20
+            ? com.google.android.material.R.style.TextAppearance_Material3_TitleLarge
+            : size >= 16
+                ? com.google.android.material.R.style.TextAppearance_Material3_TitleMedium
+                : size <= 13
+                    ? com.google.android.material.R.style.TextAppearance_Material3_BodySmall
+                    : com.google.android.material.R.style.TextAppearance_Material3_BodyMedium;
+    TextView view = UiKit.text(this, value, appearance);
+    view.setPadding(0, dp(6), 0, dp(6));
+    if (size < 16)
+      view.setTextColor(
+          UiKit.color(this, com.google.android.material.R.attr.colorOnSurfaceVariant));
+    return view;
   }
 
   private MaterialCardView card(LinearLayout parent) {
-    MaterialCardView c = new MaterialCardView(this);
-    c.setRadius(dp(24));
-    LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, -2);
-    p.setMargins(0, dp(6), 0, dp(6));
-    parent.addView(c, p);
-    return c;
+    return UiKit.card(parent);
   }
 
   private MaterialButton button(int label, LinearLayout parent) {
-    MaterialButton b = new MaterialButton(this);
-    b.setText(label);
-    LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, -2);
-    p.setMargins(0, dp(4), 0, dp(4));
-    parent.addView(b, p);
-    return b;
+    return UiKit.action(parent, label, 0, false);
   }
 
   private void info(LinearLayout parent, int title, int detail) {
-    button(title, parent)
-        .setOnClickListener(
-            v -> {
-              TextView t = text(getString(detail), 14);
-              t.setPadding(dp(24), dp(8), dp(24), dp(8));
-              ScrollView box = new ScrollView(this);
-              box.addView(t);
-              new MaterialAlertDialogBuilder(this)
-                  .setTitle(title)
-                  .setView(box)
-                  .setPositiveButton(android.R.string.ok, null)
-                  .show();
-            });
+    LinearLayout group = UiKit.group(parent);
+    UiKit.row(
+        group,
+        R.drawable.ic_help,
+        title,
+        0,
+        () -> {
+          TextView copy = text(getString(detail), 14);
+          copy.setPadding(dp(24), dp(8), dp(24), dp(8));
+          ScrollView box = new ScrollView(this);
+          box.addView(copy);
+          new MaterialAlertDialogBuilder(this)
+              .setTitle(title)
+              .setView(box)
+              .setPositiveButton(android.R.string.ok, null)
+              .show();
+        });
   }
 
   private void licenses() {

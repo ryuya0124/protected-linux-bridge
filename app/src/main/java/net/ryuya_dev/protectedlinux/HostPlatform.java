@@ -11,7 +11,12 @@ final class HostPlatform {
   private HostPlatform() {}
 
   static boolean compatible(Context context) throws Exception {
-    var terminal = context.getPackageManager().getPackageInfo(RuntimeSetup.HOST, 0);
+    android.content.pm.PackageInfo terminal;
+    try {
+      terminal = context.getPackageManager().getPackageInfo(RuntimeSetup.HOST, 0);
+    } catch (android.content.pm.PackageManager.NameNotFoundException missing) {
+      return false;
+    }
     if (terminal.applicationInfo == null
         || terminal.applicationInfo.uid < 10000
         || terminal.applicationInfo.uid > 19999) return false;

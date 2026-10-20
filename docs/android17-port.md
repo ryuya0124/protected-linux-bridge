@@ -193,4 +193,26 @@ The exact Google ARM64 Debian archive was verified end to end with the same Java
 installation codec on the development host. Image extraction/checksum success
 is not an Android installation test. New setup/backup UI and the complete
 writeable VM session await device access. The user manually soft-rebooted and
-requested a pause; no later device query or operation was performed.
+requested a pause. No device operation was performed during that pause.
+
+## Non-GUI access resumed and UI reorganization
+
+The user subsequently unlocked the Galaxy and permitted non-GUI tests again.
+Read-only admission confirmed the same Android 17 host contract, root, locked
+bootloader/green AVB and Enforcing. No Bridge VM was running. An independent
+developer-only test used the production backup codec and native maintenance
+locks on 2 MiB of synthetic files in a fresh app-private test directory. Selected
+restore, retained originals and checksum/rejection checks completed. All test
+files were removed; host boot/core/trusted-VM identities, taint 4608 and all six
+shmem policies remained unchanged. No VM, GPU or physical GUI was started.
+
+The test first exposed SIGKILL during NIO FileStore discovery. Direct per-path
+free-space queries fixed the observed failure; the signal sender is unproven.
+The same fix is included in Debian image installation. This small codec test
+is not a full real-disk restore or Debian installation test.
+
+The [Material 3 navigation](app-navigation.md) now separates Overview, VMs,
+Devices and Settings, with clearly scoped Debian details and a separate disabled
+Android-guest entry. UI tests ran in an owned Android 17 emulator, including
+Japanese/English, dark mode, larger text and rotation. These are not Galaxy
+GUI or guest rendering results.

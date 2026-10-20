@@ -15,7 +15,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.progressindicator.LinearProgressIndicator;
 import java.util.*;
 
-/** First install/import is in Bridge. The stock Terminal UI and Vector are optional. */
+/** Debian-only provisioning, with one primary path and an optional existing-image import. */
 public final class DebianSetupActivity extends AppCompatActivity {
   @Override
   protected void onCreate(Bundle saved) {
@@ -23,21 +23,102 @@ public final class DebianSetupActivity extends AppCompatActivity {
     super.onCreate(saved);
     EdgeToEdge.enable(this);
     BackupModel model = new ViewModelProvider(this).get(BackupModel.class);
-    LinearLayout root = new LinearLayout(this);
-    root.setOrientation(LinearLayout.VERTICAL);
+    LinearLayout root = UiKit.column(this);
     MaterialToolbar toolbar = new MaterialToolbar(this);
-    toolbar.setTitle(R.string.debian_setup);
+    toolbar.setTitle(R.string.ui_debian_name);
     toolbar.setNavigationIcon(R.drawable.ic_back);
     toolbar.setNavigationContentDescription(R.string.asset_back);
-    toolbar.setNavigationOnClickListener(v -> finish());
+    toolbar.setNavigationOnClickListener(view -> finish());
     root.addView(toolbar);
+    toolbar
+        .getMenu()
+        .add(R.string.ui_about)
+        .setOnMenuItemClickListener(
+            item -> {
+              new MaterialAlertDialogBuilder(this)
+                  .setTitle(R.string.debian_setup)
+                  .setMessage(R.string.debian_setup_detail)
+                  .setPositiveButton(android.R.string.ok, null)
+                  .show();
+              return true;
+            });
     ScrollView scroll = new ScrollView(this);
-    LinearLayout body = new LinearLayout(this);
-    body.setOrientation(LinearLayout.VERTICAL);
-    int padding = Math.round(20 * getResources().getDisplayMetrics().density);
-    body.setPadding(padding, padding, padding, padding);
+    LinearLayout body = UiKit.column(this);
+    int padding = UiKit.dp(this, 20);
+    body.setPadding(padding, 0, padding, padding);
     scroll.addView(body);
     root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+    UiKit.heading(body, R.string.debian_setup, R.string.ui_install_scope);
+    LinearLayout image = UiKit.group(body);
+    image.setPadding(padding, padding, padding, padding);
+    image.addView(
+        UiKit.text(
+            this,
+            getText(R.string.ui_debian_image_title),
+            com.google.android.material.R.style.TextAppearance_Material3_HeadlineMedium));
+    TextView subtitle =
+        UiKit.text(
+            this,
+            getText(R.string.ui_debian_image_detail),
+            com.google.android.material.R.style.TextAppearance_Material3_BodyMedium);
+    subtitle.setPadding(0, UiKit.dp(this, 8), 0, padding);
+    image.addView(subtitle);
+    LinearLayout metrics = UiKit.actions(image);
+    metric(metrics, R.string.ui_image_download_size, "580 MiB");
+    metric(metrics, R.string.ui_image_free_space, getString(R.string.ui_image_space_value));
+    MaterialButton download =
+        UiKit.action(image, R.string.ui_download_short, R.drawable.ic_download, true);
+    download.setOnClickListener(
+        view ->
+            new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.debian_download)
+                .setMessage(R.string.debian_download_confirm)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(
+                    android.R.string.ok,
+                    (dialog, which) -> model.run("debian-download", null, Set.of()))
+                .show());
+    LinearLayout alternative = UiKit.group(body);
+    View importer =
+        UiKit.row(
+            alternative,
+            R.drawable.ic_folder,
+            R.string.ui_import_short,
+            R.string.ui_import_detail,
+            () ->
+                new MaterialAlertDialogBuilder(this)
+                    .setTitle(R.string.debian_import)
+                    .setMessage(R.string.debian_import_confirm)
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .setPositiveButton(
+                        android.R.string.ok,
+                        (dialog, which) -> model.run("debian-import", null, Set.of()))
+                    .show());
+    LinearLayout work = UiKit.group(body);
+    work.setPadding(padding, UiKit.dp(this, 12), padding, UiKit.dp(this, 12));
+    TextView status =
+        UiKit.text(
+            this,
+            getText(R.string.ui_maintenance_idle),
+            com.google.android.material.R.style.TextAppearance_Material3_BodyMedium);
+    work.addView(status);
+    MaterialButton stop = UiKit.textAction(work, R.string.ui_stop_short);
+    stop.setOnClickListener(
+        view ->
+            new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.stop_vm)
+                .setMessage(R.string.stop_detail)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(
+                    android.R.string.ok, (dialog, which) -> model.run("stop", null, Set.of()))
+                .show());
+    LinearProgressIndicator progress = new LinearProgressIndicator(this);
+    progress.setIndeterminate(true);
+    progress.setVisibility(View.GONE);
+    work.addView(progress);
+    MaterialButton cancel = UiKit.textAction(work, android.R.string.cancel);
+    cancel.setVisibility(View.GONE);
+    cancel.setOnClickListener(view -> model.cancel());
     setContentView(root);
     ViewCompat.setOnApplyWindowInsetsListener(
         root,
@@ -48,59 +129,14 @@ public final class DebianSetupActivity extends AppCompatActivity {
           view.setPadding(bars.left, bars.top, bars.right, bars.bottom);
           return insets;
         });
-    TextView detail = new TextView(this);
-    detail.setText(R.string.debian_setup_detail);
-    body.addView(detail);
-    TextView status = new TextView(this);
-    status.setText(R.string.debian_setup_idle);
-    status.setPadding(0, padding, 0, padding);
-    body.addView(status);
-    LinearProgressIndicator progress = new LinearProgressIndicator(this);
-    progress.setIndeterminate(true);
-    progress.setVisibility(View.GONE);
-    body.addView(progress);
-    List<MaterialButton> actions = new ArrayList<>();
-    for (boolean download : new boolean[] {true, false}) {
-      MaterialButton button = new MaterialButton(this);
-      actions.add(button);
-      body.addView(button);
-      button.setText(download ? R.string.debian_download : R.string.debian_import);
-      button.setOnClickListener(
-          v ->
-              new MaterialAlertDialogBuilder(this)
-                  .setTitle(button.getText())
-                  .setMessage(
-                      download ? R.string.debian_download_confirm : R.string.debian_import_confirm)
-                  .setNegativeButton(android.R.string.cancel, null)
-                  .setPositiveButton(
-                      android.R.string.ok,
-                      (dialog, which) ->
-                          model.run(download ? "debian-download" : "debian-import", null, Set.of()))
-                  .show());
-    }
-    MaterialButton stop = new MaterialButton(this);
-    stop.setText(R.string.stop_vm);
-    body.addView(stop);
-    actions.add(stop);
-    stop.setOnClickListener(
-        v ->
-            new MaterialAlertDialogBuilder(this)
-                .setTitle(R.string.stop_vm)
-                .setMessage(R.string.stop_detail)
-                .setNegativeButton(android.R.string.cancel, null)
-                .setPositiveButton(
-                    android.R.string.ok, (dialog, which) -> model.run("stop", null, Set.of()))
-                .show());
-    MaterialButton cancel = new MaterialButton(this);
-    cancel.setText(android.R.string.cancel);
-    body.addView(cancel);
-    cancel.setOnClickListener(v -> model.cancel());
     model.state.observe(
         this,
         value -> {
-          actions.forEach(button -> button.setEnabled(!value.busy()));
-          cancel.setEnabled(value.busy());
+          download.setEnabled(!value.busy());
+          importer.setEnabled(!value.busy());
+          stop.setEnabled(!value.busy());
           progress.setVisibility(value.busy() ? View.VISIBLE : View.GONE);
+          cancel.setVisibility(value.busy() ? View.VISIBLE : View.GONE);
           if (value.busy())
             status.setText(
                 getString(
@@ -118,5 +154,20 @@ public final class DebianSetupActivity extends AppCompatActivity {
                   default -> R.string.debian_failed;
                 });
         });
+  }
+
+  private void metric(LinearLayout parent, int label, String value) {
+    LinearLayout column = UiKit.column(this);
+    parent.addView(column, new LinearLayout.LayoutParams(0, -2, 1));
+    column.addView(
+        UiKit.text(
+            this,
+            getText(label),
+            com.google.android.material.R.style.TextAppearance_Material3_LabelMedium));
+    TextView amount =
+        UiKit.text(
+            this, value, com.google.android.material.R.style.TextAppearance_Material3_TitleLarge);
+    amount.setPadding(0, UiKit.dp(this, 4), 0, UiKit.dp(this, 16));
+    column.addView(amount);
   }
 }

@@ -2,7 +2,7 @@
 
 Snapdragon / Gunyahを搭載した対応Galaxyで、**独立カーネルのDebian VM**を使う実験用アプリです。Bridge内のターミナル・全画面デスクトップと、任意のAndroid標準ターミナル連携を備えます。一時rootが必要です。
 
-**このブランチはAndroid 17専用の移植版です。** 実機で小規模な保護VM起動とDebianイメージの読み取りを確認しました。新しい導入画面・個別バックアップ／復元・通常セッション・GUIは実機未検証です。Androidゲストの起動とVulkanはまだ無効です。
+**このブランチはAndroid 17専用の移植版です。** 実機で小規模な保護VM起動・Debianイメージの読み取りと、ダミーデータによるバックアップ／選択復元を確認しました。導入画面からの操作・通常セッション・GUIは実機未検証です。Androidゲストの起動とVulkanはまだ無効です。
 
 Android 16の最終版は[v0.4.0-preview.9](https://github.com/ryuya0124/protected-linux-bridge/releases/tag/v0.4.0-preview.9)と固定ブランチ[android16-frozen](https://github.com/ryuya0124/protected-linux-bridge/tree/android16-frozen)に残しています。17版の変更は入りません。
 
@@ -29,14 +29,27 @@ Android 16の最終版は[v0.4.0-preview.9](https://github.com/ryuya0124/protect
 ## 使い始める
 
 1. Android 17版の署名済みrelease APKをインストールし、Bridgeのroot要求を許可します。Android 16にはインストールできません。
-2. **「Debianを準備」**を開き、VMと起動支援を停止してからダウンロードまたは取り込みを実行します。既存ディスクは保持します。
-3. VM接続を有効にして**「Debianターミナル」**を開きます。新しいタブも追加できます。
+2. **「VM」→「Debianを準備」**を開き、VMと起動支援を停止してからダウンロードまたは取り込みを実行します。既存ディスクは保持します。
+3. 「概要」でVM接続を有効にして**「Debianターミナル」**を開きます。新しいタブも追加できます。
 4. GUIが必要なら、そのターミナル内で`plb-install-gui`を実行し、Bridgeから「全画面で開く」を選びます。
 5. 保存は**「設定」→「バックアップと復元」**、容量確認は**「VMファイルのストレージ」**から行います。
 
 [Debian導入の詳細](docs/debian-setup.md)と[バックアップ・個別復元の使い方](docs/backup-and-restore.md)を参照してください。バックアップは暗号化されず、復元前のコピーは自動削除しません。実行中のVMをコピーする処理は拒否します。
 
-標準ターミナルとの連携も使いたい場合は、Bridgeの有効化ボタンで準備し、Vectorの適用先を**ターミナル (`com.android.virtualization.terminal`) だけ**にしてください。
+標準ターミナルとの連携も使いたい場合は、「設定」→「標準ターミナルとの連携」で準備し、Vectorの適用先を**ターミナル (`com.android.virtualization.terminal`) だけ**にしてください。
+
+## 画面の見方
+
+下部のMaterial 3ナビゲーションで、使う場所を切り替えます。
+
+| 画面 | 内容 |
+| --- | --- |
+| 概要 | Debianの状態・ターミナル・デスクトップ・接続スイッチ |
+| VM | Debianの導入、画面、RAM・CPU、ディスク、ゲストカーネル |
+| デバイス | Debianとホスト間のネットワーク・音声・マイク・クリップボード |
+| 設定 | アプリ全体のバックアップ・ストレージ、任意の標準ターミナル連携、ヘルプ・ライセンス |
+
+設定は項目を選んで詳細画面へ進む構成です。Debian用の画面には「Debian」を表示し、Androidゲストは別枠で移植中と示します。「ホストAndroid」はこのアプリを動かしているスマートフォンのことです。
 
 ## Androidゲスト・GPUについて
 

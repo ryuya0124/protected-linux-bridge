@@ -138,8 +138,8 @@ public final class DebianImage {
 
   private static void writeSparse(
       InputStream input, long size, Path destination, LongConsumer progress) throws IOException {
-    FileStore store = Files.getFileStore(destination.getParent());
-    if (store.getUsableSpace() < ROOT_BYTES + 512L * 1024 * 1024)
+    // Direct statvfs avoids mount-table enumeration in Android root workers.
+    if (destination.getParent().toFile().getUsableSpace() < ROOT_BYTES + 512L * 1024 * 1024)
       throw new IOException("ARCHIVE_SPACE");
     try (FileChannel output =
         FileChannel.open(

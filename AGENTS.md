@@ -460,3 +460,19 @@ console bytes never become host shell commands. Vector stays optional and scoped
 to stock Terminal alone. Android guest readiness stays false. New setup/backup
 UI and writable-session device validation remain pending while the user pauses
 access. Passing host archive tests is not a device installation claim.
+
+## Device access resumed: non-GUI only
+
+The user has unlocked the Galaxy and explicitly resumed non-GUI device tests.
+Read-only checks and synthetic backup probes are allowed. Do not open, tap or
+otherwise manipulate the physical GUI. Do not restore actual guest disks or
+settings as a test. This permission does not remove the VM/GPU execution guards,
+authorize another host restart, or permit operations on the Pixel. Use a separate
+owned emulator for UI QA. Preserve the Android 16 frozen references and APK.
+
+The resumed non-GUI backup probe completed on synthetic 2 MiB data with the
+production JNI lock and Java codec. It first exposed SIGKILL during NIO
+FileStore discovery; direct per-path free-space queries completed instead.
+The signal sender is not established. Test files were removed and host/core
+identities, taint 4608, Enforcing and all six never policies remained unchanged.
+No actual guest data/settings were restored and no VM/GPU/physical GUI started.

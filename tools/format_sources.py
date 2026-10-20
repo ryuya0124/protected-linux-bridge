@@ -48,6 +48,7 @@ def main():
             "tools/android_guest_network",
             "tools/terminal_probe",
             "tools/debian_image_probe",
+            "tools/backup_probe",
         )
         for p in (ROOT / folder).rglob("*.java")
     ]

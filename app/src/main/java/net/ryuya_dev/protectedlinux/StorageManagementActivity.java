@@ -56,11 +56,9 @@ public final class StorageManagementActivity extends AppCompatActivity {
     items.removeAllViews();
     status = text(getString(R.string.checking), 16);
     items.addView(status);
-    refresh = new MaterialButton(this);
-    refresh.setText(R.string.storage_refresh);
+    refresh = UiKit.textAction(items, R.string.storage_refresh);
     refresh.setEnabled(false);
     refresh.setOnClickListener(v -> refresh());
-    items.addView(refresh);
     worker.submit(
         () -> {
           JSONObject result = null;
@@ -105,44 +103,53 @@ public final class StorageManagementActivity extends AppCompatActivity {
                 result.getInt("busy") == 1 ? R.string.asset_running : R.string.asset_read_only),
             14));
     JSONArray entries = result.getJSONArray("items");
-    String[] ids = {
-      "runtime",
-      "android-gpu4g-runtime",
-      "android-gpu4g-surface-runtime",
-      "kernels",
-      "vm",
-      "vm-mainline",
-      "android-guests",
-      "kernel-probes",
-      "debian-images",
-      "backup-recovery",
-      "backup-jobs"
-    };
-    int[] titles = {
-      R.string.asset_runtime,
-      R.string.asset_gpu,
-      R.string.asset_surface,
-      R.string.asset_kernels,
-      R.string.asset_debian,
-      R.string.asset_mainline,
-      R.string.asset_android,
-      R.string.asset_diagnostics,
-      R.string.backup_debian_image,
-      R.string.backup_previous,
-      R.string.backup_staging
-    };
+    java.util.Map<String, JSONObject> catalog = new java.util.HashMap<>();
+    for (int index = 0; index < entries.length(); index++) {
+      JSONObject item = entries.getJSONObject(index);
+      if (catalog.put(item.getString("id"), item) != null)
+        throw new JSONException("duplicate catalog");
+    }
+    assetGroup(
+        catalog,
+        R.string.ui_debian_name,
+        new String[] {"debian-images", "vm", "vm-mainline", "kernels"},
+        new int[] {
+          R.string.backup_debian_image,
+          R.string.asset_debian,
+          R.string.asset_mainline,
+          R.string.asset_kernels
+        });
+    assetGroup(
+        catalog,
+        R.string.ui_android_name,
+        new String[] {"android-guests", "android-gpu4g-runtime", "android-gpu4g-surface-runtime"},
+        new int[] {R.string.asset_android, R.string.asset_gpu, R.string.asset_surface});
+    assetGroup(
+        catalog,
+        R.string.ui_app_data,
+        new String[] {"runtime", "backup-recovery", "backup-jobs", "kernel-probes"},
+        new int[] {
+          R.string.asset_runtime,
+          R.string.backup_previous,
+          R.string.backup_staging,
+          R.string.asset_diagnostics
+        });
+    if (!catalog.isEmpty()) throw new JSONException("unknown catalog");
+    items.addView(text(getString(R.string.asset_explanation), 14));
+  }
+
+  private void assetGroup(
+      java.util.Map<String, JSONObject> catalog, int title, String[] ids, int[] titles)
+      throws JSONException {
+    UiKit.section(items, title);
     for (int index = 0; index < ids.length; index++) {
-      JSONObject entry = entries.getJSONObject(index);
-      if (!ids[index].equals(entry.getString("id"))) throw new JSONException("catalog");
-      MaterialCardView card = new MaterialCardView(this);
-      LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2);
-      params.topMargin = dp(12);
-      items.addView(card, params);
+      JSONObject entry = catalog.remove(ids[index]);
+      if (entry == null) throw new JSONException("missing catalog");
+      MaterialCardView card = UiKit.card(items);
       LinearLayout body = column();
       body.setPadding(dp(18), dp(16), dp(18), dp(16));
       card.addView(body);
       body.addView(text(getString(titles[index]), 19));
-      body.addView(text("files/" + ids[index], 12));
       body.addView(
           text(
               getString(
@@ -155,7 +162,6 @@ public final class StorageManagementActivity extends AppCompatActivity {
       else if (!entry.getBoolean("present"))
         body.addView(text(getString(R.string.asset_absent), 14));
     }
-    items.addView(text(getString(R.string.asset_explanation), 14));
   }
 
   private String size(long bytes) {
@@ -169,9 +175,13 @@ public final class StorageManagementActivity extends AppCompatActivity {
   }
 
   private TextView text(String value, int sp) {
-    TextView view = new TextView(this);
-    view.setText(value);
-    view.setTextSize(sp);
+    TextView view =
+        UiKit.text(
+            this,
+            value,
+            sp >= 18
+                ? com.google.android.material.R.style.TextAppearance_Material3_TitleMedium
+                : com.google.android.material.R.style.TextAppearance_Material3_BodyMedium);
     view.setPadding(0, dp(8), 0, dp(8));
     view.setTextIsSelectable(true);
     view.setLayoutParams(new ViewGroup.LayoutParams(-1, -2));
