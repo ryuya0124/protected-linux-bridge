@@ -2,7 +2,7 @@
 <resources>
   <string name="app_name">Protected Linux Bridge</string>
   <string name="intro">Android標準ターミナルから、保護VM上のDebianを開きます。</string>
-  <string name="experimental">検証版 · Android 16 / Terminal 16</string>
+  <string name="experimental">Android 17移植版・実機未検証</string>
   <string name="root_title">VM起動支援</string>
   <string name="framework_title">Vectorとの接続</string>
   <string name="checking">確認中…</string>
@@ -181,7 +181,7 @@ plb-udp-forward 5353 1.1.1.1 53 でゲストのlocalhost:5353を指定したUDP�
   <string name="android_guest_starting">Android 17ゲストを起動中… 初回は数分かかる場合があります。</string>
   <string name="android_guest_connected">Android 17・実験用・%1$s・低速な画面取得</string>
   <string name="android_guest_gpu_connected">Android 17・実験用・%1$s・GPUテクスチャ表示</string>
-  <string name="android_guest_unsupported">このAndroidゲストはSM-S948Q／Android 16のみで確認しています。</string>
+  <string name="android_guest_unsupported">解析対象のSM-S948Q／Android 17 ROMとTerminal 37が必要です。</string>
   <string name="android_guest_root_error">rootを利用できません。root管理アプリでProtected Linux Bridgeを許可してください。</string>
   <string name="android_guest_missing">ゲスト用ファイルが未配置、または権限を確認できません。リポジトリの手順でAndroidプロファイルを準備してください。</string>
   <string name="android_guest_busy">ほかのVMまたはディスク操作が起動支援を使用中です。終了してから開き直してください。</string>
@@ -217,4 +217,25 @@ plb-udp-forward 5353 1.1.1.1 53 でゲストのlocalhost:5353を指定したUDP�
   <string name="android_guest_gpu_surface_details">準備済み4GiBゲストの別コピーを使います。先に従来の4GiB構成を準備してください。スクリーンショット転送を使わずGPUのテクスチャで表示します。60fps・ゼロコピーは未確認です。ビューアを閉じるとVMが終了します。従来の表示方式も引き続き選べます。</string>
   <string name="android_guest_gpu_summary">4096MiB RAMとAdreno GLESを使う独立したAndroid 17です。GPU転送は別コピーのディスクを使います。GunyahのENOMEMで起動に失敗する場合があります。次の画面で、一時的なホスト全体の設定と起動準備に使うRAMを確認してから起動します。</string>
   <string name="android_guest_network_stopped">VMの終了に伴い通信も停止しました</string>
+  <string name="asset_title">VMファイルのストレージ</string>
+  <string name="asset_back">戻る</string>
+  <string name="asset_unavailable">容量を取得できません。Bridgeのroot権限を許可して再試行してください。VMの起動・停止は行っていません。</string>
+  <string name="asset_device_space">端末の空き容量 %1$s ／ 全体 %2$s</string>
+  <string name="asset_sizes">ディスク上の使用量：%1$s\nファイルサイズ：%2$s・%3$dファイル</string>
+  <string name="asset_running">VMまたは管理処理が使用中です。容量の確認で中断しません。</string>
+  <string name="asset_read_only">読み取り専用の一覧です。再読み込みで概算値を更新します。</string>
+  <string name="asset_runtime">共通ランタイム・VMM／ツール</string>
+  <string name="asset_gpu">Android GLESランタイム</string>
+  <string name="asset_surface">直接表示ランタイム</string>
+  <string name="asset_kernels">追加したゲストカーネル</string>
+  <string name="asset_debian">Debian・Microdroid構成</string>
+  <string name="asset_mainline">Debian・独自カーネル構成</string>
+  <string name="asset_android">Androidゲストのディスク・バックアップ</string>
+  <string name="asset_diagnostics">実験用ファイル・ログ</string>
+  <string name="asset_partial">一部未取得：読み取り不可・変更中・安全のため対象外の項目があります。</string>
+  <string name="asset_absent">未配置</string>
+  <string name="asset_explanation">使用量はホストの割り当てブロック、ファイルサイズは見かけの長さです。QCOW2の仮想容量・ゲストの空き容量とは異なります。共有・ハードリンクされたファイルは重複計上される場合があります。システムAPEXは集計対象外です。ディスクの容量変更・圧縮・復元は前の画面から行えます。この画面は永続ディスク・バックアップ・ゲストカーネル・依存ランタイムを削除しません。</string>
+  <string name="host17_title">Android 17への移植</string>
+  <string name="host17_detail">このブランチはAndroid 17／S948QOPU1BZI9専用です。Terminal 37とROMを静的解析していますが、実機でのVM起動・GPU動作は未検証です。Android 16のpreview.9は別ブランチで固定しています。AndroidゲストのGPU描画経路は移植中のため起動できません。既存ディスクは保持します。</string>
+  <string name="host17_android_pending">このAndroid 17移植版ではAndroidゲストの起動を停止しています。描画経路の移植と実機確認が必要です。既存のゲストディスクは変更していません。</string>
 </resources>

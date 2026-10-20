@@ -30,9 +30,8 @@ public final class HookEntry extends XposedModule {
             if (!RuntimeSetup.HOST.equals(Application.getProcessName())) return;
             java.util.List<ModernHook.Handle> installed = new java.util.ArrayList<>();
             try {
-              if (Build.VERSION.SDK_INT != 36
-                  || c.getPackageManager().getPackageInfo(RuntimeSetup.HOST, 0).getLongVersionCode()
-                      != 36) throw new IllegalStateException("Untested Terminal/OS version");
+              if (!HostPlatform.compatible(c))
+                throw new IllegalStateException("Unrecognized Android 17 ROM/Terminal");
               Class<?> main =
                   Class.forName(RuntimeSetup.HOST + ".MainActivity", false, p.getClassLoader());
               Class<?> fragment =

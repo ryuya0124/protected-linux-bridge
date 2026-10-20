@@ -18,6 +18,8 @@
 #include <stddef.h>
 #include "stream_relay.h"
 #include <stdint.h>
+#include "host_android17.h"
+#include "../tools/host_memory_health.h"
 #ifdef PLB_STORAGE_TEST
 #define BASE "/data/user/0/net.ryuya_dev.protectedlinux/files/vm-storage-test"
 #define KERNEL_FILE "/apex/com.android.virt/etc/fs/microdroid_kernel"
@@ -484,6 +486,10 @@ int main(int argc, char **argv) {
     if (stat("/dev/gunyah", &device) || !S_ISCHR(device.st_mode) || access(KERNEL_FILE, R_OK) ||
         access("/apex/com.android.virt/bin/crosvm", X_OK))
         return 25;
+    if (!host17_admitted() || !plb_host_memory_healthy()) {
+        fprintf(stderr, "HOST17_IDENTITY_UNSUPPORTED\n");
+        return 79;
+    }
     int owner_lock = profile_lock();
     if (owner_lock < 0)
         return 28;

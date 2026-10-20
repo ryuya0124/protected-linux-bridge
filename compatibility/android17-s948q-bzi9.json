@@ -1,0 +1,76 @@
+{
+  "schema": 1,
+  "status": "offline-inspection-only",
+  "device_available": false,
+  "host": {
+    "model": "SM-S948Q",
+    "build": "S948QOPU1BZI9",
+    "display_id": "CP2A.260605.016.S948QOPU1BZI9",
+    "sdk": 37,
+    "release": "17",
+    "oneui": 90000,
+    "kernel_release": "6.12.69-android16-6-pee899be-abogkiS948QOPU1BZI9-4k",
+    "kernel_image_sha256": "59b0d7506c29b9363a563312e772123ac259bc82d9b267ae8d51bb0356ef3845"
+  },
+  "rom_zip": "SM-S948Q_1_20260914084841_63d8br85sd_fac.zip",
+  "apex": {
+    "path": "/system/apex/com.android.virt.apex",
+    "sha256": "ba40ddaa643c91aaa02e0ea5c5a08f7d87faa92b2e8a700128953dcf641764eb",
+    "bytes": 68837376
+  },
+  "files": [
+    {
+      "path": "/bin/crosvm",
+      "bytes": 13511360,
+      "sha256": "a0cfa5b957d119202b85a069928b3b56bd080329efed42eb83b182c9513885e9"
+    },
+    {
+      "path": "/etc/fs/microdroid_kernel",
+      "bytes": 11714560,
+      "sha256": "02f0044263e79ae95f321325ca1741d092f0c78c693b8114830d6e1ff2849aae"
+    },
+    {
+      "path": "/priv-app/VmTerminalApp@CP2A.260605.016/VmTerminalApp.apk",
+      "bytes": 15980308,
+      "sha256": "e493cb1ad8798e3a2c0320c6edd5c909ecf963fb4a37f165cb3de57015705c55",
+      "version_code": 37,
+      "version_name": "17"
+    }
+  ],
+  "renderer": {
+    "separate_apex_library_present": false,
+    "crosvm_gfxstream_implementation_strings_present": true,
+    "runtime_linkage_verified": false,
+    "old_gpu_bundle_enabled": false
+  },
+  "host_kernel_config": {
+    "CONFIG_ARM64_4K_PAGES": "y",
+    "CONFIG_SHMEM": "y",
+    "CONFIG_TRANSPARENT_HUGEPAGE": "y",
+    "CONFIG_TRANSPARENT_HUGEPAGE_MADVISE": "y",
+    "CONFIG_GUNYAH": "y",
+    "CONFIG_GUNYAH_HYPERCALLS": "y",
+    "CONFIG_GUNYAH_IRQFD": "y",
+    "CONFIG_GUNYAH_IOEVENTFD": "y",
+    "CONFIG_GUNYAH_QCOM_TRUSTED_VM": "y",
+    "CONFIG_HUGETLBFS": "n",
+    "CONFIG_CMA": "y",
+    "CONFIG_CMA_SIZE_MBYTES": "16"
+  },
+  "validation": {
+    "terminal_hook_contract": "static-verified",
+    "terminal_root_part_layout": "static-verified",
+    "debian_boot": "not-tested",
+    "android_guest_boot": "not-tested-disabled",
+    "gpu": "not-tested",
+    "memory_stability": "not-tested",
+    "vulkan": "disabled-host-panic-history"
+  },
+  "android16": {
+    "commit": "d38015f",
+    "branch": "android16-frozen",
+    "tag": "android16-final",
+    "release": "v0.4.0-preview.9",
+    "apk_sha256": "7853c4d842ff3b097d70bdf1c25381be54b0a77460886fb46ce0ab5a2984fd2e"
+  }
+}

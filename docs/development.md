@@ -1,3 +1,6 @@
+> Android 17 branch: see [the current port record](android17-port.md).
+> Historical device results in other documents describe Android 16 unless stated otherwise.
+
 # Development
 
 ## Device invariants
@@ -6,7 +9,7 @@ Temporary root and a locked bootloader are the intended environment. No host ker
 
 ## Stock app contract
 
-The tested stock app throws `UnsupportedOperationException` when it requests a non-protected VM. The module gates on SDK 36 / Terminal versionCode 36, resolves the actual fields and methods first, and rolls back partial hooks. Only the main process of `com.android.virtualization.terminal` is scoped.
+The tested stock app throws `UnsupportedOperationException` when it requests a non-protected VM. The module gates on the inspected SDK 37 / Terminal versionCode 37 ROM/APK identity, resolves the actual fields and methods first, and rolls back partial hooks. Only the main process of `com.android.virtualization.terminal` is scoped.
 
 | Hook | Purpose |
 |---|---|
@@ -36,14 +39,14 @@ Network and GUI details are in [the architecture record](architecture.md). Neith
 
 ## Build
 
-Requirements: JDK 21, Android SDK API 37, NDK `28.2.13676358`, Python 3; Gradle wrapper 9.6.1 / AGP 9.3.2. App target/min API 36. Set `sdk.dir` in untracked `local.properties`.
+Requirements: JDK 21, Android SDK API 37, NDK `28.2.13676358`, Python 3; Gradle wrapper 9.6.1 / AGP 9.3.2. App target/min API 37. Set `sdk.dir` in untracked `local.properties`.
 
 ```sh
 python3 -m unittest discover -s tests -v
 ./gradlew :app:assembleRelease :app:testDebugUnitTest :app:lintRelease
 ```
 
-`tools/build_native.py` compiles Android manager/proxy, freestanding guest init and a static musl guest agent. First build downloads the pinned musl 1.2.5 source and the pinned Termux Android GPU user-space package, verifies their SHA256 values and builds only libc/user-space. The GPU package is extracted selectively; it never installs or updates Termux or a kernel. NDK compiler-rt builtins are linked. The guarded Android 1.5 GiB manager/backing variant is bundled separately; see [its implementation and validation](android-large-profile.md). The ordinary APK build does not download/build a kernel; the separate `kernels/` recipe does. Raw cpio is used because this existing guest kernel has no gzip-initramfs support.
+`tools/build_native.py` compiles Android manager/proxy, freestanding guest init and a static musl guest agent. First build downloads the pinned musl 1.2.5 source and the pinned Termux Android GPU user-space package, verifies their SHA256 values and builds only libc/user-space. The GPU package is extracted selectively; it never installs or updates Termux or a kernel. NDK compiler-rt builtins are linked. The Android 16 Android/GPU bundles are omitted on this branch pending Android 17 renderer qualification. The ordinary APK build does not download/build a kernel; the separate `kernels/` recipe does. Raw cpio is used because this existing guest kernel has no gzip-initramfs support.
 
 Set `PROTECTED_LINUX_SIGNING_PROPERTIES` to a private properties file with `storeFile`, `storePassword`, `keyAlias`, `keyPassword` for a signed release. Never commit the file/key. Without it, the release APK is unsigned. The output is `app/build/outputs/apk/release/app-release.apk`.
 

@@ -2,7 +2,7 @@
 <resources>
   <string name="app_name">Protected Linux Bridge</string>
   <string name="intro">Open a protected Debian VM inside Android’s Terminal app.</string>
-  <string name="experimental">Experimental · Android 16 / Terminal 16</string>
+  <string name="experimental">Android 17 port · device validation pending</string>
   <string name="root_title">VM launcher</string>
   <string name="framework_title">Vector connection</string>
   <string name="checking">Checking…</string>
@@ -181,7 +181,7 @@ plb-udp-forward 5353 1.1.1.1 53 forwards guest localhost:5353 to the specified U
   <string name="android_guest_starting">Starting Android 17 guest… First boot may take several minutes.</string>
   <string name="android_guest_connected">Android 17 · experimental · %1$s · slow frame capture</string>
   <string name="android_guest_gpu_connected">Android 17 · experimental · %1$s · GPU texture display</string>
-  <string name="android_guest_unsupported">This Android guest profile is verified only on SM-S948Q / Android 16.</string>
+  <string name="android_guest_unsupported">Requires the inspected SM-S948Q Android 17 ROM and Terminal 37.</string>
   <string name="android_guest_root_error">Root is unavailable. Allow Protected Linux Bridge in your root manager.</string>
   <string name="android_guest_missing">Guest files are missing or have unsafe permissions. Prepare the pinned Android profile using the repository guide.</string>
   <string name="android_guest_busy">Another VM or storage operation is using the launcher. Close it and retry.</string>
@@ -217,4 +217,25 @@ plb-udp-forward 5353 1.1.1.1 53 forwards guest localhost:5353 to the specified U
   <string name="android_guest_gpu_surface_details">Uses a separate copy of the prepared 4 GiB guest. Prepare the existing 4 GiB profile first. Uses a GPU texture instead of screenshot transfer; 60 fps and zero-copy are not established. Closing the viewer ends this VM. The existing display mode remains available.</string>
   <string name="android_guest_gpu_summary">Separate Android 17 guest with 4096 MiB RAM and Adreno GLES. GPU transfer uses a separate disk copy. Startup may fail with Gunyah ENOMEM; the next screen explains the temporary host-wide settings and RAM preparation before launch.</string>
   <string name="android_guest_network_stopped">Network stopped with the guest VM</string>
+  <string name="asset_title">VM asset storage</string>
+  <string name="asset_back">Back</string>
+  <string name="asset_unavailable">Storage could not be read. Allow root for Bridge and retry. No VM has been started or stopped.</string>
+  <string name="asset_device_space">%1$s available / %2$s device storage</string>
+  <string name="asset_sizes">Allocated: %1$s\nFile size: %2$s · %3$d files</string>
+  <string name="asset_running">A VM or management operation holds the owner lock. Reading sizes does not interrupt it.</string>
+  <string name="asset_read_only">Read-only inventory. Refresh to update these live estimates.</string>
+  <string name="asset_runtime">Shared runtime · VMMs and tools</string>
+  <string name="asset_gpu">Android GLES runtime</string>
+  <string name="asset_surface">Direct display runtime</string>
+  <string name="asset_kernels">Imported guest kernels</string>
+  <string name="asset_debian">Debian · Microdroid profile</string>
+  <string name="asset_mainline">Debian · custom kernel profile</string>
+  <string name="asset_android">Android guest disks and backups</string>
+  <string name="asset_diagnostics">Experimental assets and logs</string>
+  <string name="asset_partial">Incomplete: some entries were inaccessible, changed, or were skipped for safety.</string>
+  <string name="asset_absent">Not installed</string>
+  <string name="asset_explanation">Allocated bytes are host filesystem blocks; file size is not QCOW2 virtual capacity or guest free space. Shared/hard-linked files can be counted more than once. System APEX files are outside this app inventory. Existing disk resize, compact and recovery controls remain on the previous screen. Persistent disks, backups, guest kernels and runtime dependencies are never deleted by this screen.</string>
+  <string name="host17_title">Android 17 port</string>
+  <string name="host17_detail">This branch is dedicated to Android 17 / S948QOPU1BZI9. Terminal 37 and the ROM were inspected offline; VM boot and GPU operation have not been verified on a device. Android 16 preview.9 is frozen separately. Android GPU guests remain unavailable while their renderer integration is ported. Existing disks are retained.</string>
+  <string name="host17_android_pending">Android guest startup is unavailable in this Android 17 port. The renderer integration needs porting and device validation. Your existing guest disks have not been changed.</string>
 </resources>

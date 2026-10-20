@@ -40,6 +40,7 @@ final class AndroidGuestRuntime {
 
   static int errorMessage(int code) {
     return switch (code) {
+      case 79 -> R.string.host17_android_pending;
       case 21 -> R.string.android_guest_missing;
       case 23 -> R.string.android_guest_headroom;
       case 28, 30 -> R.string.android_guest_busy;
@@ -60,7 +61,9 @@ final class AndroidGuestRuntime {
   static Process start(
       Context context, int memoryMib, boolean policyAcknowledged, boolean gpuSurface)
       throws Exception {
-    if (android.os.Build.VERSION.SDK_INT != 36 || !android.os.Build.MODEL.equals("SM-S948Q"))
+    if (!HostContract.ANDROID_GUEST_READY)
+      throw new java.io.IOException(context.getString(R.string.host17_android_pending));
+    if (!HostPlatform.compatible(context))
       throw new java.io.IOException(context.getString(R.string.android_guest_unsupported));
     if (gpuSurface && memoryMib != 4096) throw new java.io.IOException("GPU Surface profile");
     boolean large = AndroidGuestProfile.guarded(memoryMib);

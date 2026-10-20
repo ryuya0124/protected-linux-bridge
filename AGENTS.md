@@ -367,3 +367,17 @@ APK transfer again ended with Gunyah PAGE_FAULT -12 at 08:08:26 JST. Garupa was
 not installed and the HTTPS/Aurora checks did not complete. Read-only postflight
 retained the same host boot ID, taint 4608, Enforcing and all six never values.
 Do not retry another VM/startup/allocation trial under either spent approval.
+
+
+## Android 17 branch isolation, user request 2026-10-20
+
+- `android16-frozen` and `android16-final` are fixed at d38015f; do not move them
+  or change the Android 16 preview.9 release. Its device is no longer available.
+- `codex/android17-host` targets Android 17 only (min/target SDK 37). Do not add
+  Android 16 runtime branches or backport the new storage UI into the frozen line.
+- No Galaxy is available now. ROM inspection and host builds are not device tests.
+- The inspected SM-S948Q S948QOPU1BZI9 ROM has kernel 6.12.69, Terminal versionCode
+  37 and a different stock VMM. Its virtualization APEX has no gfxstream backend.
+  Do not substitute old hashes or declare Android/GPU guests compatible. This
+  branch omits their old bundled runtime; retain guest data unchanged.
+- Keep inspection-heavy images on Windows/WSL, not the space-constrained Mac.

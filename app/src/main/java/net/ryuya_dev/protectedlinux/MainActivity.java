@@ -147,6 +147,8 @@ public final class MainActivity extends AppCompatActivity {
     androidGuestCard(pages[3]);
     kernelCard(pages[3]);
     resourcesCard(pages[3]);
+    button(R.string.asset_title, pages[3])
+        .setOnClickListener(v -> startActivity(new Intent(this, StorageManagementActivity.class)));
     storageCard(pages[3]);
     button(R.string.enable_terminal, page).setOnClickListener(v -> setupTerminal(false));
     button(R.string.install_linux, page).setOnClickListener(v -> setupTerminal(true));
@@ -208,6 +210,7 @@ public final class MainActivity extends AppCompatActivity {
         });
     open.setEnabled(toggle.isChecked());
     page = pages[3];
+    info(page, R.string.host17_title, R.string.host17_detail);
     info(page, R.string.setup_title, R.string.setup);
     info(page, R.string.limits_title, R.string.limits);
     info(page, R.string.network_title, R.string.network_detail);
@@ -880,6 +883,10 @@ public final class MainActivity extends AppCompatActivity {
     body.setPadding(dp(18), dp(14), dp(18), dp(14));
     card.addView(body);
     body.addView(text(getString(R.string.android_guest_title), 20));
+    if (!HostContract.ANDROID_GUEST_READY) {
+      body.addView(text(getString(R.string.host17_android_pending), 14));
+      return;
+    }
     body.addView(text(getString(R.string.android_guest_description), 14));
     button(R.string.android_guest_open, body)
         .setOnClickListener(

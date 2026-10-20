@@ -25,9 +25,7 @@ final class RuntimeSetup {
     try {
       if (!java.util.Arrays.asList(android.os.Build.SUPPORTED_64_BIT_ABIS).contains("arm64-v8a"))
         return "unsupported_architecture";
-      if (android.os.Build.VERSION.SDK_INT != 36
-          || context.getPackageManager().getPackageInfo(HOST, 0).getLongVersionCode() != 36)
-        return "unsupported_version";
+      if (!HostPlatform.compatible(context)) return "unsupported_version";
       int uid = context.getPackageManager().getApplicationInfo(HOST, 0).uid;
       if (uid < 10000 || uid > 19999) return "primary_user_required";
       File runtime = new File(context.getFilesDir(), "runtime");

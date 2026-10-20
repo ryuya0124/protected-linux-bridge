@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 from pathlib import Path
-import argparse, subprocess, stat, platform, hashlib, json, shlex, sys
+import argparse, subprocess, stat, platform, hashlib
 from build_guest_runtime import build as build_guest
 from fetch_gpu_runtime import fetch as fetch_gpu
 from build_clipboard_worker import build as build_clipboard
 from build_tun import build as build_tun
 from fetch_storage_runtime import fetch as fetch_storage
-from build_android_gpu4g_app import build as build_android_gpu4g
 
 p = argparse.ArgumentParser()
 p.add_argument("--sdk", required=True)
@@ -30,6 +29,11 @@ identity_files = (
 )
 identity = hashlib.sha256(b"".join(p.read_bytes() for p in sorted(identity_files))).hexdigest()[:20]
 base = [str(clang), "-O2", "-Wall", "-Wextra", "-Werror", f'-DPLB_BUILD_ID="{identity}"']
+subprocess.run(
+    base
+    + ["-fPIE", "-pie", "-o", str(out / "asset-inventory"), str(root / "native/asset_inventory.c")],
+    check=True,
+)
 subprocess.run(
     base
     + [
@@ -69,91 +73,19 @@ subprocess.run(
     ],
     check=True,
 )
-# The guest setup source is kept readable; only the C string wrapper is generated.
-setup = (root / "native/android_guest_setup.sh").read_text()
-(temp / "android_guest_setup.generated.h").write_text(
-    "/* Generated from native/android_guest_setup.sh. */\n"
-    + "static const char android_setup_service[] =\n"
-    + json.dumps("exec:sh -c " + shlex.quote(setup))
-    + ";\n"
-)
-subprocess.run(
-    base
-    + [
-        "-I",
-        str(temp),
-        "-fPIE",
-        "-pie",
-        "-o",
-        str(out / "android-bridge"),
-        str(root / "native/android_guest_manager.c"),
-    ],
-    check=True,
-)
-# Distinct manager/library identities and disks prevent cross-profile reuse.
-for memory in (1536, 1792):
-    suffix = "" if memory == 1536 else "1792"
-    large_library = out / f"libandroid-memory{suffix}.so"
-    profile_flags = [f"-DPLB_ANDROID_LARGE_MEMORY_MIB={memory}"]
-    subprocess.run(
-        base
-        + profile_flags
-        + [
-            "-shared",
-            "-fPIC",
-            "-DPLB_ANDROID_LARGE_BACKING=1",
-            str(root / "tools/memory_backing_probe.c"),
-            "-o",
-            str(large_library),
-        ],
-        check=True,
-    )
-    (temp / f"android_large{suffix}_build.generated.h").write_text(
-        "/* Generated from this profile's bundled, scoped memory library. */\n"
-        + '#define PLB_LARGE_LIBRARY_SHA256 "'
-        + hashlib.sha256(large_library.read_bytes()).hexdigest()
-        + '"\n'
-    )
-    executable = "android-large-bridge" if memory == 1536 else "android-large1792-bridge"
-    subprocess.run(
-        base
-        + profile_flags
-        + [
-            "-I",
-            str(temp),
-            "-DPLB_ANDROID_LARGE_PROFILE=1",
-            "-fPIE",
-            "-pie",
-            "-o",
-            str(out / executable),
-            str(root / "native/android_guest_manager.c"),
-        ],
-        check=True,
-    )
-
-tunnel = build_tun(root, Path(a.sdk))
-build_android_gpu4g(root, Path(a.sdk), out, clang)
-# Optional measured Surface VMM: omitted rather than substituted on missing input.
-surface_library = (
-    root
-    / "artifacts/android4g-gpu/vmm-build/target/aarch64-linux-android/release/libplb_crosvm_surface.so"
-)
-if surface_library.is_file():
-    subprocess.run(
-        [
-            sys.executable,
-            str(root / "tools/build_android_surface_runtime.py"),
-            "--sdk",
-            a.sdk,
-            "--product-assets",
-            str(out),
-        ],
-        check=True,
-    )
-else:
-    for obsolete in out.glob("gpu4g-surface-*"):
+# The Android 17 ROM lacks the separate host renderer library used by Android 16
+# bundles. Do not package stale GPU/Android binaries from a previous build.
+# Debian uses the separate virgl runtime below; Android guests await qualification.
+for pattern in (
+    "android-bridge",
+    "android-large*-bridge",
+    "libandroid-memory*.so",
+    "gpu4g-*",
+    "android-gpu4g*-bridge",
+):
+    for obsolete in out.glob(pattern):
         obsolete.unlink()
-    (out / "android-gpu4g-surface-bridge").unlink(missing_ok=True)
+tunnel = build_tun(root, Path(a.sdk))
 
 fetch_gpu(root, out)
 build_clipboard(root, Path(a.sdk), out)
