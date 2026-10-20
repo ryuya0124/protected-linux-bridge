@@ -37,6 +37,8 @@ Android 16の最終版は[v0.4.0-preview.9](https://github.com/ryuya0124/protect
 [Debian導入の詳細](docs/debian-setup.md)と[バックアップ・個別復元の使い方](docs/backup-and-restore.md)を参照してください。バックアップは暗号化されず、復元前のコピーは自動削除しません。実行中のVMをコピーする処理は拒否します。
 
 標準ターミナルとの連携も使いたい場合は、「設定」→「標準ターミナルとの連携」で準備し、Vectorの適用先を**ターミナル (`com.android.virtualization.terminal`) だけ**にしてください。
+Linux導入済みの場合、「Linuxインストール画面を開く」は導入済みの説明を表示します。標準ターミナルを開くか、Bridge内のDebian導入画面へ進めます。既存データは保持します。
+
 
 ## 画面の見方
 

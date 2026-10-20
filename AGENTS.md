@@ -669,3 +669,25 @@ camera forwarding. Other vendor-property read denials are observed, causality
 unproven. Final sensor+silent-audio checks passed, VMM0/controller0 and unchanged
 host/source-disk postflight passed, but camera/overall instrumentation failed.
 No further compaction was performed. Preserve gate=false and existing constraints.
+
+## Offscreen YUV follow-up and installer report, 2026-10-21 JST
+
+The user requests fixing the YUV-target blocker and reports the Linux installer
+closing. Native host Adreno supports real YUV AHB output. A separate, compile-time
+translator experiment now passes eight positive cases including native Y/U/V
+planes, out-of-gamut raw sampling, conversion, RGBA regression and context rebind.
+The normal translator rejects that external framebuffer. Do not treat these as
+full API conformance or a guest camera fix: guest encoder/ColorBuffer/fence paths
+remain unqualified. Keep the extension unadvertised, baseline runtime unchanged,
+Vulkan disabled and production readiness false. No VM or physical media capture
+ran in this YUV round. An initial harness callback omission crashed only its own
+probe; later tests pass and core/trusted VM/boot/taint/enforcement remain unchanged.
+No additional compaction or host policy write is authorized or performed.
+
+The user explicitly allowed stopping Debian after its idle bridge held the common
+owner lease. Normal --stop returned0; no disks were altered. Do not kill unrelated
+processes. Installer events show app-request finish, not a matching process crash;
+the existing stock image/completed marker makes InstallerActivity return RESULT_OK.
+The app now reports installed state and offers Terminal/Bridge setup without
+removing that marker/image. GUI is still not operated in this round; do not claim
+updated dialog or missing-image installer UI device validation.

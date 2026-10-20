@@ -105,6 +105,16 @@
       "camera command initially failed on SELinux PTY FD transfer; null stdin/piped output fixed it without policy changes",
       "camera hardware check refuses missing GL_EXT_YUV_target; clean VM shutdown does not make failed camera test a pass"
     ],
-    "latest_camera_session_shutdown": "VMM0/controller0, normal guest shutdown and clean host postflight; camera/overall instrumentation failed"
+    "latest_camera_session_shutdown": "VMM0/controller0, normal guest shutdown and clean host postflight; camera/overall instrumentation failed",
+    "yuv_target": {
+      "record": "docs/android17-yuv-target.md",
+      "native_host_gles": "Adreno 840; actual YUV AHB output and raw sampling pass",
+      "experimental_translator": "eight offscreen positive checks; 4992 components checked without mismatches within tolerance; context rebind/independent targets pass; exit0",
+      "baseline_translator": "same YUV external framebuffer rejected; exit30",
+      "guest_encoder_and_colorbuffer": "not connected/qualified; virtual camera remains blocked",
+      "guest_extension_advertised": false,
+      "physical_camera_opened": false,
+      "vm_started_in_yuv_round": false
+    }
   }
 }

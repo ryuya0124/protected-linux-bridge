@@ -349,4 +349,7 @@ plb-udp-forward 5353 1.1.1.1 53 forwards guest localhost:5353 to the specified U
   <string name="ui_apply_short">Apply</string>
   <string name="ui_save_short">Save</string>
   <string name="ui_save_restart_short">Save and restart VM</string>
+  <string name="stock_linux_installed_title">Linux is already installed</string>
+  <string name="stock_linux_installed_detail">The stock installer closes automatically when Linux is already installed. Your existing image has been retained. Open Terminal, or manage the separate Debian image used by Bridge.</string>
+  <string name="stock_linux_manage">Bridge Debian setup</string>
 </resources>

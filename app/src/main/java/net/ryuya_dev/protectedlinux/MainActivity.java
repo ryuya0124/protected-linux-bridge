@@ -329,17 +329,7 @@ public final class MainActivity extends AppCompatActivity {
         R.string.ui_stock_installer_summary,
         () -> setupTerminal(true));
     open = UiKit.action(terminal, R.string.open_terminal, R.drawable.ic_console, true);
-    open.setOnClickListener(
-        v -> {
-          try {
-            startActivity(
-                new Intent()
-                    .setComponent(
-                        new ComponentName(RuntimeSetup.HOST, RuntimeSetup.HOST + ".MainActivity")));
-          } catch (Exception error) {
-            runtime.show(0, R.string.terminal_missing);
-          }
-        });
+    open.setOnClickListener(v -> openStockTerminal());
     LinearLayout help = detailPage(Detail.ABOUT);
     info(help, R.string.host17_title, R.string.host17_detail);
     info(help, R.string.setup_title, R.string.setup);
@@ -584,15 +574,40 @@ public final class MainActivity extends AppCompatActivity {
     runtime.show(-1, R.string.setup_running);
     worker.submit(
         () -> {
-          boolean ok = TerminalSetup.run(installer);
+          TerminalSetup.Result result = TerminalSetup.run(this, installer);
           runOnUiThread(
               () -> {
-                if (!isDestroyed()) {
+                if (isDestroyed()) return;
+                if (result == TerminalSetup.Result.ALREADY_INSTALLED) {
+                  runtime.show(2, R.string.stock_linux_installed_title);
+                  new MaterialAlertDialogBuilder(this)
+                      .setTitle(R.string.stock_linux_installed_title)
+                      .setMessage(R.string.stock_linux_installed_detail)
+                      .setPositiveButton(
+                          R.string.open_terminal, (dialog, which) -> openStockTerminal())
+                      .setNeutralButton(
+                          R.string.stock_linux_manage,
+                          (dialog, which) -> PageMotion.open(this, DebianSetupActivity.class))
+                      .setNegativeButton(android.R.string.cancel, null)
+                      .show();
+                } else {
+                  boolean ok = result != TerminalSetup.Result.FAILED;
                   runtime.show(ok ? 2 : 0, ok ? R.string.setup_done : R.string.setup_failed);
-                  if (ok && !installer) startRuntime();
+                  if (result == TerminalSetup.Result.ENABLED) startRuntime();
                 }
               });
         });
+  }
+
+  private void openStockTerminal() {
+    try {
+      startActivity(
+          new Intent()
+              .setComponent(
+                  new ComponentName(RuntimeSetup.HOST, RuntimeSetup.HOST + ".MainActivity")));
+    } catch (Exception error) {
+      runtime.show(0, R.string.terminal_missing);
+    }
   }
 
   private void openDesktop() {

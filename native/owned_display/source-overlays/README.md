@@ -67,3 +67,16 @@ fixed arguments and a same-signer test APK. They are developer scaffolding,
 not a portable runtime installer. Missing generated input must fail the build;
 never remove identity/pin/owner/health/guardian checks to make it run. Keep a
 source-and-binary manifest and reject stale binaries after a failed build.
+
+## Separate native YUV diagnostic overlay
+
+`gfxstream-native-yuv-experiment.patch` is an additional, **off by default**
+experiment, not part of `gfxstream-android17.patch`. Its hash is separately
+recorded in `sources.json`. Build all components into a new directory with
+`PLB_GFXSTREAM_NATIVE_YUV_EXPERIMENT=1`; never replace the established runtime.
+It adds independent external texture state and permits native GLES external
+image/FBO paths. It leaves the extension whitelist unchanged, and does not
+implement the guest encoder or writable ColorBuffer transport. Internal state
+layout differs: do not mix libraries or snapshot formats. See the actual native
+and translated YUV plane/sampler tests and remaining requirements in
+[the YUV record](../../../docs/android17-yuv-target.md).

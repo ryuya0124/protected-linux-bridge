@@ -1,0 +1,20 @@
+{
+  "version": "0.5.0-alpha.4",
+  "version_code": 23,
+  "sdk": 37,
+  "release_apk_sha256": "afeabbca162b2f02710a8c01b48f58c7cd8b7cf2b6bc7b0ac27599ec83d13a5f",
+  "signing_certificate_sha256": "548519a543d68d53e1db07743c8ddedff498ad38c7df2bd4bee51085b161948d",
+  "debuggable": false,
+  "jvm_tests": 73,
+  "host_tests": 228,
+  "lint_errors": 0,
+  "lint_warnings": 32,
+  "device_evidence": "stock completed marker present; installer events app-request finish, no matching process crash",
+  "changed_dialog_device_ui": "unverified; no GUI operated",
+  "missing_image_installer_device_ui": "unverified; existing stock/Bridge images preserved",
+  "yuv_diagnostic_record": "docs/android17-yuv-target.md",
+  "android_guest_production_ready": false,
+  "vulkan_enabled": false,
+  "device_apk_updated": true,
+  "device_activity_launched_by_test": false
+}

@@ -10,5 +10,9 @@
     "rutabaga-android17.patch": "c8c834d9b2c6adeb4f5ce387838913bc03bba5f0dda34332681d2a5e752fff17"
   },
   "production_android_guest_enabled": false,
-  "vulkan_enabled": false
+  "vulkan_enabled": false,
+  "experimental_patches": {
+    "gfxstream-native-yuv-experiment.patch": "7de415647880cc88a5a1b4ac501520397976e06feefbd32ccc299bd42e2717e8"
+  },
+  "native_yuv_guest_extension_enabled": false
 }

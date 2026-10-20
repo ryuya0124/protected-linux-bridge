@@ -1,0 +1,110 @@
+diff --git a/host/gl/glestranslator/common/gles_context.cpp b/host/gl/glestranslator/common/gles_context.cpp
+index 10aedb1..b07fcfe 100644
+--- a/host/gl/glestranslator/common/gles_context.cpp
++++ b/host/gl/glestranslator/common/gles_context.cpp
+@@ -812,6 +812,11 @@ void GLEScontext::postLoadRestoreCtx() {
+                     case TEXTURE_2D_MULTISAMPLE:
+                         texTarget = GL_TEXTURE_2D_MULTISAMPLE;
+                         break;
++#ifdef PLB_GFXSTREAM_NATIVE_YUV_EXPERIMENT
++                    case TEXTURE_EXTERNAL:
++                        texTarget = GL_TEXTURE_EXTERNAL_OES;
++                        break;
++#endif
+                     case TEXTURE_BUFFER:
+                         texTarget = GL_TEXTURE_BUFFER;
+                         break;
+@@ -2149,6 +2154,11 @@ bool GLEScontext::glGetIntegerv(GLenum pname, GLint *params)
+             *params = m_texState[m_activeTexture][TEXTURE_CUBE_MAP].texture;
+             break;
+ 
++#ifdef PLB_GFXSTREAM_NATIVE_YUV_EXPERIMENT
++        case GL_TEXTURE_BINDING_EXTERNAL_OES:
++            *params = m_texState[m_activeTexture][TEXTURE_EXTERNAL].texture;
++            break;
++#endif
+         case GL_TEXTURE_BINDING_2D:
+             *params = m_texState[m_activeTexture][TEXTURE_2D].texture;
+             break;
+@@ -2179,6 +2189,11 @@ TextureTarget GLEScontext::GLTextureTargetToLocal(GLenum target) {
+     case GL_TEXTURE_CUBE_MAP_NEGATIVE_Z:
+         value = TEXTURE_CUBE_MAP;
+         break;
++#ifdef PLB_GFXSTREAM_NATIVE_YUV_EXPERIMENT
++    case GL_TEXTURE_EXTERNAL_OES:
++        value = TEXTURE_EXTERNAL;
++        break;
++#endif
+     case GL_TEXTURE_2D:
+         value = TEXTURE_2D;
+         break;
+@@ -2238,6 +2253,11 @@ ObjectLocalName GLEScontext::getDefaultTextureName(GLenum target) {
+     case TEXTURE_2D_MULTISAMPLE:
+         name = INTERNAL_NAME(4);
+         break;
++#ifdef PLB_GFXSTREAM_NATIVE_YUV_EXPERIMENT
++    case TEXTURE_EXTERNAL:
++        name = INTERNAL_NAME(6);
++        break;
++#endif
+     case TEXTURE_BUFFER:
+         name = INTERNAL_NAME(5);
+         break;
+diff --git a/host/gl/glestranslator/common/include/common/gles_context.h b/host/gl/glestranslator/common/include/common/gles_context.h
+index 7f8f71d..62d9327 100644
+--- a/host/gl/glestranslator/common/include/common/gles_context.h
++++ b/host/gl/glestranslator/common/include/common/gles_context.h
+@@ -44,6 +44,9 @@ TEXTURE_2D_ARRAY,
+ TEXTURE_3D,
+ TEXTURE_2D_MULTISAMPLE,
+ TEXTURE_BUFFER,
++#ifdef PLB_GFXSTREAM_NATIVE_YUV_EXPERIMENT
++TEXTURE_EXTERNAL,
++#endif
+ NUM_TEXTURE_TARGETS
+ };
+ 
+diff --git a/host/gl/glestranslator/gles_v2/gles_v2_imp.cpp b/host/gl/glestranslator/gles_v2/gles_v2_imp.cpp
+index c07411c..166a9a9 100644
+--- a/host/gl/glestranslator/gles_v2/gles_v2_imp.cpp
++++ b/host/gl/glestranslator/gles_v2/gles_v2_imp.cpp
+@@ -4234,7 +4234,12 @@ GL_APICALL void  GL_APIENTRY glViewport(GLint x, GLint y, GLsizei width, GLsizei
+ GL_APICALL void GL_APIENTRY glEGLImageTargetTexture2DOES(GLenum target, GLeglImageOES image)
+ {
+     GET_CTX_V2();
++#ifdef PLB_GFXSTREAM_NATIVE_YUV_EXPERIMENT
++    SET_ERROR_IF(!GLESv2Validate::textureTargetLimited(target) &&
++                 !(target == GL_TEXTURE_EXTERNAL_OES && isGles2Gles()), GL_INVALID_ENUM);
++#else
+     SET_ERROR_IF(!GLESv2Validate::textureTargetLimited(target),GL_INVALID_ENUM);
++#endif
+     unsigned int imagehndl = SafeUIntFromPointer(image);
+     ImagePtr img = s_eglIface->getEGLImage(imagehndl);
+     if (img) {
+diff --git a/host/gl/glestranslator/gles_v2/gles_v2_validate.cpp b/host/gl/glestranslator/gles_v2/gles_v2_validate.cpp
+index 5b5bd94..7a581ac 100644
+--- a/host/gl/glestranslator/gles_v2/gles_v2_validate.cpp
++++ b/host/gl/glestranslator/gles_v2/gles_v2_validate.cpp
+@@ -342,6 +342,11 @@ bool GLESv2Validate::blendDst(GLenum d) {
+ }
+ 
+ bool GLESv2Validate::textureTarget(GLEScontext* ctx, GLenum target) {
++#ifdef PLB_GFXSTREAM_NATIVE_YUV_EXPERIMENT
++    // Diagnostic-only native external images. This does not advertise the
++    // extension: the guest encoder and ColorBuffer path are not qualified yet.
++    if (target == GL_TEXTURE_EXTERNAL_OES) return isGles2Gles();
++#endif
+     int glesMajorVersion = ctx->getMajorVersion();
+     int glesMinorVersion = ctx->getMinorVersion();
+     switch (target) {
+@@ -839,6 +844,10 @@ bool GLESv2Validate::textureIsCubeMap(GLenum target){
+ }
+ 
+ bool GLESv2Validate::textureTargetEx(GLEScontext* ctx, GLenum textarget) {
++#ifdef PLB_GFXSTREAM_NATIVE_YUV_EXPERIMENT
++    if (textarget == GL_TEXTURE_EXTERNAL_OES)
++        return isGles2Gles() && ctx->getMajorVersion() >= 3;
++#endif
+     int glesMajorVersion = ctx->getMajorVersion();
+     int glesMinorVersion = ctx->getMinorVersion();
+     switch (textarget) {

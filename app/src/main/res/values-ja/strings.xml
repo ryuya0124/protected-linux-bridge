@@ -349,4 +349,7 @@ plb-udp-forward 5353 1.1.1.1 53 でゲストのlocalhost:5353を指定したUDP�
   <string name="ui_apply_short">適用</string>
   <string name="ui_save_short">保存</string>
   <string name="ui_save_restart_short">保存してVMを再起動</string>
+  <string name="stock_linux_installed_title">Linuxは導入済みです</string>
+  <string name="stock_linux_installed_detail">標準インストーラーはLinuxが導入済みの場合、自動で閉じます。既存のイメージはそのまま保持しています。標準ターミナルを開くか、Bridgeで使う別のDebianイメージを管理できます。</string>
+  <string name="stock_linux_manage">BridgeのDebian導入</string>
 </resources>

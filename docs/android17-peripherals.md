@@ -191,3 +191,12 @@ silence to the null backend. The camera check claims only its newly registered
 synthetic test camera, uses bounded ImageReader capture and revokes it on exit.
 A completion marker alone does not qualify a session: also require normal VM
 exit, controller 0 and clean host postflight.
+
+## Offscreen YUV follow-up
+
+The [YUV-target investigation](android17-yuv-target.md) now proves native Adreno
+support and eight positive cases through a separate patched translator, including
+actual YUV planes and an out-of-gamut raw sampler. The original translator rejects
+the same external framebuffer. This does not resolve guest camera registration:
+the guest encoder and coherent writable ColorBuffer path remain unqualified.
+The extension stays unadvertised and production readiness remains false.
