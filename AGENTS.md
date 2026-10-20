@@ -500,3 +500,36 @@ The positive removal marker and subsequent absence check both passed; about
 directories remain. This permission does not authorize deleting Android 17
 profiles merely because they were created while the host ran Android 16.
 Keep the Android 16 frozen branch, tag and release APK unchanged.
+
+## Android 17 GLES/display and fragmentation follow-up, later 2026-10-20
+
+Explicit GUI/VM permission remains active. Separate source-built VMM and GLES
+renderer linkage passed. A no-VM Adreno/AHB test verified three actual presented
+colors and Surface recreation through the owned Binder path. This does not
+qualify guest rendering, fence/reuse correctness, 60/120 Hz or the APK gate.
+Keep ANDROID_GUEST_READY false and old Vulkan/crash runners disabled.
+
+Android trials currently stop at Gunyah map error 13 / Linux -22, including a
+native/headless one-CPU comparison. Public error enums do not establish the
+meaning of 13. CPU-only 384 MiB checks passed with stock and new VMMs and the
+custom guest kernel. Ordinary 768 MiB checks failed; owned pressure/release plus
+six-key advised prefault raised THP coverage from 13.16% to 59.99%, and one full
+768 MiB write/readback passed. A later 1280 MiB check still failed despite 58.27%
+THP coverage. This is neither complete defragmentation nor reliable Android boot.
+
+Keep the same 6 GiB budget, floor, exact pins and six-key/40-second guardians.
+Pressure is ordinary owned allocation/release, never manual killing of apps,
+cache drop, global compaction/defrag changes or a new module. Next-batch pressure
+headroom now strengthens the floor after the initial parent correctly stopped
+a crossing batch. Retain negative tests and original disks. Source/details are
+in docs/android17-runtime-validation.md. The user requests a 120 Hz challenge;
+measure actual presentation, not texture-update counts, after boot/display work.
+
+A later no-VM source-renderer probe passed emulated GLES drawing, normal window
+flush into a real RGBA8 AHB, actual screenshot colors and Surface recreation.
+The renderer-internal descriptor retains its AHB owner, and each export gives
+one reference consumed by the Rust metadata/FD helper. This is not validation
+of arbitrary formats, guest GPU protocol or asynchronous release fences.
+The explicit developer --run-approved-gles-reclaim comparison performs ordinary
+owned pressure before RAM allocation even when MemAvailable is high; the normal
+released APK does not adopt it. Preserve guards and negative capacity results.

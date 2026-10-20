@@ -3,6 +3,13 @@
 #include <assert.h>
 
 int main(void) {
+    const size_t minimum = PLB_PROBE_AVAILABLE_FLOOR_KIB + PLB_PROBE_OVERHEAD_RESERVE / 1024;
+    const size_t cap = plb_pressure_limit("reclaim-4g");
+    assert(plb_pressure_admitted_chunk(0, cap, minimum) == 0);
+    assert(plb_pressure_admitted_chunk(0, cap, minimum + 3) == 0);
+    assert(plb_pressure_admitted_chunk(0, cap, minimum + 4) == 4096);
+    assert(plb_pressure_admitted_chunk(0, cap, minimum + 16384) == 16 * PLB_PROBE_MIB);
+    assert(plb_pressure_admitted_chunk(0, cap, minimum + 100000) == 64 * PLB_PROBE_MIB);
     const char *accepted[] = {"reclaim-4g", "reclaim-6g"};
     for (size_t i = 0; i < sizeof(accepted) / sizeof(*accepted); i++) {
         size_t cap = plb_pressure_limit(accepted[i]);

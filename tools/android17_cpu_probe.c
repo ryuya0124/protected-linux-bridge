@@ -19,13 +19,24 @@
 #include "cpu_probe.generated.h"
 #include "cpu_probe_result.h"
 
+#ifndef PLB_CPU_KERNEL
+#define PLB_CPU_KERNEL "/apex/com.android.virt/etc/fs/microdroid_kernel"
+#define PLB_CPU_KERNEL_SHA256 "02f0044263e79ae95f321325ca1741d092f0c78c693b8114830d6e1ff2849aae"
+#endif
+#ifndef PLB_CPU_EXECUTABLE
+#define PLB_CPU_EXECUTABLE "/apex/com.android.virt/bin/crosvm"
+#endif
+#ifndef PLB_CPU_TIMEOUT_SECONDS
+#define PLB_CPU_TIMEOUT_SECONDS 30
+#endif
+
 static volatile sig_atomic_t stopping;
 static void stop(int signal_number) {
     (void)signal_number;
     stopping = 1;
 }
 
-static int enough_memory(void) {
+static int enough_memory(unsigned allocation_mib) {
     FILE *file = fopen("/proc/meminfo", "r");
     if (!file)
         return 0;
@@ -35,16 +46,22 @@ static int enough_memory(void) {
         if (sscanf(line, "MemAvailable: %llu kB", &available) == 1)
             break;
     fclose(file);
-    return available >= 2048ULL * 1024;
+    return available >= (1536ULL + allocation_mib) * 1024;
 }
 
 int main(int argc, char **argv) {
     if (getuid() || argc != 2 || strcmp(argv[1], "--run"))
         return 40;
-    if (!host17_admitted() || !plb_host_memory_healthy() || !enough_memory())
+    if (!host17_admitted() || !plb_host_memory_healthy() || !enough_memory(PLB_CPU_RAM_MIB))
         return 79;
     if (!host17_digest(PLB_CPU_BASE "/initramfs.cpio", PLB_CPU_INITRAMFS_SHA256))
         return 80;
+    if (!host17_digest(PLB_CPU_KERNEL, PLB_CPU_KERNEL_SHA256))
+        return 80;
+#ifdef PLB_CPU_EXECUTABLE_SHA256
+    if (!host17_digest(PLB_CPU_EXECUTABLE, PLB_CPU_EXECUTABLE_SHA256))
+        return 80;
+#endif
     int owner = diagnostic_owner_lock();
     if (owner < 0)
         return 28;
@@ -67,16 +84,22 @@ int main(int argc, char **argv) {
         prctl(PR_SET_PDEATHSIG, SIGKILL);
         if (getppid() != parent)
             _exit(84);
+#ifdef PLB_CPU_SHMEM_ADVISE
+        char owner_descriptor[32];
+        snprintf(owner_descriptor, sizeof(owner_descriptor), "%d", owner);
+        if (fcntl(owner, F_SETFD, 0) || setenv(PLB_DIAGNOSTIC_OWNER_ENV, owner_descriptor, 1))
+            _exit(84);
+#endif
         int log = open(PLB_CPU_BASE "/vmm.log", O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600);
         if (log < 0)
             _exit(85);
         dup2(log, STDOUT_FILENO);
         dup2(log, STDERR_FILENO);
         close(log);
-        execl("/apex/com.android.virt/bin/crosvm", "crosvm", "--log-level", "info", "run", "--name",
+        execl(PLB_CPU_EXECUTABLE, "crosvm", "--log-level", "info", "run", "--name",
               "plb17-cpu-probe", "--disable-sandbox", "--no-balloon", "--hypervisor", "gunyah",
-              "--protected-vm-without-firmware", "--swiotlb", "32", "--mem", "size=512", "--cpus",
-              "num-cores=1", "--serial",
+              "--protected-vm-without-firmware", "--swiotlb", "32", "--mem", PLB_CPU_RAM_ARGUMENT,
+              "--cpus", "num-cores=1", "--serial",
               "type=file,path=" PLB_CPU_BASE "/console.log,console=true,earlycon=true", "--params",
               "console=ttyS0 earlycon 8250.nr_uarts=1 rdinit=/init panic=0 "
               "plb.cpu_probe=" PLB_CPU_NONCE,
@@ -84,17 +107,16 @@ int main(int argc, char **argv) {
               "--block",
               "path=/data/user/0/com.android.virtualization.terminal/files/linux/root_part,ro=true",
 #endif
-              "--initrd", PLB_CPU_BASE "/initramfs.cpio",
-              "/apex/com.android.virt/etc/fs/microdroid_kernel", (char *)NULL);
+              "--initrd", PLB_CPU_BASE "/initramfs.cpio", PLB_CPU_KERNEL, (char *)NULL);
         _exit(86);
     }
     if (child < 0)
         return 87;
     /* Only this unreaped direct child is ever signalled. It cannot be another VM. */
     int status = 0, result = 124;
-    long long deadline = plb_probe_millis() + 30000;
+    long long deadline = plb_probe_millis() + PLB_CPU_TIMEOUT_SECONDS * 1000LL;
     while (!stopping && plb_probe_millis() < deadline) {
-        if (!plb_host_memory_healthy() || plb_diagnostic_kernel_bad(monitor)) {
+        if (!plb_host_memory_healthy() || plb_diagnostic_kernel_bad(monitor) || !enough_memory(0)) {
             result = 88;
             break;
         }
@@ -124,7 +146,8 @@ int main(int argc, char **argv) {
 #else
         const int debian_required = 0;
 #endif
-        if (!plb_cpu_console_success(console, PLB_CPU_NONCE, debian_required))
+        if (!plb_cpu_console_success_for_bytes(console, PLB_CPU_NONCE, debian_required,
+                                               PLB_CPU_WORKLOAD_BYTES))
             result = 90;
         if (console)
             fclose(console);

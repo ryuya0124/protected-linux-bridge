@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "date": "2026-10-20",
+  "host_build": "S948QOPU1BZI9",
+  "host_sdk": 37,
+  "production_android_guest_enabled": false,
+  "vulkan_guest_tested": false,
+  "global_display_service_used": false,
+  "no_vm_display": {
+    "adreno_direct_ahb_colors": "passed",
+    "source_gles_window_flush_ahb_colors": "passed",
+    "surface_recreation": "passed",
+    "async_fence_and_reuse": "unverified",
+    "presented_120_hz": "unverified"
+  },
+  "android_guest": {
+    "boot_completed": false,
+    "failure": "Gunyah map 13 / PAGE_FAULT attempt -22; meaning of hypervisor 13 unresolved"
+  },
+  "cpu_comparisons": {
+    "384_mib_stock_and_source": "full nonce-bound write/readback passed",
+    "768_mib_sparse": "failed",
+    "768_mib_advised": "failed, 13.16% THP",
+    "768_mib_pressure_then_advised": "one full write/readback passed, 59.99% THP",
+    "1280_mib_pressure_then_advised": "failed, 58.27% THP; write progress is not readback"
+  },
+  "host_python_native_tests": 221,
+  "host_boundary": "same boot/core/trusted VM, taint 4608, Enforcing, all six policies restored never in completed postflights",
+  "record": "docs/android17-runtime-validation.md"
+}

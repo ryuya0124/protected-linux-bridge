@@ -1,0 +1,52 @@
+--- a/src/gfxstream.rs
++++ b/src/gfxstream.rs
+@@ -532,38 +532,9 @@
+         if stream_handle.handle_type == RUTABAGA_HANDLE_TYPE_PLATFORM_AHB {
+             #[cfg(target_os = "android")]
+             {
+-                use crate::handle::AhbInfo;
+-                use nativewindow::AhbInfo as NativeAhbInfo;
+-                use nativewindow::HardwareBuffer;
+-                use std::os::fd::IntoRawFd;
+-                use std::ptr::NonNull;
+-
+-                let buffer_ptr = NonNull::new(stream_handle.os_handle as *mut c_void)
+-                    .ok_or(RutabagaError::InvalidResourceId)?;
+-
+-                // SAFETY:
+-                // Safe because `buffer_ptr` is a valid AHardwareBuffer pointer.
+-                let buffer = unsafe { HardwareBuffer::clone_from_raw(buffer_ptr.cast()) };
+-
+-                let ahb_info: NativeAhbInfo = buffer
+-                    .try_into()
+-                    .map_err(|_| RutabagaError::InvalidResourceId)?;
+-
+-                // Convert nativewindow::AhbInfo to RutabagaHandle::AhbInfo
+-                let fds = ahb_info
+-                    .fds
+-                    .into_iter()
+-                    .map(|fd| {
+-                        // SAFETY:
+-                        // Safe because the file descriptor is valid and owned.
+-                        unsafe { OwnedDescriptor::from_raw_descriptor(fd.into_raw_fd()) }
+-                    })
+-                    .collect();
+-
+-                Ok(Arc::new(RutabagaHandle::from(AhbInfo {
+-                    fds,
+-                    metadata: ahb_info.data,
+-                })))
++                // SAFETY: successful renderer export returned a live borrowed AHB.
++                let info = unsafe { plb_ahb::export(stream_handle.os_handle as *mut c_void) }?;
++                Ok(Arc::new(RutabagaHandle::from(info)))
+             }
+             #[cfg(not(target_os = "android"))]
+             {
+@@ -1051,3 +1022,7 @@
+         Ok(())
+     }
+ }
++
++#[cfg(target_os = "android")]
++#[path = "plb_ahb.rs"]
++mod plb_ahb;

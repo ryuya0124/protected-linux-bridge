@@ -1,0 +1,290 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index 76c38ba..a186715 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -2703,8 +2703,6 @@ dependencies = [
+ [[package]]
+ name = "rutabaga_gfx"
+ version = "0.1.76-alpha.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "988c93caed844e77bcb3c3988d89d249408aa772702b543c980d49b6665fb5fd"
+ dependencies = [
+  "cfg-if",
+  "libc",
+diff --git a/Cargo.toml b/Cargo.toml
+index 0ff3f6e..33bf140 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -9,6 +9,11 @@ default-run = "crosvm"
+ name = "crosvm"
+ path = "src/main.rs"
+ 
++[lib]
++name = "plb_vmm_android17"
++path = "src/main.rs"
++crate-type = ["cdylib"]
++
+ [profile.release]
+ panic = 'abort'
+ opt-level = 3
+@@ -211,6 +216,7 @@ tokio = { version = "1.29.1", features = ["net", "rt-multi-thread", "time", "syn
+ windows = { version = "=0.61.1" }
+ 
+ [features]
++plb-preallocated-ram = ["vm_memory/plb-preallocated-ram"]
+ ## Default features of crosvm. This selection is somewhat arbitrary for historical reasons.
+ default = ["audio", "balloon", "document-features", "gpu", "qcow", "usb", "libvda-stub", "net", "slirp"]
+ 
+@@ -645,6 +651,7 @@ rand = { workspace = true }
+ tempfile = "3"
+ 
+ [patch.crates-io]
++rutabaga_gfx = { path = "../rutabaga-source" }
+ audio_streams = { path = "common/audio_streams" }
+ libcras = { path = "libcras_stub" } # ignored by ebuild
+ minijail = { path = "third_party/minijail/rust/minijail" } # ignored by ebuild
+diff --git a/gpu_display/build.rs b/gpu_display/build.rs
+index 3a0e30e..f93ee15 100644
+--- a/gpu_display/build.rs
++++ b/gpu_display/build.rs
+@@ -108,8 +108,12 @@ fn main() {
+         return;
+     }
+ 
++    if std::env::var_os("CARGO_FEATURE_ANDROID_DISPLAY").is_some() {
++        println!("cargo:rustc-link-search=native={}", std::env::var("PLB_DISPLAY_BACKEND_DIR").expect("owned display backend"));
++        println!("cargo:rustc-link-lib=dylib=plb_owned_display_backend");
++    }
+     match std::env::var("CARGO_CFG_TARGET_OS").as_deref().unwrap() {
+-        "linux" | "android" => {
++        "linux" => {
+             build_wayland();
+         }
+         _ => {}
+diff --git a/gpu_display/src/lib.rs b/gpu_display/src/lib.rs
+index 2abd431..9893808 100644
+--- a/gpu_display/src/lib.rs
++++ b/gpu_display/src/lib.rs
+@@ -36,7 +36,7 @@ mod gpu_display_android_stub;
+ mod gpu_display_stub;
+ #[cfg(windows)]
+ mod gpu_display_win;
+-#[cfg(any(target_os = "android", target_os = "linux"))]
++#[cfg(target_os = "linux")]
+ mod gpu_display_wl;
+ #[cfg(feature = "x")]
+ mod gpu_display_x;
+diff --git a/gpu_display/src/sys/linux.rs b/gpu_display/src/sys/linux.rs
+index 22851b7..7b7c625 100644
+--- a/gpu_display/src/sys/linux.rs
++++ b/gpu_display/src/sys/linux.rs
+@@ -6,8 +6,10 @@ use std::path::Path;
+ 
+ use base::AsRawDescriptor;
+ use base::RawDescriptor;
++#[cfg(target_os = "linux")]
+ use base::WaitContext;
+ 
++#[cfg(target_os = "linux")]
+ use crate::gpu_display_wl::DisplayWl;
+ use crate::DisplayEventToken;
+ use crate::DisplayT;
+@@ -49,6 +51,13 @@ pub trait UnixGpuDisplayExt {
+ 
+ impl UnixGpuDisplayExt for GpuDisplay {
+     fn open_wayland<P: AsRef<Path>>(wayland_path: Option<P>) -> GpuDisplayResult<GpuDisplay> {
++        #[cfg(target_os = "android")]
++        {
++            let _ = wayland_path;
++            Err(crate::GpuDisplayError::Unsupported)
++        }
++        #[cfg(target_os = "linux")]
++        {
+         let display = match wayland_path {
+             Some(s) => DisplayWl::new(Some(s.as_ref()))?,
+             None => DisplayWl::new(None)?,
+@@ -64,6 +73,7 @@ impl UnixGpuDisplayExt for GpuDisplay {
+             surfaces: Default::default(),
+             wait_ctx,
+         })
++        }
+     }
+ }
+ 
+diff --git a/hypervisor/src/gunyah/gunyah_sys/bindings.rs b/hypervisor/src/gunyah/gunyah_sys/bindings.rs
+index 6292247..f1357a1 100644
+--- a/hypervisor/src/gunyah/gunyah_sys/bindings.rs
++++ b/hypervisor/src/gunyah/gunyah_sys/bindings.rs
+@@ -22,6 +22,7 @@ pub const GH_VM_MAX_EXIT_REASON_SIZE: u32 = 8;
+ pub const GH_VCPU_EXIT_UNKNOWN: u32 = 0;
+ pub const GH_VCPU_EXIT_MMIO: u32 = 1;
+ pub const GH_VCPU_EXIT_STATUS: u32 = 2;
++pub const GH_VCPU_EXIT_PAGE_FAULT: u32 = 3;
+ pub const GH_ANDROID_IOCTL_TYPE: u8 = 65u8;
+ pub const GH_VM_BOOT_CONTEXT_REG_SHIFT: u32 = 8;
+ pub type i8 = ::std::os::raw::c_schar;
+@@ -142,6 +143,7 @@ pub struct gh_vcpu_run {
+ #[repr(C)]
+ #[derive(Copy, Clone)]
+ pub union gh_vcpu_run__bindgen_ty_1 {
++    pub page_fault: gh_vcpu_page_fault,
+     pub mmio: gh_vcpu_run__bindgen_ty_1__bindgen_ty_1,
+     pub status: gh_vcpu_run__bindgen_ty_1__bindgen_ty_2,
+ }
+@@ -217,3 +219,15 @@ pub struct gunyah_map_cma_mem_args {
+     pub offset: u64,
+     pub size: u64,
+ }
++
++// Android 17 BZI9 saved-kernel gunyah_vcpu_ioctl confirms these output offsets:
++// exit_reason at 8, phys_addr at 16, attempt at 24, resume_action at 28.
++#[repr(C)]
++#[derive(Debug, Default, Copy, Clone)]
++pub struct gh_vcpu_page_fault {
++    pub phys_addr: u64,
++    pub attempt: i32,
++    pub resume_action: u8,
++}
++const _: () = assert!(std::mem::offset_of!(gh_vcpu_run, __bindgen_anon_1) == 16);
++const _: () = assert!(std::mem::offset_of!(gh_vcpu_page_fault, attempt) == 8);
+diff --git a/hypervisor/src/gunyah/mod.rs b/hypervisor/src/gunyah/mod.rs
+index fb03bc3..d9c9313 100644
+--- a/hypervisor/src/gunyah/mod.rs
++++ b/hypervisor/src/gunyah/mod.rs
+@@ -904,6 +904,13 @@ impl Vcpu for GunyahVcpu {
+         // because the kernel told us how large it is.
+         let run = unsafe { &mut *(self.run_mmap.as_ptr() as *mut gh_vcpu_run) };
+         match run.exit_reason {
++            GH_VCPU_EXIT_PAGE_FAULT => {
++                // Observe this kernel-selected output only. Never retry or resume a failed fault.
++                let fault = unsafe { run.__bindgen_anon_1.page_fault };
++                warn!("PLB_GUNYAH_PAGE_FAULT attempt={} guest_addr={:#x}",
++                      fault.attempt, fault.phys_addr);
++                Err(Error::new(EINVAL))
++            }
+             GH_VCPU_EXIT_MMIO => Ok(VcpuExit::Mmio),
+             GH_VCPU_EXIT_STATUS => {
+                 // SAFETY:
+diff --git a/prebuilts/src/sys.rs b/prebuilts/src/sys.rs
+index fa13b89..c1a45c1 100644
+--- a/prebuilts/src/sys.rs
++++ b/prebuilts/src/sys.rs
+@@ -3,7 +3,7 @@
+ // found in the LICENSE file.
+ 
+ cfg_if::cfg_if! {
+-    if #[cfg(any(target_os = "android", target_os = "linux"))] {
++    if #[cfg(any(target_os = "android", target_os = "linux", target_os = "macos"))] {
+         pub(crate) mod linux;
+         pub(crate) use linux::*;
+     } else if #[cfg(windows)] {
+diff --git a/src/crosvm/sys/linux/gpu.rs b/src/crosvm/sys/linux/gpu.rs
+index 02d0df0..ece6fc6 100644
+--- a/src/crosvm/sys/linux/gpu.rs
++++ b/src/crosvm/sys/linux/gpu.rs
+@@ -131,6 +131,8 @@ pub fn create_gpu_device(
+ 
+     #[cfg(feature = "android_display")]
+     if let Some(service_name) = &cfg.android_display_service {
++        // Owned sessions must not silently fall back to an invisible stub.
++        display_backends.clear();
+         display_backends.insert(0, virtio::DisplayBackend::Android(service_name.to_string()));
+     }
+ 
+diff --git a/src/main.rs b/src/main.rs
+index 0d8fb84..82754df 100644
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -918,6 +918,7 @@ fn crosvm_main<I: IntoIterator<Item = String>>(args: I) -> Result<CommandStatus>
+     })
+ }
+ 
++#[allow(dead_code)]
+ fn main() {
+     syslog::early_init();
+     debug!("crosvm started.");
+@@ -1103,3 +1104,45 @@ Start a new crosvm instance"
+         );
+     }
+ }
++
++// MIT. App-private entry only; no window pointer, flush bypass or host service lookup.
++// Called once by a future qualified root launcher after configuring the display.
++#[no_mangle]
++pub unsafe extern "C" fn plb_crosvm_owned_display_main(
++    argc: i32,
++    argv: *const *const std::ffi::c_char,
++) -> i32 {
++    static CONSUMED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
++    if CONSUMED.swap(true, std::sync::atomic::Ordering::SeqCst)
++        || argc < 1
++        || argc > 160
++        || argv.is_null()
++    {
++        return 70;
++    }
++    let mut arguments = Vec::with_capacity(argc as usize);
++    for index in 0..argc as usize {
++        let pointer = *argv.add(index);
++        if pointer.is_null() {
++            return 71;
++        }
++        let argument = std::ffi::CStr::from_ptr(pointer);
++        if argument.to_bytes().len() > 4096 {
++            return 72;
++        }
++        match argument.to_str() {
++            Ok(value) => arguments.push(value.to_owned()),
++            Err(_) => return 73,
++        }
++    }
++    syslog::early_init();
++    let result = crosvm_main(arguments);
++    match &result {
++        Ok(code) => *code as i32,
++        Err(_) => {
++            // Detailed upstream diagnostics remain in this owned process's private log.
++            eprintln!("PLB_OWNED_VMM_FAILED");
++            error_to_exit_code(&result)
++        }
++    }
++}
+diff --git a/vm_memory/Cargo.toml b/vm_memory/Cargo.toml
+index a5aea99..feb4c56 100644
+--- a/vm_memory/Cargo.toml
++++ b/vm_memory/Cargo.toml
+@@ -5,6 +5,9 @@ authors = ["The ChromiumOS Authors"]
+ edition = "2021"
+ include = ["src/**/*", "Cargo.toml"]
+ 
++[features]
++plb-preallocated-ram = []
++
+ [dependencies]
+ anyhow = { workspace = true }
+ cfg-if = { workspace = true }
+diff --git a/vm_memory/src/guest_memory.rs b/vm_memory/src/guest_memory.rs
+index f584dd5..3d26235 100644
+--- a/vm_memory/src/guest_memory.rs
++++ b/vm_memory/src/guest_memory.rs
+@@ -43,6 +43,8 @@ use zerocopy::IntoBytes;
+ 
+ use crate::guest_address::GuestAddress;
+ 
++#[cfg(all(feature = "plb-preallocated-ram", target_os = "android"))]
++mod plb_adopt;
+ mod sys;
+ pub use sys::MemoryPolicy;
+ 
+@@ -320,6 +322,11 @@ impl GuestMemory {
+         }
+ 
+         // NOTE: Some tests rely on the GuestMemory's name when capturing metrics.
++        #[cfg(all(feature = "plb-preallocated-ram", target_os = "android"))]
++        {
++            return plb_adopt::adopt(aligned_size).map_err(Error::MemoryCreationFailed);
++        }
++        #[allow(unreachable_code)]
+         let name = "crosvm_guest";
+         // Shm must be mut even though it is only updated on Unix systems.
+         #[allow(unused_mut)]

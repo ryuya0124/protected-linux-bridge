@@ -1,12 +1,12 @@
 # Android 17 host port
 
-Status: Android 17 source port; host identity and Terminal reflection are now
-verified over authorized wireless ADB. Two small protected CPU probes completed,
-including readonly Debian dpkg. **Full writeable Debian sessions, Android guests
-and new GPU display remain unverified.** The owner upgraded the only Android 16 test device.
-Host Android version and Android guest version are separate concepts throughout
-this record. No GUI operation, host configuration change, reboot or flash command
-was performed by the agent. Later CPU probes are described separately below.
+Status: Android 17 host/Terminal admission, bounded CPU VMs and no-VM Adreno
+owned-Surface presentation have passed device checks. **The new Android guest
+path has not completed boot; the production Android gate remains disabled.**
+The [current runtime/fragmentation validation record](android17-runtime-validation.md)
+separates successes from failed Android trials. Earlier sections retain their
+original test scope; later explicit GUI/VM authorization superseded the prior
+non-GUI-only pause. Host Android and guest Android versions remain distinct.
 
 ## Frozen Android 16 line
 

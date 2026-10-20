@@ -4,8 +4,12 @@
 #include <stdio.h>
 #include <string.h>
 
-static int plb_cpu_console_success(FILE *console, const char *nonce, int debian_required) {
-    if (!console || !nonce || strlen(nonce) != 32)
+static int plb_cpu_console_success_for_bytes(FILE *console, const char *nonce, int debian_required,
+                                             size_t expected_bytes) {
+    if (!console || !nonce || strlen(nonce) != 32 ||
+        (expected_bytes != 16ULL * 1024 * 1024 && expected_bytes != 256ULL * 1024 * 1024 &&
+         expected_bytes != 384ULL * 1024 * 1024 && expected_bytes != 768ULL * 1024 * 1024 &&
+         expected_bytes != 1280ULL * 1024 * 1024))
         return 0;
     char line[1024], expected[128];
     snprintf(expected, sizeof(expected), "PLB_CPU_FINISHED nonce=%s result=0", nonce);
@@ -26,7 +30,7 @@ static int plb_cpu_console_success(FILE *console, const char *nonce, int debian_
                 line, "PLB_CPU_GUEST nonce=%32s result=%d arch=%15s release=%127s bytes=%zu%c",
                 observed, &result, arch, release, &bytes, &extra);
             if (fields == 5 && !strcmp(observed, nonce)) {
-                if (!result && !strcmp(arch, "aarch64") && bytes == 16 * 1024 * 1024)
+                if (!result && !strcmp(arch, "aarch64") && bytes == expected_bytes)
                     memory_ok = 1;
                 else
                     invalid = 1;

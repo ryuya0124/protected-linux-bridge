@@ -1,6 +1,9 @@
 # Android 17 GPU display investigation
 
-2026-10-20. Saved-ROM analysis and public source comparison only. No phone was
+2026-10-20. This section records the initial saved-ROM/source investigation.
+Subsequent [device validation](android17-runtime-validation.md) established owned
+Adreno Surface presentation, but not complete Android guest boot.
+The initial investigation below used saved-ROM analysis and public source comparison only. No phone was
 connected, no ARM binary was executed or loaded, and no VM/GPU allocation test
 was performed. Android 16 remains frozen. Android guest launch and Vulkan remain
 disabled in the Android 17 APK. The existing release APK has not been replaced.

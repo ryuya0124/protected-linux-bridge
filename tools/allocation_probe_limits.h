@@ -30,4 +30,18 @@ static size_t plb_pressure_chunk(size_t touched, size_t cap) {
         return 0;
     return cap - touched < batch ? cap - touched : batch;
 }
+
+/* Check the next batch, not merely the floor before starting it. Leave the
+ * existing execution reserve above the floor; a parent still monitors races
+ * with unrelated host allocations. No lower floor or OOM adjustment is used. */
+static size_t plb_pressure_admitted_chunk(size_t touched, size_t cap, size_t available_kib) {
+    size_t chunk = plb_pressure_chunk(touched, cap);
+    size_t minimum = PLB_PROBE_AVAILABLE_FLOOR_KIB + PLB_PROBE_OVERHEAD_RESERVE / 1024;
+    if (!chunk || available_kib <= minimum)
+        return 0;
+    size_t remaining_kib = available_kib - minimum;
+    if (remaining_kib < chunk / 1024)
+        chunk = remaining_kib * 1024;
+    return chunk & ~(size_t)4095;
+}
 #endif

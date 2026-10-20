@@ -1,14 +1,19 @@
 #include "cpu_probe_result.h"
 #include <assert.h>
 
-static int check(const char *log, int debian) {
+static int check_bytes(const char *log, int debian, size_t bytes) {
     FILE *file = tmpfile();
     assert(file);
     fputs(log, file);
     rewind(file);
-    int result = plb_cpu_console_success(file, "0123456789abcdef0123456789abcdef", debian);
+    int result =
+        plb_cpu_console_success_for_bytes(file, "0123456789abcdef0123456789abcdef", debian, bytes);
     fclose(file);
     return result;
+}
+
+static int check(const char *log, int debian) {
+    return check_bytes(log, debian, 16 * 1024 * 1024);
 }
 
 #define MEMORY                                                                                     \
@@ -17,6 +22,13 @@ static int check(const char *log, int debian) {
 #define END "PLB_CPU_FINISHED nonce=0123456789abcdef0123456789abcdef result=0\r\n"
 
 int main(void) {
+    const char *large =
+        "PLB_CPU_GUEST nonce=0123456789abcdef0123456789abcdef result=0 arch=aarch64 "
+        "release=6.6.118 bytes=402653184\n" END;
+    assert(check_bytes(large, 0, 384 * 1024 * 1024));
+    assert(!check(large, 0));
+    assert(!check_bytes(MEMORY END, 0, 384 * 1024 * 1024));
+    assert(!check_bytes(large, 0, 512 * 1024 * 1024));
     assert(check(MEMORY END, 0));
     assert(!check("exiting with success\n", 0));
     assert(!check(END, 0));

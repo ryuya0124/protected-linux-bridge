@@ -1,0 +1,374 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 32b3730..2eaf5d9 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -107,6 +107,8 @@ if (APPLE)
+ elseif(QNX)
+     # TODO(jsimonot): fix build error
+     # add_compile_definitions(VK_USE_PLATFORM_SCREEN_QNX)
++elseif(ANDROID)
++    add_compile_definitions(VK_USE_PLATFORM_ANDROID_KHR)
+ elseif(UNIX)
+     # Use X11 version of EGL platform specific definitions.
+     add_compile_definitions(USE_X11)
+@@ -165,6 +167,9 @@ endif()
+ 
+ set(EXTRA_SUBDIR_TEST_INCLUDE_FILES)
+ 
++if(ANDROID)
++    include_directories(${PLB_ANDROID_PLATFORM_HEADERS})
++endif()
+ add_subdirectory(third_party)
+ add_subdirectory(common)
+ add_subdirectory(host)
+diff --git a/common/base/CMakeLists.txt b/common/base/CMakeLists.txt
+index 5581e2f..5f40d3e 100644
+--- a/common/base/CMakeLists.txt
++++ b/common/base/CMakeLists.txt
+@@ -105,6 +105,8 @@ if (WIN32)
+ elseif (QNX)
+     set(gfxstream_common_base_platform_deps
+         dl)
++elseif(ANDROID)
++    set(gfxstream_common_base_platform_deps dl)
+ elseif(LINUX)
+     set(gfxstream_common_base_platform_deps
+         dl
+diff --git a/host/CMakeLists.txt b/host/CMakeLists.txt
+index c2688d4..a44cf48 100644
+--- a/host/CMakeLists.txt
++++ b/host/CMakeLists.txt
+@@ -90,6 +90,8 @@ if (APPLE)
+     set(stream-server-core-platform-sources native_sub_window_cocoa.mm)
+ elseif (WIN32)
+     set(stream-server-core-platform-sources native_sub_window_win32.cpp)
++elseif (ANDROID)
++    set(stream-server-core-platform-sources native_sub_window_android.cpp)
+ elseif (QNX)
+     set(stream-server-core-platform-sources native_sub_window_qnx.cpp)
+ else()
+@@ -382,3 +384,7 @@ if (WIN32)
+     configure_file(../toolchain/cmake/SetWin32TestEnvironment.cmake.in ${CMAKE_CURRENT_BINARY_DIR}/SetWin32TestEnvironment.cmake @ONLY)
+     set_property(DIRECTORY APPEND PROPERTY TEST_INCLUDE_FILES ${CMAKE_CURRENT_BINARY_DIR}/SetWin32TestEnvironment.cmake)
+ endif()
++
++if(ANDROID)
++    target_link_libraries(gfxstream_backend PRIVATE android log ${PLB_ANDROID_NATIVEWINDOW_LIBRARY} ${PLB_ANDROID_CUTILS_LIBRARY})
++endif()
+diff --git a/host/color_buffer.cpp b/host/color_buffer.cpp
+index e1e8030..37efc52 100644
+--- a/host/color_buffer.cpp
++++ b/host/color_buffer.cpp
+@@ -495,11 +495,11 @@ bool ColorBuffer::Impl::invalidateForVk() {
+ }
+ 
+ std::optional<BlobDescriptorInfo> ColorBuffer::Impl::exportBlob() {
+-    if (!mColorBufferVk) {
+-        return std::nullopt;
+-    }
+-
+-    return mColorBufferVk->exportBlob();
++    if (mColorBufferVk) return mColorBufferVk->exportBlob();
++#if GFXSTREAM_ENABLE_HOST_GLES
++    if (mColorBufferGl) return mColorBufferGl->exportBlob();
++#endif
++    return std::nullopt;
+ }
+ 
+ #if GFXSTREAM_ENABLE_HOST_GLES
+diff --git a/host/common/include/gfxstream/host/external_object_manager.h b/host/common/include/gfxstream/host/external_object_manager.h
+index 9761aef..98a7e38 100644
+--- a/host/common/include/gfxstream/host/external_object_manager.h
++++ b/host/common/include/gfxstream/host/external_object_manager.h
+@@ -17,6 +17,7 @@
+ 
+ #include <atomic>
+ #include <mutex>
++#include <memory>
+ #include <optional>
+ #include <unordered_map>
+ #include <utility>
+@@ -119,6 +120,11 @@ struct BlobDescriptorInfo {
+     BlobDescriptorType descriptorInfo;
+     uint32_t caching;
+     std::optional<VulkanInfo> vulkanInfoOpt;
++#ifdef __ANDROID__
++    // Optional owner for retained GLES AHB backing. Each external export gets
++    // an additional reference; the cached raw handle is never consumed twice.
++    std::shared_ptr<void> platformOwner{};
++#endif
+ };
+ 
+ using SyncDescriptorInfo = GenericDescriptorInfo;
+diff --git a/host/gl/color_buffer_gl.cpp b/host/gl/color_buffer_gl.cpp
+index 920d66d..f6b1b2f 100644
+--- a/host/gl/color_buffer_gl.cpp
++++ b/host/gl/color_buffer_gl.cpp
+@@ -20,6 +20,9 @@
+ #include <string.h>
+ 
+ #include <cmath>
++#ifdef __ANDROID__
++#include <dlfcn.h>
++#endif
+ #include <glm/gtc/type_ptr.hpp>
+ 
+ #include "OpenGLESDispatch/DispatchTables.h"
+@@ -331,6 +334,48 @@ std::unique_ptr<ColorBufferGl> ColorBufferGl::create(
+ 
+     s_gles2.glGenTextures(1, &cb->m_tex);
+     s_gles2.glBindTexture(GL_TEXTURE_2D, cb->m_tex);
++#ifdef __ANDROID__
++    // A GLES-only color buffer must have real shareable backing. Do not enable
++    // Vulkan to obtain it, copy pixels to the CPU, or replace resource flush.
++    if (!features.Vulkan.enabled() && format == GfxstreamFormat::R8G8B8A8_UNORM) {
++        AHardwareBuffer_Desc description{};
++        description.width = p_width;
++        description.height = p_height;
++        description.layers = 1;
++        description.format = AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM;
++        description.usage = AHARDWAREBUFFER_USAGE_GPU_COLOR_OUTPUT |
++                            AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE |
++                            AHARDWAREBUFFER_USAGE_COMPOSER_OVERLAY;
++        AHardwareBuffer* allocated = nullptr;
++        if (AHardwareBuffer_allocate(&description, &allocated)) {
++            GFXSTREAM_ERROR("GLES AHB allocation failed");
++            return nullptr;
++        }
++        cb->mAndroidBuffer = std::shared_ptr<AHardwareBuffer>(allocated, AHardwareBuffer_release);
++        // Resolve the real host EGL function, rather than a translator entry.
++        static void* hostEgl = dlopen("libEGL.so", RTLD_NOW | RTLD_LOCAL);
++        static auto clientBuffer = hostEgl ? reinterpret_cast<PFNEGLGETNATIVECLIENTBUFFERANDROIDPROC>(
++            dlsym(hostEgl, "eglGetNativeClientBufferANDROID")) : nullptr;
++        if (!clientBuffer) {
++            GFXSTREAM_ERROR("Host EGL native buffer import unavailable");
++            return nullptr;
++        }
++        const EGLint attributes[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
++        cb->m_eglImage = s_egl.eglCreateImageKHR(p_display, EGL_NO_CONTEXT,
++            EGL_NATIVE_BUFFER_ANDROID, clientBuffer(allocated), attributes);
++        if (cb->m_eglImage == EGL_NO_IMAGE_KHR ||
++            !s_egl.eglSetImageInfoANDROID(p_display, cb->m_eglImage, p_width, p_height,
++                                         formatOpenglParams.internalFormat)) {
++            GFXSTREAM_ERROR("GLES AHB EGL image creation failed");
++            return nullptr;
++        }
++        s_gles2.glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, cb->m_eglImage);
++        if (s_gles2.glGetError() != GL_NO_ERROR) {
++            GFXSTREAM_ERROR("GLES AHB texture import failed");
++            return nullptr;
++        }
++    } else
++#endif
+     s_gles2.glTexImage2D(GL_TEXTURE_2D,
+                          /*level=*/0,
+                          /*internalFormat=*/formatOpenglParams.internalFormat,
+@@ -393,7 +438,7 @@ std::unique_ptr<ColorBufferGl> ColorBufferGl::create(
+         cb->m_asyncReadbackType = GL_UNSIGNED_INT_8_8_8_8_REV;
+     }
+ 
+-    cb->m_eglImage =
++    if (!cb->m_eglImage) cb->m_eglImage =
+         s_egl.eglCreateImageKHR(p_display, s_egl.eglGetCurrentContext(), EGL_GL_TEXTURE_2D_KHR,
+                                 (EGLClientBuffer)SafePointerFromUInt(cb->m_tex), NULL);
+ 
+@@ -404,6 +449,26 @@ std::unique_ptr<ColorBufferGl> ColorBufferGl::create(
+     return cb;
+ }
+ 
++std::optional<BlobDescriptorInfo> ColorBufferGl::exportBlob() {
++#ifdef __ANDROID__
++    if (mAndroidBuffer) {
++        AHardwareBuffer_acquire(mAndroidBuffer.get());
++        return BlobDescriptorInfo{
++            .descriptorInfo = {
++                .handle = reinterpret_cast<int64_t>(mAndroidBuffer.get()),
++                .streamHandleType = STREAM_HANDLE_TYPE_PLATFORM_AHB,
++            },
++            .caching = 0,
++            .vulkanInfoOpt = std::nullopt,
++            .platformOwner = std::shared_ptr<void>(mAndroidBuffer.get(), [](void* buffer) {
++                AHardwareBuffer_release(static_cast<AHardwareBuffer*>(buffer));
++            }),
++        };
++    }
++#endif
++    return std::nullopt;
++}
++
+ ColorBufferGl::ColorBufferGl(EGLDisplay display, HandleType hndl, GLuint width, GLuint height,
+                              ContextHelper* helper, TextureDraw* textureDraw,
+                              PixelReadFormats& pixelReadFormats)
+@@ -706,6 +771,12 @@ bool ColorBufferGl::readPixelsYUVCached(int x, int y, int width, int height, voi
+ }
+ 
+ void ColorBufferGl::reformat(GfxstreamFormat format) {
++#ifdef __ANDROID__
++    if (mAndroidBuffer) {
++        GFXSTREAM_ERROR("Cannot orphan an exported GLES AHB with reformat");
++        return;
++    }
++#endif
+     auto formatOpenglParamsOpt = GetFormatOpenglParameters(format);
+     if (!formatOpenglParamsOpt) {
+         const std::string formatString = ToString(format);
+@@ -767,6 +838,9 @@ bool ColorBufferGl::subUpdate(int x, int y, int width, int height,
+ 
+     if (m_needFormatCheck) {
+         if (!isYuvColorBuffer && m_format != pixelsFormat) {
++#ifdef __ANDROID__
++            if (mAndroidBuffer) return false;
++#endif
+             reformat(pixelsFormat);
+         }
+         m_needFormatCheck = false;
+@@ -1301,6 +1375,9 @@ bool ColorBufferGl::importMemory(ManagedDescriptor externalDescriptor, uint64_t
+ }
+ 
+ bool ColorBufferGl::importEglNativePixmap(void* pixmap, bool preserveContent) {
++#ifdef __ANDROID__
++    if (mAndroidBuffer) return false;
++#endif
+     EGLImageKHR image = s_egl.eglCreateImageKHR(m_display, EGL_NO_CONTEXT, EGL_NATIVE_PIXMAP_KHR, pixmap, nullptr);
+ 
+     if (image == EGL_NO_IMAGE_KHR) {
+diff --git a/host/gl/color_buffer_gl.h b/host/gl/color_buffer_gl.h
+index 55b58ed..6cb1ebc 100644
+--- a/host/gl/color_buffer_gl.h
++++ b/host/gl/color_buffer_gl.h
+@@ -21,6 +21,11 @@
+ #include <GLES/gl.h>
+ #include <GLES3/gl3.h>
+ 
++#ifdef __ANDROID__
++#include <android/hardware_buffer.h>
++#endif
++#include "gfxstream/host/external_object_manager.h"
++
+ #include <array>
+ #include <memory>
+ #include <optional>
+@@ -103,6 +108,8 @@ class ColorBufferGl {
+     // Destructor.
+     ~ColorBufferGl();
+ 
++    std::optional<BlobDescriptorInfo> exportBlob();
++
+     // Return ColorBufferGl width and height in pixels
+     GLuint getWidth() const { return m_width; }
+     GLuint getHeight() const { return m_height; }
+@@ -236,6 +243,9 @@ class ColorBufferGl {
+     const GLuint m_height = 0;
+     GfxstreamFormat m_format;
+ 
++#ifdef __ANDROID__
++    std::shared_ptr<AHardwareBuffer> mAndroidBuffer;
++#endif
+     GLuint m_tex = 0;
+     GLuint m_blitTex = 0;
+     EGLImageKHR m_eglImage = nullptr;
+diff --git a/host/gl/glestranslator/egl/CMakeLists.txt b/host/gl/glestranslator/egl/CMakeLists.txt
+index 103b18e..f98cddf 100644
+--- a/host/gl/glestranslator/egl/CMakeLists.txt
++++ b/host/gl/glestranslator/egl/CMakeLists.txt
+@@ -15,7 +15,7 @@
+ # Use EGL platform specific definitions.
+ if (APPLE)
+     add_compile_definitions(__APPLE__)
+-elseif(UNIX)
++elseif(UNIX AND NOT ANDROID)
+     add_compile_definitions(USE_X11)
+ endif()
+ 
+@@ -59,6 +59,8 @@ elseif (APPLE)
+         EGL_translator_static
+         ${egl-translator-common-sources}
+         ${egl-translator-darwin-sources})
++elseif (ANDROID)
++    add_library(EGL_translator_static ${egl-translator-common-sources} core_profile_configs_linux.cpp egl_os_api_egl.cpp)
+ elseif (QNX)
+     add_library(
+         EGL_translator_static
+@@ -96,6 +98,8 @@ endif()
+ if (WIN32)
+ elseif (APPLE)
+     target_link_libraries(EGL_translator_static PUBLIC "-framework AppKit -framework IOSurface")
++elseif (ANDROID)
++    target_link_libraries(EGL_translator_static PUBLIC dl)
+ elseif (QNX)
+     target_link_libraries(EGL_translator_static PUBLIC "-lscreen -lregex -lEGL -lGLESv2")
+ else()
+diff --git a/host/virtio_gpu_resource.cpp b/host/virtio_gpu_resource.cpp
+index 8f081c9..d981065 100644
+--- a/host/virtio_gpu_resource.cpp
++++ b/host/virtio_gpu_resource.cpp
+@@ -15,6 +15,9 @@
+ #include "virtio_gpu_resource.h"
+ 
+ #include <drm/drm_fourcc.h>
++#ifdef __ANDROID__
++#include <android/hardware_buffer.h>
++#endif
+ 
+ #include "frame_buffer.h"
+ #include "virtio_gpu_format_utils.h"
+@@ -81,7 +84,7 @@ static std::unordered_map<int, struct ResourceFormatInfo> virglFormatInfoMap = {
+     {VIRGL_FORMAT_R8_UNORM, {DRM_FORMAT_R8, 1}},
+ };
+ 
+-static std::optional<int> DrmFourccToVirglFormat(uint32_t drm_fourcc) {
++[[maybe_unused]] static std::optional<int> DrmFourccToVirglFormat(uint32_t drm_fourcc) {
+     for (auto it : virglFormatInfoMap) {
+         if (it.second.drm_fourcc == drm_fourcc) {
+             return it.first;
+@@ -760,6 +763,10 @@ int VirtioGpuResource::ExportBlob(struct stream_renderer_handle* outHandle) {
+         auto& memory = std::get<ExternalMemoryInfo>(*mBlobMemory);
+ #ifdef __ANDROID__
+         auto rawDescriptor = memory->descriptorInfo.handle;
++        if (memory->platformOwner &&
++            memory->descriptorInfo.streamHandleType == STREAM_HANDLE_TYPE_PLATFORM_AHB) {
++            AHardwareBuffer_acquire(reinterpret_cast<AHardwareBuffer*>(rawDescriptor));
++        }
+ #else
+         auto rawDescriptorOpt = memory->descriptorInfo.descriptor.release();
+         if (!rawDescriptorOpt) {
+diff --git a/host/vulkan/CMakeLists.txt b/host/vulkan/CMakeLists.txt
+index 1c24126..5143b87 100644
+--- a/host/vulkan/CMakeLists.txt
++++ b/host/vulkan/CMakeLists.txt
+@@ -83,6 +83,8 @@ elseif (APPLE)
+ target_compile_definitions(gfxstream-vulkan-server PRIVATE -DVK_USE_PLATFORM_METAL_EXT -DVK_USE_PLATFORM_MACOS_MVK)
+ elseif (QNX)
+ target_compile_definitions(gfxstream-vulkan-server PRIVATE -DVK_USE_PLATFORM_SCREEN_QNX)
++elseif (ANDROID)
++target_compile_definitions(gfxstream-vulkan-server PRIVATE -DVK_USE_PLATFORM_ANDROID_KHR)
+ elseif (UNIX)
+ target_compile_definitions(gfxstream-vulkan-server PRIVATE -DVK_USE_PLATFORM_XCB_KHR)
+ endif()
+diff --git a/host/vulkan/cereal/CMakeLists.txt b/host/vulkan/cereal/CMakeLists.txt
+index 5134a9c..73affc1 100644
+--- a/host/vulkan/cereal/CMakeLists.txt
++++ b/host/vulkan/cereal/CMakeLists.txt
+@@ -24,6 +24,8 @@ if (WIN32)
+     target_compile_definitions(OpenglRender_vulkan_cereal PRIVATE -DVK_USE_PLATFORM_WIN32_KHR)
+ elseif (APPLE)
+     target_compile_definitions(OpenglRender_vulkan_cereal PRIVATE -DVK_USE_PLATFORM_MACOS_MVK -DVK_USE_PLATFORM_METAL_EXT)
++elseif(ANDROID)
++    target_compile_definitions(OpenglRender_vulkan_cereal PRIVATE -DVK_USE_PLATFORM_ANDROID_KHR)
+ elseif(UNIX)
+     target_compile_definitions(OpenglRender_vulkan_cereal PRIVATE -DVK_USE_PLATFORM_XCB_KHR)
+ endif()
+diff --git a/host/vulkan/display_surface_vk.cpp b/host/vulkan/display_surface_vk.cpp
+index b134c93..63e21b8 100644
+--- a/host/vulkan/display_surface_vk.cpp
++++ b/host/vulkan/display_surface_vk.cpp
+@@ -60,6 +60,9 @@ std::unique_ptr<DisplaySurfaceVk> DisplaySurfaceVk::create(const VulkanDispatch&
+     } else {
+         GFXSTREAM_FATAL("Vulkan driver does not support display surfaces!");
+     }
++#elif defined(VK_USE_PLATFORM_ANDROID_KHR)
++    GFXSTREAM_ERROR("Vulkan presentation is unavailable in this GLES-only Android runtime");
++    return nullptr;
+ #elif defined(VK_USE_PLATFORM_XCB_KHR)
+     auto x11 = getX11Api();
+ 

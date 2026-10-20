@@ -1,0 +1,7 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="net.ryuya_dev.protectedlinux.displayprobe">
+  <uses-sdk android:minSdkVersion="37" android:targetSdkVersion="37" />
+  <application android:label="Owned display qualification" android:allowBackup="false" />
+  <instrumentation android:name="net.ryuya_dev.protectedlinux.DisplayProbeInstrumentation"
+      android:targetPackage="net.ryuya_dev.protectedlinux" />
+</manifest>

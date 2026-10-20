@@ -255,10 +255,7 @@ static int bounded_reclaim_trial(size_t cap) {
             munmap(pressure, cap);
             return -1;
         }
-        if (available_kib() < PLB_PROBE_AVAILABLE_FLOOR_KIB) {
-            break;
-        }
-        size_t end = touched + plb_pressure_chunk(touched, cap);
+        size_t end = touched + plb_pressure_admitted_chunk(touched, cap, available_kib());
         if (end <= touched)
             break;
         for (size_t page = touched; page < end; page += 4096) {

@@ -36,16 +36,24 @@ int main(void) {
     struct utsname guest = {0};
     if (uname(&guest))
         result = 1;
-    const size_t bytes = 16 * 1024 * 1024;
+    const size_t bytes = PLB_CPU_WORKLOAD_BYTES;
     volatile unsigned char *data = result ? NULL : malloc(bytes);
     if (!data)
         result = 1;
     if (data) {
-        for (size_t i = 0; i < bytes; i++)
+        for (size_t i = 0; i < bytes; i++) {
             data[i] = (unsigned char)(i * 17 + i / 4096);
-        for (size_t i = 0; i < bytes; i++)
+            if ((i + 1) % (64 * 1024 * 1024) == 0)
+                printf("PLB_CPU_PROGRESS nonce=%s phase=write mib=%zu\n", PLB_CPU_NONCE,
+                       (i + 1) / (1024 * 1024));
+        }
+        for (size_t i = 0; i < bytes; i++) {
             if (data[i] != (unsigned char)(i * 17 + i / 4096))
                 result = 1;
+            if ((i + 1) % (64 * 1024 * 1024) == 0)
+                printf("PLB_CPU_PROGRESS nonce=%s phase=read mib=%zu\n", PLB_CPU_NONCE,
+                       (i + 1) / (1024 * 1024));
+        }
         free((void *)data);
     }
     printf("PLB_CPU_GUEST nonce=%s result=%d arch=%s release=%s bytes=%zu\n", PLB_CPU_NONCE, result,

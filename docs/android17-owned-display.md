@@ -1,11 +1,11 @@
 # Android 17: owned display connection
 
-Status: implemented transport, offline builds/tests and device linkage/reflection
-checks passed. **No complete new owned-display VMM build, Android guest boot, device display
-Binder exchange or GPU frame has been verified.** Separate CPU-only probes are
-recorded below.
-The Android guest gate remains disabled. These components cannot make the old
-Android 16 runtime compatible with the new host.
+Status: the new source VMM/renderer now build and load. Real Adreno AHB colors,
+owned Binder presentation and Surface recreation passed on the Galaxy. **Android
+guest boot remains incomplete, and fence/reuse correctness plus sustained frame
+rate remain unverified.** The app's Android guest gate is still disabled.
+See the [current device trials and failed cases](android17-runtime-validation.md).
+The original offline implementation and earlier linkage-only checks follow.
 
 ## Replaced connection
 

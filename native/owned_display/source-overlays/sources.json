@@ -1,0 +1,14 @@
+{
+  "crosvm_revision": "c7dd8d6950912fa5e6fde7ec2d1616e0ddc090f8",
+  "gfxstream_revision": "b46f0d4b4545def09bdf30651d4bf848b2ba0c34",
+  "rutabaga_version": "0.1.76-alpha.0",
+  "rutabaga_archive_sha256": "988c93caed844e77bcb3c3988d89d249408aa772702b543c980d49b6665fb5fd",
+  "minijail_revision": "c6fe710936b84753b99e6d0e9ea634109272f307",
+  "patches": {
+    "gfxstream-android17.patch": "6a051512384a5206105d12f61ee93b077102237c19d9af291ad4bfa5f30b8ace",
+    "crosvm-android17.patch": "55a648309d5b953ad1b841a93260ebc41a57a5d59f99e505f2bab499e58bb79f",
+    "rutabaga-android17.patch": "86406622a705173303881dfaa4f162d9233132a04e25a3a1c1f3665f258f06bd"
+  },
+  "production_android_guest_enabled": false,
+  "vulkan_enabled": false
+}
