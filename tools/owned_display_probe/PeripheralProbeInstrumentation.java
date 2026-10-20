@@ -32,6 +32,12 @@ public final class PeripheralProbeInstrumentation extends Instrumentation {
       JSONArray sensors = new JSONArray();
       for (var kind : AndroidGuestSensorSource.available(context)) sensors.put(kind.name());
       inventory.put("sensor_kinds", sensors);
+      var microphones = MicrophoneInventory.read(context);
+      inventory.put("builtin_input_ports", microphones.builtinPorts());
+      inventory.put("os_microphone_descriptors", microphones.describedMicrophones());
+      inventory.put("microphone_metadata_known", microphones.known());
+      inventory.put("flash_sources", VmTorchBridge.available(context).size());
+      inventory.put("torch_turned_on", false);
       AudioManager audio = context.getSystemService(AudioManager.class);
       JSONArray outputs = new JSONArray(), inputs = new JSONArray();
       for (AudioDeviceInfo device : audio.getDevices(AudioManager.GET_DEVICES_OUTPUTS))

@@ -691,3 +691,41 @@ the existing stock image/completed marker makes InstallerActivity return RESULT_
 The app now reports installed state and offers Terminal/Bridge setup without
 removing that marker/image. GUI is still not operated in this round; do not claim
 updated dialog or missing-image installer UI device validation.
+
+## Explicit Android 17 app launch release, user update 2026-10-21
+
+The user explicitly lifts the app-level Android guest startup prohibition.
+Expose only the separately pinned1024MiB/one-vCPU/GLES app experiment, with a
+per-launch six-key/40-second acknowledgement and the existing healthy-host,
+6GiB/floor, owner/maintenance and all-THP checks. Old Android16 and Vulkan/crash
+managers stay disabled. The separate app runtime must not replace the earlier
+developer runtime or original Android/Debian disks. Do not interpret the UI
+availability flag as production qualification. Current supervisor limit180s;
+no automatic retry, Internet, physical Android guest audio/camera/flash HAL claim.
+
+Tail ADB is the selected debug transport. A stuck Mac fork-server was actually
+restarted after explicit user instruction; do that host-side diagnosis before
+asking for another phone-side toggle. Tail shell su supports -c, not KSU -M;
+the app still uses its own normal su -M path. No Android restart was performed.
+
+Non-GUI app integration checks exposed one safe all-THP refusal at160MiB and a
+second premature adbd-only readiness receipt with shutdown timeout. Preserve
+both negative cases. Readiness now waits for exact sys.boot_completed=1; the
+third app-path1GiB headless session completed Android boot, guest framework/HAL
+inventory, guest shutdown, VMM0 and controller0. A closed-channel teardown
+warning remains separately recorded. Final host/core/trustedVM, taint4608,
+Enforcing, all six never policies and original three source-disk hashes passed.
+No owned VM remained and the instrumentation APK was removed. No physical GUI,
+recording, camera or LED-on test was performed. This does not qualify sustained
+120fps, integrated viewer input or the physical peripheral forwarding paths.
+
+The normal idle Debian bridge stop was used only after checking no guest child
+or active VMM existed. This grants no permission to stop unrelated/user sessions.
+Device metadata exposes two built-in input ports and three microphone descriptors;
+never present these as three independently controllable physical capsules.
+Debian LED transport is opt-in, visible-session-only, bounded to30s, with fixed
+requests, guest-root/host-module UID checks and no generic host command channel.
+CameraManager has no exclusive ownership; document off failures and takeover
+limits rather than promising perfect isolation. Android guest flash HAL remains
+unconnected. No extra compaction, THP node, host kernel/partition/protection or
+reboot permission was added.

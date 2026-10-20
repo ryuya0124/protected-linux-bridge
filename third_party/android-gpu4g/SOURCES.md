@@ -36,3 +36,21 @@ included in the interactive application runtime.
 
 A successful diagnostic readback is not a claim of reliable startup, smooth
 frame transfer, zero-copy, Android networking/audio/USB or Vulkan support.
+
+## Android 17 host baseline, alpha.5
+
+The new optional app bundle uses crosvm
+`c7dd8d6950912fa5e6fde7ec2d1616e0ddc090f8` and gfxstream
+`b46f0d4b4545def09bdf30651d4bf848b2ba0c34`, with the reviewed patches in
+`native/owned_display/source-overlays/`. Exact upstream links and patch hashes
+are retained there. This replaces neither the host VMM nor the older developer
+runtime. `tools/build_android17_app_runtime.py` packages only the pinned baseline
+DSOs, guest kernel and first-party helpers; the experimental YUV renderer and
+Vulkan runner are excluded. The guest Image remains the 6.12.74 build above.
+
+`ANDROID17_NOTICES.txt` adds unmodified notices from the pinned crosvm/gfxstream
+source trees and compiler depfile-selected registry sources. This inventory also
+includes optional/build components; it does not claim every license's component
+is linked. Reproduce with `tools/collect_android17_notices.py` after the baseline
+source build. The APK displays these notices alongside the earlier dependency
+inventory. Android OS images and the original guest ramdisk are not redistributed.

@@ -94,6 +94,26 @@ for pattern in (
 display_backend, display_publisher = build_owned_display(Path(a.sdk), temp / "owned-display")
 for component in (display_backend, display_publisher):
     shutil.copyfile(component, out / component.name)
+# Keep a normal source build usable without private guest OS/kernel inputs.
+# Never retain stale optional assets when the pinned source runtime is absent.
+for obsolete in out.glob("android17-app-*"):
+    obsolete.unlink()
+android17_vmm = (
+    root
+    / "artifacts/android17-vmm/build/target/aarch64-linux-android/release/libplb_vmm_android17.so"
+)
+if android17_vmm.is_file():
+    subprocess.run(
+        [
+            "python3",
+            str(root / "tools/build_android17_app_runtime.py"),
+            "--sdk",
+            a.sdk,
+            "--assets",
+            str(out),
+        ],
+        check=True,
+    )
 tunnel = build_tun(root, Path(a.sdk))
 
 fetch_gpu(root, out)

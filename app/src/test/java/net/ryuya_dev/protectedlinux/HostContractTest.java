@@ -15,9 +15,4 @@ public class HostContractTest {
     assertFalse(HostContract.matches(37, "SM-S942Q", "S948QOPU1BZI9", HostContract.KERNEL, 37));
     assertFalse(HostContract.matches(38, null, null, null, 38));
   }
-
-  @Test
-  public void missingHostRendererCannotEnableAndroidGuest() {
-    assertFalse(HostContract.ANDROID_GUEST_READY);
-  }
 }

@@ -9,6 +9,8 @@ import java.util.concurrent.*;
 /** An authenticated raw stream to a guest PTY or VNC channel; never a host shell. */
 final class VmChannel {
   interface Listener {
+    default void connected() {}
+
     void bytes(byte[] data) throws InterruptedException;
 
     void ended(String error);
@@ -60,6 +62,7 @@ final class VmChannel {
                   });
             current.setSoTimeout(0);
             android.util.Log.i("ProtectedLinux", "CHANNEL_CONNECTED " + kind);
+            listener.connected();
             byte[] buffer = new byte[kind == 'V' ? 65536 : 16384];
             int n;
             while (!closed && (n = current.getInputStream().read(buffer)) >= 0)

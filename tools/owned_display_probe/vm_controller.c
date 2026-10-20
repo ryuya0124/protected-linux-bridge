@@ -25,6 +25,15 @@
 #include "android4g_resource_limits.h"
 #include "preallocated_ready.h"
 #include "six_shmem_guard.generated.h"
+#ifdef PLB_ANDROID17_APP_SESSION
+static uid_t app_uid(void) {
+    struct stat directory;
+    if (lstat("/data/user/0/net.ryuya_dev.protectedlinux", &directory) ||
+        !S_ISDIR(directory.st_mode) || directory.st_uid < 10000 || directory.st_uid > 19999)
+        return (uid_t)-1;
+    return directory.st_uid;
+}
+#endif
 #include "pins.generated.h"
 #include "android_owned_process.h"
 #include "android_sensor_transport.h"
@@ -32,7 +41,11 @@
 static volatile _Atomic sig_atomic_t stopping;
 #include "android_gpu_console.h"
 #define PLB_ANDROID_ADOPTED_PROBE 1
+#ifdef PLB_ANDROID17_APP_SESSION
+#include "android17_app_session.h"
+#else
 #include "android_memory_observer.h"
+#endif
 
 static void stop(int number) {
     (void)number;
@@ -236,11 +249,30 @@ int main(int argc, char **argv) {
         return 40;
     int maintenance = profile_maintenance_lock(LOCK_SH), owner = profile_lock();
     if (maintenance < 0 || owner < 0)
+#ifdef PLB_ANDROID17_APP_SESSION
+        return 28;
+#else
         return 41;
+#endif
     if (!check_inputs())
+#ifdef PLB_ANDROID17_APP_SESSION
+        return 31;
+#else
         return 42;
+#endif
     if (android_isolate_owned_controller(PLB_VIEWER_UID))
         return 54;
+#ifdef PLB_ANDROID17_APP_SESSION
+    for (size_t i = 0; i < 3; i++) {
+        static const char *names[] = {"android-work.qcow2", "android-misc.raw", "android-frp.raw"};
+        char path[512];
+        struct stat info;
+        snprintf(path, sizeof(path), BASE "/%s", names[i]);
+        if (lstat(path, &info) || !S_ISREG(info.st_mode) || info.st_uid || info.st_nlink != 1 ||
+            (info.st_mode & 077) || info.st_size <= 0)
+            return 21;
+    }
+#endif
     if (check) {
         puts("ANDROID17_INPUTS_CHECK_PASS");
         return 0;
@@ -251,16 +283,59 @@ int main(int argc, char **argv) {
     signal(SIGTERM, stop);
     signal(SIGINT, stop);
     signal(SIGPIPE, SIG_IGN);
+#ifdef PLB_ANDROID17_APP_SESSION
+    if (relay_sensors || gate || app_session_listen())
+        return 58;
+#endif
     int child_input = -1;
     uint32_t selected = 0;
     unsigned long long forwarded = 0;
     if (relay_sensors && sensor_bootstrap(&child_input, &selected))
         return 56;
+#ifdef PLB_ANDROID17_APP_SESSION
+    if (app_capability_pipe(&child_input))
+        return 56;
+#endif
     if (!gate && (prepare_memory(owner, monitor, reclaim) || !enough_memory()))
         return 55;
     struct plb_shmem_guard policy = {.guardian = -1, .alive_write = -1};
     if (plb_shmem_begin(&policy, owner))
         return 44;
+#ifdef PLB_ANDROID17_APP_SESSION
+    pid_t gate_parent = getpid(), gate_child = fork();
+    if (!gate_child) {
+        if (prctl(PR_SET_PDEATHSIG, SIGKILL) || getppid() != gate_parent)
+            _exit(126);
+        char descriptor[32];
+        snprintf(descriptor, sizeof(descriptor), "%d", owner);
+        if (fcntl(owner, F_SETFD, 0) || setenv("PLB_DIAGNOSTIC_OWNER_FD", descriptor, 1))
+            _exit(127);
+        execl(PLB_ANDROID4G_RUNTIME "/allocation-probe", "allocation-probe", "--small-folios",
+              (char *)NULL);
+        _exit(127);
+    }
+    int gate_status = 0, gate_done = 0;
+    if (gate_child > 0) {
+        for (int i = 0; i < 100 && !stopping; i++) {
+            gate_done = waitpid(gate_child, &gate_status, WNOHANG);
+            if (gate_done != 0)
+                break;
+            usleep(100000);
+        }
+        if (gate_done != gate_child) {
+            kill(gate_child, SIGKILL);
+            while (waitpid(gate_child, &gate_status, 0) < 0 && errno == EINTR) {
+            }
+        }
+    }
+    if (gate_child < 0 || gate_done != gate_child || !WIFEXITED(gate_status) ||
+        WEXITSTATUS(gate_status) || !plb_host_memory_healthy() ||
+        plb_diagnostic_kernel_bad_with_traces(monitor, 1)) {
+        plb_shmem_finish(&policy);
+        return 59;
+    }
+    puts("ANDROID17_APP_FOLIO_GATE_PASS");
+#endif
     int ready[2] = {-1, -1};
     if (!gate && pipe2(ready, O_CLOEXEC | O_NONBLOCK)) {
         plb_shmem_finish(&policy);
@@ -287,7 +362,7 @@ int main(int argc, char **argv) {
         snprintf(text, sizeof(text), "%d", owner);
         if (fcntl(owner, F_SETFD, 0) || setenv("PLB_DIAGNOSTIC_OWNER_FD", text, 1))
             _exit(127);
-        if (relay_sensors) {
+        if (child_input >= 0) {
             if (dup2(child_input, STDIN_FILENO) < 0)
                 _exit(127);
             close(child_input);
@@ -317,7 +392,15 @@ int main(int argc, char **argv) {
     struct gpu_console_context context = {&console, child};
     int console_started =
         !gate && !pthread_create(&console_thread, NULL, gpu_console_worker, &context);
+#ifdef PLB_ANDROID17_APP_SESSION
+    (void)observer;
+    android_touch_vmm = child;
+    app_thread_started = !pthread_create(&app_thread, NULL, app_session_worker, NULL);
+    if (!app_thread_started)
+        stopping = 1;
+#else
     int observer_started = !gate && !pthread_create(&observer, NULL, android_memory_observer, NULL);
+#endif
     long long deadline = plb_shmem_millis() + (gate ? 12000 : 180000);
     while (!stopping && plb_shmem_millis() < deadline) {
         if (!plb_host_memory_healthy() || plb_diagnostic_kernel_bad_with_traces(monitor, 1)) {
@@ -382,6 +465,9 @@ int main(int argc, char **argv) {
     if (plb_shmem_finish(&policy))
         result = 53;
     stopping = 1;
+#ifdef PLB_ANDROID17_APP_SESSION
+    app_session_shutdown(done != child);
+#endif
     if (done != child) {
         kill(child, SIGTERM);
         for (int i = 0; i < 80; i++) {
@@ -398,8 +484,10 @@ int main(int argc, char **argv) {
     }
     if (console_started)
         pthread_join(console_thread, NULL);
+#ifndef PLB_ANDROID17_APP_SESSION
     if (observer_started)
         pthread_join(observer, NULL);
+#endif
     if (!gate) {
         sensor_close(&console, BASE "/early-console.sock");
         sensor_close(&control, BASE "/sensor-control.sock");

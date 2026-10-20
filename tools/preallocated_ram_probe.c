@@ -72,6 +72,11 @@ static int snapshot_pages(void *mapping, uint64_t pages[PAGE_COUNT], const char 
         heads += !!(flags & (UINT64_C(1) << 15));
     }
     result = 0;
+#ifdef PLB_HANDOFF_REQUIRE_THP
+    /* Product admission needs real compound THP evidence, not successful advice alone. */
+    if (!thp || !heads)
+        result = -1;
+#endif
 done:
     if (pagemap >= 0) {
         close(pagemap);

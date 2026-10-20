@@ -16,8 +16,8 @@ android {
     applicationId = "net.ryuya_dev.protectedlinux"
     minSdk = 37
     targetSdk = 37
-    versionCode = 23
-    versionName = "0.5.0-alpha.4"
+    versionCode = 24
+    versionName = "0.5.0-alpha.5"
   }
   signingConfigs {
     if (!signing.isEmpty)
@@ -219,6 +219,8 @@ val dependencyLicenses =
             rootProject.file("third_party/android-gpu4g/SOURCES.md").readText() +
             "\n" +
             rootProject.file("third_party/android-gpu4g/DEPENDENCY_LICENSES.txt").readText() +
+            "\nAndroid 17 source-built runtime\n" +
+            rootProject.file("third_party/android-gpu4g/ANDROID17_NOTICES.txt").readText() +
             "\nOptional Linux guest kernel (separately imported)\nCorresponding source: https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.18.57.tar.xz\nConfiguration/build: https://github.com/ryuya0124/protected-linux-bridge/tree/main/kernels\n" +
             rootProject
               .file("third_party/linux")

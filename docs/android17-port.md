@@ -1,8 +1,9 @@
 # Android 17 host port
 
 Status: an Android 17 **1 GiB developer session** completed boot, real Adreno
-GPU home presentation, Surface recreation and guest shutdown. The production
-Android gate remains disabled pending integration and further qualification.
+GPU home presentation, Surface recreation and guest shutdown. The separately pinned 1 GiB GLES path is now exposed as an explicit experimental
+app launch; general production qualification remains incomplete. See
+[launch conditions](android17-app-launch.md).
 The [current runtime/fragmentation record](android17-runtime-validation.md)
 separates this result from failed larger profiles and unverified 120 fps.
 Earlier sections retain their historical test scope. Host and guest Android

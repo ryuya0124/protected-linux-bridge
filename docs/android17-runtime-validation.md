@@ -1,10 +1,14 @@
+> Update: [the experimental app launch](android17-app-launch.md) now exposes the
+> separate 1 GiB GLES runtime on explicit user request. The entries below retain
+> their original chronology; earlier gate=false statements are historical.
+
 # Android 17 runtime recovery: device evidence
 
 2026-10-20, follow-up to the offline port and owned-display design. This is a
 **developer validation record**, not a working Android guest release. A later
 1 GiB developer session completed Android boot, real GPU home presentation,
-Surface recreation and guest shutdown. The APK's `ANDROID_GUEST_READY` gate
-remains false pending product integration and further qualification. Android 16 is frozen.
+Surface recreation and guest shutdown. The historical APK gate
+remained false pending product integration and further qualification. Android 16 is frozen.
 
 ## Boundaries
 

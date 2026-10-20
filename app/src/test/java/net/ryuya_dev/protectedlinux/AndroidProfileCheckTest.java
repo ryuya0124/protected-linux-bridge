@@ -41,4 +41,17 @@ public final class AndroidProfileCheckTest {
     assertFalse(AndroidGuestRuntime.verifiedCheck(39, marker, 1536));
     assertFalse(AndroidGuestRuntime.verifiedCheck(0, marker + " ".repeat(4096), 1536));
   }
+
+  @Test
+  public void android17RequiresExactPositiveReceiptAndExit() {
+    String expected = "ANDROID17_INPUTS_CHECK_PASS";
+    assertTrue(AndroidGuestRuntime.verifiedAndroid17Check(0, expected + "\n", expected));
+    for (String output :
+        new String[] {
+          "", "permission denied", expected + "\n" + expected, expected + "_FAKE", "x".repeat(4096)
+        }) {
+      assertFalse(AndroidGuestRuntime.verifiedAndroid17Check(0, output, expected));
+    }
+    assertFalse(AndroidGuestRuntime.verifiedAndroid17Check(31, expected, expected));
+  }
 }

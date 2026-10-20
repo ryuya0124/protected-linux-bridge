@@ -14,5 +14,13 @@
   "experimental_patches": {
     "gfxstream-native-yuv-experiment.patch": "7de415647880cc88a5a1b4ac501520397976e06feefbd32ccc299bd42e2717e8"
   },
-  "native_yuv_guest_extension_enabled": false
+  "native_yuv_guest_extension_enabled": false,
+  "experimental_app_launch_enabled": true,
+  "experimental_app_profile": {
+    "memory_mib": 1024,
+    "vcpus": 1,
+    "session_limit_seconds": 180,
+    "renderer": "GLES only",
+    "internet": false
+  }
 }

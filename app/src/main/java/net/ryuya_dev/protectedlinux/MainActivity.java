@@ -313,6 +313,7 @@ public final class MainActivity extends AppCompatActivity {
     LinearLayout audio = detailPage(Detail.AUDIO), clipboard = detailPage(Detail.CLIPBOARD);
     integrationCards(audio, clipboard);
     audioDevicesCard(audio);
+    torchCard(audio);
     LinearLayout terminal = detailPage(Detail.TERMINAL);
     framework = new StatusCard(terminal, R.string.framework_title);
     LinearLayout terminalActions = UiKit.group(terminal);
@@ -1183,101 +1184,29 @@ public final class MainActivity extends AppCompatActivity {
   private TextView resourceStatus;
 
   private void androidGuestCard(LinearLayout page) {
-    if (!HostContract.ANDROID_GUEST_READY) {
-      UiKit.row(
-          UiKit.group(page),
-          R.drawable.ic_vm,
-          R.string.ui_android_unavailable,
-          R.string.host17_android_pending,
-          null);
-      return;
-    }
     MaterialCardView card = card(page);
     LinearLayout body = column();
     body.setPadding(dp(18), dp(14), dp(18), dp(16));
     card.addView(body);
     body.addView(text(getString(R.string.android_guest_title), 20));
-    body.addView(text(getString(R.string.android_guest_description), 14));
-    button(R.string.android_guest_open, body)
-        .setOnClickListener(
-            view -> {
-              int[] selectedMemory = {4096};
-              LinearLayout options = column();
-              options.setPadding(dp(24), dp(4), dp(24), 0);
-              TextView legacyConditions =
-                  text(getString(R.string.android_guest_launch_conditions), 14);
-              legacyConditions.setVisibility(View.GONE);
-              options.addView(legacyConditions);
-              MaterialAutoCompleteTextView memory =
-                  selection(
-                      options, R.string.android_guest_memory_label, R.array.android_guest_memories);
-              memory.setText(
-                  getResources().getStringArray(R.array.android_guest_memories)[3], false);
-              TextView gpuConditions = text(getString(R.string.android_guest_gpu_summary), 14);
-              gpuConditions.setVisibility(View.VISIBLE);
-              options.addView(gpuConditions);
-              MaterialSwitch androidInternet = new MaterialSwitch(this);
-              androidInternet.setText(R.string.android_guest_internet);
-              androidInternet.setChecked(true);
-              androidInternet.setVisibility(View.VISIBLE);
-              options.addView(androidInternet);
-              MaterialSwitch gpuDisplay = new MaterialSwitch(this);
-              gpuDisplay.setText(R.string.android_guest_gpu_surface);
-              gpuDisplay.setChecked(true);
-              gpuDisplay.setVisibility(View.VISIBLE);
-              options.addView(gpuDisplay);
-              memory.setOnItemClickListener(
-                  (parent, item, position, id) -> {
-                    selectedMemory[0] = AndroidGuestProfile.memoryAt(position);
-                    legacyConditions.setVisibility(
-                        selectedMemory[0] == 4096 ? View.GONE : View.VISIBLE);
-                    gpuConditions.setVisibility(
-                        selectedMemory[0] == 4096 ? View.VISIBLE : View.GONE);
-                    gpuDisplay.setVisibility(selectedMemory[0] == 4096 ? View.VISIBLE : View.GONE);
-                    androidInternet.setVisibility(
-                        selectedMemory[0] == 4096 ? View.VISIBLE : View.GONE);
-                  });
-              android.widget.ScrollView scroll = new android.widget.ScrollView(this);
-              scroll.addView(options);
-              new MaterialAlertDialogBuilder(this)
-                  .setTitle(R.string.android_guest_title)
-                  .setView(scroll)
-                  .setNegativeButton(android.R.string.cancel, null)
-                  .setPositiveButton(
-                      R.string.android_guest_open,
-                      (dialog, which) ->
-                          confirmAndroidGuest(
-                              selectedMemory[0],
-                              selectedMemory[0] == 4096 && androidInternet.isChecked(),
-                              selectedMemory[0] == 4096 && gpuDisplay.isChecked()))
-                  .show();
-            });
+    body.addView(text(getString(R.string.android17_app_summary), 14));
+    button(R.string.android_guest_open, body).setOnClickListener(view -> confirmAndroidGuest());
   }
 
-  private void confirmAndroidGuest(int memoryMib, boolean internet, boolean gpuSurface) {
-    Runnable launch =
-        () ->
-            startActivity(
-                new Intent(this, AndroidGuestActivity.class)
-                    .putExtra(AndroidGuestActivity.EXTRA_MEMORY_MIB, memoryMib)
-                    .putExtra(AndroidGuestActivity.EXTRA_INTERNET, internet)
-                    .putExtra(AndroidGuestActivity.EXTRA_GPU_SURFACE, gpuSurface)
-                    .putExtra(
-                        AndroidGuestActivity.EXTRA_POLICY_ACKNOWLEDGED,
-                        AndroidGuestProfile.guarded(memoryMib)));
-    if (memoryMib != 4096) {
-      launch.run();
-      return;
-    }
+  private void confirmAndroidGuest() {
     new MaterialAlertDialogBuilder(this)
-        .setTitle(R.string.android_guest_gpu_title)
-        .setMessage(
-            getString(R.string.android_guest_gpu_conditions)
-                + (gpuSurface
-                    ? "\n\n" + getString(R.string.android_guest_gpu_surface_details)
-                    : ""))
+        .setTitle(R.string.android_guest_title)
+        .setMessage(R.string.android17_app_conditions)
         .setNegativeButton(android.R.string.cancel, null)
-        .setPositiveButton(R.string.android_guest_open, (dialog, which) -> launch.run())
+        .setPositiveButton(
+            R.string.android_guest_open,
+            (dialog, which) ->
+                startActivity(
+                    new Intent(this, AndroidGuestActivity.class)
+                        .putExtra(AndroidGuestActivity.EXTRA_MEMORY_MIB, 1024)
+                        .putExtra(AndroidGuestActivity.EXTRA_INTERNET, false)
+                        .putExtra(AndroidGuestActivity.EXTRA_GPU_SURFACE, true)
+                        .putExtra(AndroidGuestActivity.EXTRA_POLICY_ACKNOWLEDGED, true)))
         .show();
   }
 
@@ -1510,6 +1439,22 @@ public final class MainActivity extends AppCompatActivity {
           getSharedPreferences("config", 0).edit().putBoolean("peripheral_audio_linux", on).apply();
           MicrophoneService.reconfigure(this);
         });
+    TextView inventory = text(getString(R.string.checking), 13);
+    body.addView(inventory);
+    MaterialAutoCompleteTextView direction =
+        selection(body, R.string.microphone_direction, R.array.microphone_directions);
+    int selectedDirection = getSharedPreferences("config", 0).getInt("microphone_direction", 0);
+    direction.setText(
+        getResources()
+            .getStringArray(R.array.microphone_directions)[
+            selectedDirection >= 0 && selectedDirection <= 2 ? selectedDirection : 0],
+        false);
+    direction.setOnItemClickListener(
+        (parent, view, index, id) -> {
+          getSharedPreferences("config", 0).edit().putInt("microphone_direction", index).apply();
+          MicrophoneService.reconfigure(this);
+        });
+    body.addView(text(getString(R.string.microphone_array_detail), 13));
     LinearLayout menus = column();
     body.addView(menus);
     Runnable refresh =
@@ -1544,10 +1489,62 @@ public final class MainActivity extends AppCompatActivity {
                 });
           }
         };
-    refreshAudioDevices = refresh;
-    refresh.run();
-    UiKit.textAction(body, R.string.audio_refresh_devices).setOnClickListener(v -> refresh.run());
+    refreshAudioDevices =
+        () -> {
+          refresh.run();
+          worker.submit(
+              () -> {
+                var snapshot = MicrophoneInventory.read(this);
+                runOnUiThread(
+                    () -> {
+                      if (!isDestroyed())
+                        inventory.setText(MicrophoneInventory.summary(this, snapshot));
+                    });
+              });
+        };
+    refreshAudioDevices.run();
+    UiKit.textAction(body, R.string.audio_refresh_devices)
+        .setOnClickListener(v -> refreshDevices());
     body.addView(text(getString(R.string.usb_direct_unavailable), 13));
+  }
+
+  private void torchCard(LinearLayout page) {
+    LinearLayout body = column();
+    body.setPadding(dp(18), dp(14), dp(18), dp(16));
+    card(page).addView(body);
+    body.addView(text(getString(R.string.vm_torch_title), 20));
+    body.addView(text(getString(R.string.vm_torch_detail), 14));
+    MaterialSwitch allow = new MaterialSwitch(this);
+    allow.setText(R.string.vm_torch_allow);
+    var preferences = getSharedPreferences("config", 0);
+    allow.setChecked(preferences.getBoolean("vm_torch_enabled", false));
+    body.addView(allow);
+    MaterialAutoCompleteTextView camera =
+        selection(body, R.string.vm_torch_camera, R.array.audio_device_placeholder);
+    try {
+      var choices = VmTorchBridge.available(this);
+      camera.setSimpleItems(
+          choices.stream()
+              .map(c -> getString(R.string.vm_torch_choice, c.id(), c.maximum()))
+              .toArray(String[]::new));
+      String selected = preferences.getString("vm_torch_camera", "");
+      for (var choice : choices)
+        if (choice.id().equals(selected))
+          camera.setText(getString(R.string.vm_torch_choice, choice.id(), choice.maximum()), false);
+      camera.setOnItemClickListener(
+          (parent, view, index, id) ->
+              preferences.edit().putString("vm_torch_camera", choices.get(index).id()).apply());
+      if (choices.isEmpty()) {
+        allow.setEnabled(false);
+        camera.setEnabled(false);
+      }
+    } catch (Exception unavailable) {
+      allow.setEnabled(false);
+      camera.setEnabled(false);
+      body.addView(text(getString(R.string.vm_torch_unavailable), 14));
+    }
+    allow.setOnCheckedChangeListener(
+        (button, checked) -> preferences.edit().putBoolean("vm_torch_enabled", checked).apply());
   }
 
   private void refreshDevices() {

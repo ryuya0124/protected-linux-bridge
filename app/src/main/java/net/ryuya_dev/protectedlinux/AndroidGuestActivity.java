@@ -53,7 +53,7 @@ public final class AndroidGuestActivity extends AppCompatActivity {
     DynamicColors.applyToActivityIfAvailable(this);
     super.onCreate(state);
     EdgeToEdge.enable(this);
-    memoryMib = getIntent().getIntExtra(EXTRA_MEMORY_MIB, 512);
+    memoryMib = getIntent().getIntExtra(EXTRA_MEMORY_MIB, 1024);
     LinearLayout page = new LinearLayout(this);
     page.setOrientation(LinearLayout.VERTICAL);
     int padding = Math.round(12 * getResources().getDisplayMetrics().density);
@@ -77,7 +77,7 @@ public final class AndroidGuestActivity extends AppCompatActivity {
     frame.setBackgroundColor(android.graphics.Color.BLACK);
     frame.addView(display, new android.widget.FrameLayout.LayoutParams(-1, -1));
     page.addView(frame, new LinearLayout.LayoutParams(-1, 0, 1));
-    if (memoryMib == 4096 && getIntent().getBooleanExtra(EXTRA_GPU_SURFACE, false)) {
+    if (memoryMib == 1024 && getIntent().getBooleanExtra(EXTRA_GPU_SURFACE, true)) {
       try {
         gpuSurface = new AndroidGuestGpuSurface(this, frame);
         commands = new AndroidGuestCommands(true);
@@ -201,6 +201,14 @@ public final class AndroidGuestActivity extends AppCompatActivity {
               getIntent().getBooleanExtra(EXTRA_POLICY_ACKNOWLEDGED, false),
               gpuSurface != null);
       manager = process;
+      if (closed) {
+        process.getOutputStream().close();
+        return;
+      }
+      OwnedDisplayConnection owned = OwnedDisplayConnection.current();
+      if (gpuSurface == null || owned == null) throw new IOException("Owned display missing");
+      owned.writeCapability(process.getOutputStream());
+      process.getOutputStream().close();
       Thread logs =
           new Thread(
               () -> {
@@ -232,7 +240,7 @@ public final class AndroidGuestActivity extends AppCompatActivity {
               "android-guest-log");
       logs.start();
       LocalSocket socket = null;
-      for (int attempt = 0; attempt < 600 && !closed && process.isAlive(); attempt++) {
+      for (int attempt = 0; attempt < 900 && !closed && process.isAlive(); attempt++) {
         LocalSocket candidate = new LocalSocket();
         try {
           candidate.connect(
@@ -263,6 +271,7 @@ public final class AndroidGuestActivity extends AppCompatActivity {
           || number(input) != 800
           || number(input) != 0)
         throw new IOException(getString(R.string.android_guest_start_failed));
+      if (gpuSurface == null) throw new IOException("Android 17 requires owned GPU display");
       inputReady = true;
       boolean networkPending = false;
       long networkCheckDue = 0;

@@ -16,6 +16,7 @@ public final class HeadlessGuestInstrumentation extends Instrumentation {
   private static final String BASE =
       "/data/user/0/net.ryuya_dev.protectedlinux/files/android17-owned-runtime";
 
+  private boolean appRuntime;
   private boolean relaySensors;
   private boolean nullAudio;
   private boolean syntheticCamera;
@@ -23,6 +24,7 @@ public final class HeadlessGuestInstrumentation extends Instrumentation {
   @Override
   public void onCreate(Bundle arguments) {
     super.onCreate(arguments);
+    appRuntime = arguments != null && "true".equals(arguments.getString("app_runtime"));
     relaySensors = arguments != null && "true".equals(arguments.getString("relay_sensors"));
     nullAudio = arguments != null && "true".equals(arguments.getString("null_audio"));
     syntheticCamera = arguments != null && "true".equals(arguments.getString("synthetic_camera"));
@@ -58,6 +60,7 @@ public final class HeadlessGuestInstrumentation extends Instrumentation {
   public void onStart() {
     Bundle result = new Bundle();
     Process producer = null;
+    android.net.LocalSocket appControl = null;
     OwnedDisplayConnection connection = null;
     AndroidGuestSensorSource sensors = null;
     AndroidGuestSensorPipe sensorPipe = null;
@@ -81,17 +84,19 @@ public final class HeadlessGuestInstrumentation extends Instrumentation {
         if (sensorMask != 1) throw new IOException("Selected accelerometer unavailable");
       }
       producer =
-          new ProcessBuilder(
-                  "su",
-                  "-M",
-                  "-c",
-                  BASE
-                      + (nullAudio ? "/vm-controller-audio " : "/vm-controller ")
-                      + (relaySensors
-                          ? "--run-approved-gles-sensors"
-                          : "--run-approved-gles-reclaim"))
-              .redirectErrorStream(true)
-              .start();
+          appRuntime
+              ? AndroidGuestRuntime.start(getTargetContext(), 1024, true, true)
+              : new ProcessBuilder(
+                      "su",
+                      "-M",
+                      "-c",
+                      BASE
+                          + (nullAudio ? "/vm-controller-audio " : "/vm-controller ")
+                          + (relaySensors
+                              ? "--run-approved-gles-sensors"
+                              : "--run-approved-gles-reclaim"))
+                  .redirectErrorStream(true)
+                  .start();
       Process owned = producer;
       Thread reader =
           new Thread(
@@ -116,13 +121,43 @@ public final class HeadlessGuestInstrumentation extends Instrumentation {
       reader.start();
       connection.writeCapability(producer.getOutputStream());
       if (relaySensors) sensorPipe.start(producer.getOutputStream(), sensorMask);
+      if (appRuntime) {
+        long connectDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(90);
+        while (System.nanoTime() < connectDeadline && producer.isAlive()) {
+          var candidate = new android.net.LocalSocket();
+          try {
+            candidate.connect(
+                new android.net.LocalSocketAddress(
+                    "net.ryuya_dev.protectedlinux.android-display",
+                    android.net.LocalSocketAddress.Namespace.ABSTRACT));
+            if (candidate.getPeerCredentials().getUid() != 0)
+              throw new IOException("App control peer");
+            candidate.setSoTimeout(120000);
+            byte[] header = candidate.getInputStream().readNBytes(20);
+            var words = java.nio.ByteBuffer.wrap(header).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+            if (header.length != 20
+                || words.getInt() != 0x41424c50
+                || words.getInt() != 1
+                || words.getInt() != 480
+                || words.getInt() != 800
+                || words.getInt() != 0) throw new IOException("App control greeting");
+            appControl = candidate;
+            break;
+          } catch (IOException unavailable) {
+            candidate.close();
+            Thread.sleep(100);
+          }
+        }
+        if (appControl == null) throw new IOException("App control unavailable");
+      }
+
       long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(145);
       while (System.nanoTime() < deadline) {
         String line = lines.poll(100, TimeUnit.MILLISECONDS);
         if (line == null) continue;
         if (line.equals("HEADLESS_SENSOR_SOURCE_FAILED"))
           throw new IOException("Host sensor source stopped");
-        if (line.contains("PLB_ANDROID_MEMORY_HOME")) {
+        if (line.contains(appRuntime ? "ANDROID17_APP_GUEST_READY" : "PLB_ANDROID_MEMORY_HOME")) {
           booted = true;
           break;
         }
@@ -133,7 +168,8 @@ public final class HeadlessGuestInstrumentation extends Instrumentation {
       if (!booted) throw new IOException("Headless Android boot deadline");
       String inventory = fixedHelper("guest-inspect");
       result.putString("guest_inventory", inventory);
-      if (!inventory.contains("PLB_GUEST_PERIPHERAL_INSPECT_COMPLETE"))
+      if (!inventory.contains("PLB_GUEST_PERIPHERAL_INSPECT_COMPLETE")
+          || (appRuntime && !inventory.contains("BOOT=1\n")))
         throw new IOException("Guest metadata completion missing");
       if (relaySensors) {
         String sensorCheck = fixedHelper("guest-sensor-check");
@@ -186,6 +222,11 @@ public final class HeadlessGuestInstrumentation extends Instrumentation {
         }
         if (producer.isAlive()) producer.destroy();
       }
+      if (appControl != null)
+        try {
+          appControl.close();
+        } catch (IOException ignored) {
+        }
       if (connection != null) connection.close();
       synchronized (log) {
         result.putString("producer_log", log.toString());

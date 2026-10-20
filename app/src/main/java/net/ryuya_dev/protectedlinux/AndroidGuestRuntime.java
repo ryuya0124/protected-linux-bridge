@@ -52,7 +52,7 @@ final class AndroidGuestRuntime {
       case 40, 45, 46, 47, 48, 49, 50 -> R.string.android_guest_preparation_failed;
       case 41 -> R.string.android_guest_process_isolation_failed;
       case 42, 90 -> R.string.android_guest_host_memory_warning;
-      case 89 -> R.string.android_guest_fragmented;
+      case 59, 88, 89 -> R.string.android_guest_fragmented;
       case 124 -> R.string.android_guest_session_ended;
       default -> R.string.android_guest_root_error;
     };
@@ -61,88 +61,57 @@ final class AndroidGuestRuntime {
   static Process start(
       Context context, int memoryMib, boolean policyAcknowledged, boolean gpuSurface)
       throws Exception {
-    if (!HostContract.ANDROID_GUEST_READY)
-      throw new java.io.IOException(context.getString(R.string.host17_android_pending));
-    if (!HostPlatform.compatible(context))
+    if (!HostContract.ANDROID17_EXPERIMENT_ENABLED || !HostPlatform.compatible(context))
       throw new java.io.IOException(context.getString(R.string.android_guest_unsupported));
-    if (gpuSurface && memoryMib != 4096) throw new java.io.IOException("GPU Surface profile");
-    boolean large = AndroidGuestProfile.guarded(memoryMib);
-    if (!AndroidGuestProfile.supported(memoryMib) || (large && !policyAcknowledged))
-      throw new java.io.IOException(context.getString(R.string.android_guest_policy_consent));
-    if (memoryMib == 4096) {
-      try {
-        for (String name :
-            new String[] {
-              "crosvm",
-              "guest.Image",
-              "ramdisk-tail.cpio",
-              "adopt-vmm",
-              "manager",
-              "policy",
-              "allocation-probe",
-              "pressure-check",
-              "network-controller"
-            }) {
-          install(context, "gpu4g-" + name);
-        }
-      } catch (java.io.FileNotFoundException missing) {
-        throw new java.io.IOException(context.getString(R.string.android_guest_gpu_bundle_missing));
+    if (memoryMib != 1024 || !gpuSurface || !policyAcknowledged)
+      throw new java.io.IOException(context.getString(R.string.android17_app_conditions));
+    try (InputStream list = context.getAssets().open("runtime/android17-app-files.txt")) {
+      String files = new String(list.readNBytes(4096), java.nio.charset.StandardCharsets.UTF_8);
+      for (String name : files.split("\\R")) {
+        if (!name.matches("[A-Za-z0-9_.-]{1,80}"))
+          throw new java.io.IOException("Runtime manifest");
+        install(context, "android17-app-" + name);
       }
-    } else if (large) install(context, AndroidGuestProfile.library(memoryMib));
-    if (gpuSurface) {
-      try {
-        for (String name :
-            new String[] {
-              "crosvm",
-              "guest.Image",
-              "adopt-vmm",
-              "manager",
-              "policy",
-              "allocation-probe",
-              "pressure-check",
-              "network-controller",
-              "libcrosvm-surface.so",
-              "libsurface-probe.so",
-              "surface-agent.jar"
-            }) install(context, "gpu4g-surface-" + name);
-      } catch (java.io.FileNotFoundException missing) {
-        throw new java.io.IOException(context.getString(R.string.android_guest_gpu_bundle_missing));
-      }
+    } catch (java.io.FileNotFoundException missing) {
+      throw new java.io.IOException(context.getString(R.string.android17_app_bundle_missing));
     }
-    File executable =
-        install(
-            context,
-            gpuSurface
-                ? "android-gpu4g-surface-bridge"
-                : AndroidGuestProfile.executable(memoryMib));
-
-    Process check =
-        new ProcessBuilder("su", "-M", "-c", executable + " --check")
-            .redirectErrorStream(true)
-            .start();
-    if (!check.waitFor(15, TimeUnit.SECONDS)) {
-      check.destroy();
-      throw new java.io.IOException(context.getString(R.string.android_guest_root_error));
-    }
-    if (check.exitValue() != 0)
-      throw new java.io.IOException(context.getString(errorMessage(check.exitValue())));
-    String checked =
-        new String(
-            check.getInputStream().readNBytes(4096), java.nio.charset.StandardCharsets.UTF_8);
-    if (!verifiedCheck(check.exitValue(), checked, memoryMib))
-      throw new java.io.IOException(context.getString(R.string.android_guest_root_error));
-    if (!RuntimeSetup.stop(context))
-      throw new java.io.IOException(context.getString(R.string.android_guest_busy));
+    String installer = new File(context.getFilesDir(), "runtime/android17-app-install").getPath();
+    checkedCommand(context, installer, "ANDROID17_APP_RUNTIME_INSTALLED");
+    String controller =
+        new File(context.getFilesDir(), "android17-app-runtime/vm-controller").getPath();
+    checkedCommand(context, controller + " --check", "ANDROID17_INPUTS_CHECK_PASS");
+    // The native owner/maintenance locks refuse concurrent Debian sessions.
+    // Do not stop the user's terminal or rewrite any guest OS disk implicitly.
     return new ProcessBuilder(
-            "su",
-            "-M",
-            "-c",
-            "exec "
-                + executable
-                + " "
-                + android.os.Process.myUid()
-                + (memoryMib == 4096 ? " --ack-six-shmem" : large ? " --ack-small-shmem" : ""))
+            "su", "-M", "-c", "exec " + controller + " --run-approved-gles-reclaim")
         .redirectErrorStream(true)
         .start();
+  }
+
+  static boolean verifiedAndroid17Check(int result, String output, String receipt) {
+    return result == 0
+        && output != null
+        && output.length() < 4096
+        && output.strip().equals(receipt);
+  }
+
+  private static void checkedCommand(Context context, String command, String receipt)
+      throws Exception {
+    Process process =
+        new ProcessBuilder("su", "-M", "-c", command).redirectErrorStream(true).start();
+    var reader = java.util.concurrent.Executors.newSingleThreadExecutor();
+    try {
+      var bytes = reader.submit(() -> process.getInputStream().readNBytes(4096));
+      byte[] output = bytes.get(30, TimeUnit.SECONDS);
+      if (!process.waitFor(1, TimeUnit.SECONDS))
+        throw new java.io.IOException("Runtime check deadline");
+      String text = new String(output, java.nio.charset.StandardCharsets.UTF_8);
+      if (!verifiedAndroid17Check(process.exitValue(), text, receipt))
+        throw new java.io.IOException(context.getString(errorMessage(process.exitValue())));
+    } finally {
+      if (process.isAlive()) process.destroy();
+      process.getInputStream().close();
+      reader.shutdownNow();
+    }
   }
 }

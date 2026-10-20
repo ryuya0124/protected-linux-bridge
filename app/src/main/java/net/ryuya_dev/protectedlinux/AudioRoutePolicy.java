@@ -20,7 +20,7 @@ final class AudioRoutePolicy {
                         : "auto".equals(key) ? d.external() : d.key().equals(key))
             .toList();
     if (matches.isEmpty()) throw new Missing();
-    if (!"builtin".equals(key) && matches.size() > 1) throw new Ambiguous();
+    if (matches.size() > 1) throw new Ambiguous();
     return matches.get(0).id();
   }
 }

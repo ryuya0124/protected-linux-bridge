@@ -23,6 +23,31 @@ public final class StandaloneTerminalActivity extends AppCompatActivity {
   private FrameLayout content;
   private TabLayout tabs;
   private int sequence;
+  private boolean resumed;
+  private VmTorchBridge torch;
+
+  private void updateTorch() {
+    boolean connected = panes.stream().anyMatch(pane -> pane.connected && !pane.closed);
+    if (resumed && connected && torch == null) torch = VmTorchBridge.open(this);
+    else if ((!resumed || !connected) && torch != null) {
+      torch.close();
+      torch = null;
+    }
+  }
+
+  @Override
+  protected void onResume() {
+    super.onResume();
+    resumed = true;
+    updateTorch();
+  }
+
+  @Override
+  protected void onPause() {
+    resumed = false;
+    updateTorch();
+    super.onPause();
+  }
 
   @Override
   public void onCreate(Bundle saved) {
@@ -126,6 +151,7 @@ public final class StandaloneTerminalActivity extends AppCompatActivity {
       }
     }
     panes.remove(pane);
+    updateTorch();
     content.removeView(pane.web);
     pane.close();
     if (selected != null) tabs.removeTab(selected);
@@ -147,6 +173,7 @@ public final class StandaloneTerminalActivity extends AppCompatActivity {
   }
 
   private final class Pane {
+    private volatile boolean connected;
     final WebView web = new WebView(StandaloneTerminalActivity.this);
     final Semaphore pending = new Semaphore(8);
     volatile boolean closed;
@@ -225,11 +252,24 @@ public final class StandaloneTerminalActivity extends AppCompatActivity {
               channel =
                   new VmChannel(
                       new VmChannel.Listener() {
+                        public void connected() {
+                          runOnUiThread(
+                              () -> {
+                                connected = true;
+                                updateTorch();
+                              });
+                        }
+
                         public void bytes(byte[] data) throws InterruptedException {
                           emit(data);
                         }
 
                         public void ended(String error) {
+                          runOnUiThread(
+                              () -> {
+                                connected = false;
+                                updateTorch();
+                              });
                           message(error == null ? getString(R.string.console_ended) : error);
                         }
                       });

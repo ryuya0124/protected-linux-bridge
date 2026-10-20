@@ -10,7 +10,8 @@ final class HostContract {
   static final String TERMINAL_SHA256 =
       "e493cb1ad8798e3a2c0320c6edd5c909ecf963fb4a37f165cb3de57015705c55";
   // The inspected APEX has no libgfxstream_backend.so. Old GPU bundles are incompatible.
-  static final boolean ANDROID_GUEST_READY = false;
+  // Explicit user-selected 1 GiB GLES experiment; not a general readiness guarantee.
+  static final boolean ANDROID17_EXPERIMENT_ENABLED = true;
 
   static boolean matches(int sdk, String model, String build, String kernel, long terminal) {
     return sdk == SDK

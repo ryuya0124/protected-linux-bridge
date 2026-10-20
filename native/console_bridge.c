@@ -645,11 +645,12 @@ int main(int argc, char **argv) {
             send_status(client, error ? 3 : 0);
         } else if (received == 1 && request == 'X' && (uid == module_uid || uid == 0))
             stopped = 1;
-        else if (received == 1 && ((request == 'R' && (uid == terminal_uid || uid == module_uid)) ||
-                                   ((request == 'V' || request == 'C' || request == 'W') &&
-                                    (uid == terminal_uid || uid == module_uid)) ||
-                                   ((request == 'C' || request == 'W') && clip_peer) ||
-                                   ((request == 'A' || request == 'M') && uid == module_uid))) {
+        else if (received == 1 &&
+                 ((request == 'R' && (uid == terminal_uid || uid == module_uid)) ||
+                  ((request == 'V' || request == 'C' || request == 'W') &&
+                   (uid == terminal_uid || uid == module_uid)) ||
+                  ((request == 'C' || request == 'W') && clip_peer) ||
+                  ((request == 'A' || request == 'M' || request == 'T') && uid == module_uid))) {
             int slot = -1;
             for (int i = 0; i < MAX_SESSIONS; i++)
                 if (!sessions[i]) {
@@ -740,6 +741,7 @@ int main(int argc, char **argv) {
                             : request == 'W' ? 'W'
                             : request == 'A' ? 'O'
                             : request == 'M' ? 'I'
+                            : request == 'T' ? 'L'
                                              : 'P';
                 unsigned char status = 3;
                 if (plb_write_all(guest, &mode, 1) || read(guest, &status, 1) != 1)
@@ -757,7 +759,7 @@ int main(int argc, char **argv) {
             }
             if (worker > 0) {
                 sessions[slot] = worker;
-                interactive[slot] = request != 'C' && request != 'W';
+                interactive[slot] = request != 'C' && request != 'W' && request != 'T';
             } else
                 send_status(client, 3);
         }

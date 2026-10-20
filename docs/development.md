@@ -236,3 +236,27 @@ the APK.
 
 
 The current app-only [Debian setup](debian-setup.md) and [selected compressed backup/restore](backup-and-restore.md) have separate user and implementation records. The portable installation codec can be exercised on the official archive without a VM via `tools/debian_image_probe/InstallProbe.java`; it removes only the newly created temporary image.
+
+## Optional Android 17 experimental APK runtime
+
+The Gradle native-assets task calls `tools/build_android17_app_runtime.py` only
+when the source-built baseline VMM exists under the documented ignored artifact
+cache. It verifies the VMM and renderer hashes and builds a separate root-owned
+runtime installer/controller/JNI publisher bundle. Do not point it at the old
+Android16 VMM or the YUV/Vulkan diagnostic libraries. Exact upstream source and
+build overlays are in `native/owned_display/source-overlays/`; OS disks remain
+separate and are not distributed in the APK.
+
+`tools/collect_android17_notices.py` collects retained source/registry notices
+from the pinned build caches. The APK includes these and the guest-kernel source
+recipe/configuration references. See `docs/android17-app-launch.md` for user
+conditions and qualification limits, and `docs/microphones-and-led.md` for the
+Debian-only hardware-control protocol.
+
+For Tail ADB, a stuck host adb server can leave an endpoint `offline` despite a
+reachable TCP port. Restart the Mac adb server before asking the user to restart
+Tail ADB. A nonresponsive old fork-server may need explicit termination after
+checking its PID/port. Do not restart host Android or switch back to LAN. Once
+transport is restored, distinguish `unauthorized` from network reachability.
+The Tail ADB shell's `su` shim accepts `su -c` and does not implement KSU's `-M`
+option; this differs from the Bridge app's own real-root `su -M` environment.

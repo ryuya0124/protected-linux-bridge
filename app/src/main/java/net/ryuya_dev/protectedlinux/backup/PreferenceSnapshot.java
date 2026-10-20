@@ -19,7 +19,7 @@ public final class PreferenceSnapshot {
           "clipboard_to_android",
           "clipboard_to_linux");
   private static final Set<String> NUMBERS =
-      Set.of("resolution_id", "display_fps", "desktop_orientation");
+      Set.of("resolution_id", "display_fps", "desktop_orientation", "microphone_direction");
 
   private PreferenceSnapshot() {}
 
@@ -51,13 +51,15 @@ public final class PreferenceSnapshot {
         int number = Integer.parseInt(value.substring(2));
         if (key.equals("resolution_id") && number >= 0 && number <= 8
             || key.equals("display_fps") && Set.of(15, 24, 30, 60, 90, 120).contains(number)
-            || key.equals("desktop_orientation") && number >= 0 && number <= 2)
+            || key.equals("desktop_orientation") && number >= 0 && number <= 2
+            || key.equals("microphone_direction") && number >= 0 && number <= 2)
           result.put(key, number);
         else throw new IOException("ARCHIVE_SETTINGS");
       } else throw new IOException("ARCHIVE_SETTINGS");
     }
     result.put("enabled", false);
     result.put("microphone_enabled", false);
+    result.put("vm_torch_enabled", false);
     result.put("clipboard_auto", false);
     return Map.copyOf(result);
   }

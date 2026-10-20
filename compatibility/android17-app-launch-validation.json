@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "release": "0.5.0-alpha.5",
+  "version_code": 24,
+  "branch": "codex/android17-host",
+  "experimental_android_guest_enabled": true,
+  "production_qualification_complete": false,
+  "profile": {
+    "memory_mib": 1024,
+    "vcpus": 1,
+    "display": [
+      480,
+      800
+    ],
+    "requested_hz": 120,
+    "session_limit_seconds": 180,
+    "vulkan": false,
+    "internet": false
+  },
+  "device_validation": {
+    "transport": "Tail ADB",
+    "physical_gui_operated": false,
+    "boot_completed": true,
+    "vmm_exit": 0,
+    "controller_exit": 0,
+    "all_thp_pages": 262144,
+    "policies_restored": true,
+    "host_boundary_retained": true,
+    "original_android_disk_hashes_unchanged": true,
+    "viewer_multitouch_qualified": false,
+    "physical_microphone_opened": false,
+    "physical_camera_opened": false,
+    "physical_led_on_tested": false,
+    "builtin_input_ports": 2,
+    "os_microphone_descriptors": 3,
+    "flash_sources": 2
+  },
+  "negative_cases": [
+    "idle Debian manager lock refused before installation",
+    "all-THP refusal at160MiB; VMM not started; controller88",
+    "premature adbd/bootstrap readiness; BOOT empty; shutdown timeout; corrected to exact boot property"
+  ],
+  "checks": {
+    "jvm": 81,
+    "lint_errors": 0,
+    "lint_warnings": 46,
+    "host_python_cases": 231,
+    "linux_only_skipped_on_mac": 3,
+    "linux_broker_cases_passed_separately": 3
+  },
+  "limits": [
+    "3-minute experimental session",
+    "prepared private Android disk required",
+    "no current integrated physical viewer/input verification",
+    "physical Android audio/camera/flash HAL not connected",
+    "normal shutdown vCPU closed-channel warning retained"
+  ],
+  "apk": {
+    "sha256": "848a571c4ebfbf13934189de5e8a1527c7177106b44a6cb82c1442c82da5de6b",
+    "bytes": 130535302,
+    "debuggable": false
+  }
+}

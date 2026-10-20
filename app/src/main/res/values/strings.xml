@@ -352,4 +352,24 @@ plb-udp-forward 5353 1.1.1.1 53 forwards guest localhost:5353 to the specified U
   <string name="stock_linux_installed_title">Linux is already installed</string>
   <string name="stock_linux_installed_detail">The stock installer closes automatically when Linux is already installed. Your existing image has been retained. Open Terminal, or manage the separate Debian image used by Bridge.</string>
   <string name="stock_linux_manage">Bridge Debian setup</string>
+  <string name="microphone_inventory">Built-in input ports: %1$d · OS microphone descriptors: %2$d</string>
+  <string name="microphone_inventory_unknown">Built-in input ports: %1$d · microphone details unavailable</string>
+  <string name="microphone_direction">Microphone direction preference</string>
+  <string name="microphone_direction_rejected">This device does not accept the selected microphone direction.</string>
+  <string name="microphone_active_sources">Sharing mono microphone · active OS descriptors: %1$d</string>
+  <string name="microphone_array_detail">Choose an input port when more than one is exposed. Android may combine physical microphones into one processed mono stream; descriptor counts do not prove the number of physical microphones. Direction is a HAL preference, not independent capsule selection. These controls apply to Debian; Android guest microphone forwarding is not connected yet.</string>
+  <string name="android17_app_summary">Experimental Android 17 · 1 GiB RAM · GLES direct display. Uses the separately prepared Android 17 disk profile. Sessions are limited to 3 minutes while integration is validated.</string>
+  <string name="android17_app_conditions">Start the experimental 1 GiB Android 17 guest? The separate h17mfix disk profile must already be prepared; this APK does not include an Android OS image. Six approved host-wide shmem THP settings are temporarily changed for RAM preparation and restored by an independent guardian within 40 seconds. Fragmented or unhealthy memory refuses startup without retry. Maximum session: 3 minutes. Vulkan, Internet and physical camera/microphone forwarding are not enabled. Close other Bridge VMs first. Host crashes remain possible; the Android host kernel and partitions are not changed.</string>
+  <string name="android17_app_bundle_missing">This APK does not contain the compatible Android 17 runtime. Install the signed experimental build with the pinned runtime.</string>
+  <string-array name="microphone_directions">
+    <item>System default</item>
+    <item>Towards user</item>
+    <item>Away from user</item>
+  </string-array>
+  <string name="vm_torch_title">VM LED control</string>
+  <string name="vm_torch_detail">Debian only: allow plb-torch status / off / on [level [seconds]] while the Bridge terminal or desktop is visible. Select an LED first. Default OFF; each ON lasts at most 30 seconds. Closing the view, disconnecting or revoking consent releases this session’s light. CameraManager does not provide exclusive ownership: other apps can still change the LED. Android guest flash HAL is not connected yet.</string>
+  <string name="vm_torch_allow">Allow visible Debian sessions to control LED</string>
+  <string name="vm_torch_camera">LED source</string>
+  <string name="vm_torch_choice">Camera %1$s · %2$d brightness levels</string>
+  <string name="vm_torch_unavailable">No accessible LED capability. Camera service or device policy may restrict it.</string>
 </resources>

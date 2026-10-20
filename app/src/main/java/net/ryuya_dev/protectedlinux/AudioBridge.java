@@ -184,10 +184,30 @@ final class AudioBridge implements AutoCloseable {
         if (!r.setPreferredDevice(desired))
           throw new AudioDevices.DeviceUnavailableException(
               activity.getString(R.string.audio_route_rejected));
+        int direction =
+            activity.getSharedPreferences("config", 0).getInt("microphone_direction", 0);
+        if (direction < 0 || direction > 2) throw new IOException("Invalid microphone direction");
+        if (direction != 0
+            && !r.setPreferredMicrophoneDirection(
+                direction == 1
+                    ? MicrophoneDirection.MIC_DIRECTION_TOWARDS_USER
+                    : MicrophoneDirection.MIC_DIRECTION_AWAY_FROM_USER))
+          throw new AudioDevices.DeviceUnavailableException(
+              activity.getString(R.string.microphone_direction_rejected));
         routeGuard(r, desired);
         r.startRecording();
+        if (r.getRecordingState() != AudioRecord.RECORDSTATE_RECORDING)
+          throw new IOException("Microphone did not start");
       }
-      report("Microphone shared with Linux", "Linuxへマイクを共有しています");
+      try {
+        int active = r.getActiveMicrophones().size();
+        String description = activity.getString(R.string.microphone_active_sources, active);
+        report(description, description);
+      } catch (IOException | RuntimeException unavailable) {
+        report(
+            "Microphone shared with Linux (1 channel; physical sources unknown)",
+            "Linuxへマイクを共有しています（1ch・使用マイク数は取得できません）");
+      }
       new Handler(activity.getMainLooper())
           .post(
               () -> {
@@ -197,7 +217,17 @@ final class AudioBridge implements AutoCloseable {
       while (!closed) {
         int n = r.read(buffer, 0, buffer.length, AudioRecord.READ_BLOCKING);
         if (n <= 0) throw new IOException("Microphone stopped");
-        s.getOutputStream().write(buffer, 0, n);
+        // Routing callbacks are asynchronous. Do not forward a first/last block
+        // from an unknown or different input while a callback is still pending.
+        AudioDeviceInfo actual = r.getRoutedDevice();
+        AudioDeviceInfo expected = r.getPreferredDevice();
+        if (actual == null || expected == null || actual.getId() != expected.getId())
+          throw new AudioDevices.DeviceUnavailableException(
+              activity.getString(R.string.audio_route_rejected));
+        if (!closed
+            && activity.getSharedPreferences("config", 0).getBoolean("microphone_enabled", false))
+          s.getOutputStream().write(buffer, 0, n);
+        else break;
       }
     } catch (Exception error) {
       if (!closed) {

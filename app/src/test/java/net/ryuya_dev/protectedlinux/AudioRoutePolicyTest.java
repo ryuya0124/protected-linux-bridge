@@ -53,4 +53,18 @@ public class AudioRoutePolicyTest {
             AudioRoutePolicy.select(
                 List.of(usb, new AudioRoutePolicy.Device(4, "usb", false, true)), "usb"));
   }
+
+  @Test
+  public void multipleBuiltinPortsRequireAnExplicitSelection() {
+    var back = new AudioRoutePolicy.Device(4, "back", true, false);
+    assertThrows(
+        AudioRoutePolicy.Ambiguous.class,
+        () -> AudioRoutePolicy.select(List.of(speaker, back), "builtin"));
+  }
+
+  @Test
+  public void aBuiltinPortCanBeSelectedIndependently() throws Exception {
+    var back = new AudioRoutePolicy.Device(4, "back", true, false);
+    assertEquals(4, AudioRoutePolicy.select(List.of(speaker, back, usb), "back"));
+  }
 }

@@ -198,14 +198,15 @@ void start(void) {
     }
     sc(57, input, 0, 0, 0, 0, 0);
     sc(57, output, 0, 0, 0, 0, 0);
-    for (int i = 0; i < 7; i++) {
+    for (int i = 0; i < 8; i++) {
         const char *names[] = {"/newroot/run/plb/ping",
                                "/newroot/run/plb/plb-ping",
                                "/newroot/run/plb/plb-udp-forward",
                                "/newroot/run/plb/plb-gpu-run",
                                "/newroot/run/plb/plb-gpu-info",
                                "/newroot/run/plb/plb-gpu-mode",
-                               "/newroot/run/plb/plb-desktop-mode"};
+                               "/newroot/run/plb/plb-desktop-mode",
+                               "/newroot/run/plb/plb-torch"};
         if (sc(36, (long)"../plb-agent", -100, (long)names[i], 0, 0, 0) < 0)
             fail("network command link");
     }

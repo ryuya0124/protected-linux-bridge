@@ -2,8 +2,8 @@
 
 These patches describe the separate app-private prototype used for the device
 checks in [the validation record](../../../docs/android17-runtime-validation.md).
-They do not patch the installed VMM, kernel, APEX or host libraries. They do not
-enable Android guests in the APK. No VM-start command is provided here.
+They do not patch the installed VMM, kernel, APEX or host libraries. The source overlays alone do not enable startup. The explicit experimental app
+launcher is documented separately in [app launch](../../../docs/android17-app-launch.md).
 
 Use fresh source trees named `crosvm-source`, `gfxstream-source`,
 `rutabaga-source` and `minijail-source` under one private build directory. Exact

@@ -47,19 +47,31 @@ final class AudioDevices {
             "builtin",
             c.getString(input ? R.string.audio_builtin_mic : R.string.audio_builtin_speaker)));
     for (AudioDeviceInfo d : connected(c, input))
-      if (external(d)) out.add(new Choice(key(d), d.getProductName() + " · " + d.getId()));
+      if (external(d) || (input && d.getType() == AudioDeviceInfo.TYPE_BUILTIN_MIC)) {
+        String name =
+            input && d.getType() == AudioDeviceInfo.TYPE_BUILTIN_MIC
+                ? c.getString(R.string.audio_builtin_mic)
+                : d.getProductName().toString();
+        String address = d.getAddress().isEmpty() ? "" : " · " + d.getAddress();
+        out.add(new Choice(key(d), name + address + " · " + d.getId()));
+      }
     return out;
   }
 
   static AudioDeviceInfo preferred(Context c, boolean input) throws IOException {
     var p = c.getSharedPreferences("config", 0);
     boolean linux = p.getBoolean("peripheral_audio_linux", false);
-    String selected =
-        linux
-            ? p.getString(input ? "audio_input" : "audio_output", input ? "builtin" : "auto")
-            : "builtin";
     int builtin = input ? AudioDeviceInfo.TYPE_BUILTIN_MIC : AudioDeviceInfo.TYPE_BUILTIN_SPEAKER;
     AudioDeviceInfo[] devices = connected(c, input);
+    String configured =
+        p.getString(input ? "audio_input" : "audio_output", input ? "builtin" : "auto");
+    // Selecting another built-in input does not lend an external headset to Linux.
+    // Do not use transient port IDs as persistent identities across reconnects.
+    boolean internalInput =
+        input
+            && Arrays.stream(devices)
+                .anyMatch(d -> d.getType() == builtin && key(d).equals(configured));
+    String selected = linux || internalInput ? configured : "builtin";
     List<AudioRoutePolicy.Device> candidates =
         Arrays.stream(devices)
             .map(

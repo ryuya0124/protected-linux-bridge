@@ -11,6 +11,7 @@ import com.google.android.material.color.DynamicColors;
 /** A separate GUI connection. Opening/closing never stops existing Terminal PTYs. */
 public final class DesktopActivity extends AppCompatActivity {
   private AudioBridge audio;
+  private VmTorchBridge torch;
   private boolean resumed, displayReady;
 
   void displayReady() {
@@ -22,7 +23,9 @@ public final class DesktopActivity extends AppCompatActivity {
   }
 
   private void startAudio() {
-    if (audio != null || !displayReady) return;
+    if (!displayReady) return;
+    if (torch == null) torch = VmTorchBridge.open(this);
+    if (audio != null) return;
     audio =
         new AudioBridge(
             this,
@@ -48,6 +51,10 @@ public final class DesktopActivity extends AppCompatActivity {
   @Override
   protected void onPause() {
     resumed = false;
+    if (torch != null) {
+      torch.close();
+      torch = null;
+    }
     if (audio != null) {
       audio.close();
       audio = null;

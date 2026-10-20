@@ -281,6 +281,7 @@ static int start_gui(void) {
 #include "guest_audio.h"
 #include "guest_migration.h"
 #include "guest_storage.h"
+#include "guest_torch.h"
 int main(int argc, char **argv) {
     if (argc == 2 && !strcmp(argv[1], "--storage-offline")) {
         if (getpid() != 1 || guest_boot_option(" plb.storage=") != 1)
@@ -300,6 +301,9 @@ int main(int argc, char **argv) {
         guest_lifetime = lifetime;
     int managed = argc == 2 && !strcmp(argv[1], "--serve");
     if (getpid() != 1 && !managed) {
+        int torch = torch_command(argc, argv);
+        if (torch >= 0)
+            return torch;
         int gpu = gpu_command(argc, argv);
         return gpu >= 0 ? gpu : plb_network_command(argc, argv);
     }
@@ -318,6 +322,7 @@ int main(int argc, char **argv) {
         fputs("GRAPHICS_SETTINGS_FAILED\n", stderr);
     configure_environment();
     start_audio();
+    start_torch_broker();
     if (fork() == 0) {
         proxy_forwarder(3128);
         _exit(0);
@@ -408,7 +413,7 @@ int main(int argc, char **argv) {
             break;
         }
         if (n != 1 || (request != 'P' && request != 'G' && request != 'C' && request != 'O' &&
-                       request != 'I' && request != 'W')) {
+                       request != 'I' && request != 'W' && request != 'L')) {
             close(client);
             continue;
         }
@@ -419,7 +424,11 @@ int main(int argc, char **argv) {
             signal(SIGTERM, SIG_DFL);
             signal(SIGINT, SIG_DFL);
             close(listener);
-            if (request == 'P')
+            if (request == 'L') {
+                torch_bridge_session(client);
+                close(client);
+                _exit(0);
+            } else if (request == 'P')
                 terminal_session(client);
             else if (request == 'W') {
                 clipboard_watch(client);
