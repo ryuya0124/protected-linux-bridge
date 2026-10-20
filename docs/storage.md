@@ -2,6 +2,18 @@
 
 The selected Debian profile has its own qcow2 disk. Storage controls never address host partitions or attach the original Debian disk to an Android guest. Both kernel profiles remain separate.
 
+## Retired development image
+
+On 2026-10-20, the device's Android 16 guest profile (`android-guests/sdk36`)
+was removed with explicit user authorization, releasing about 4.68 GiB of
+allocated storage. Its system image matched the official SDK 36 ARM64 image;
+no other inspected qcow2 image referenced that directory as a backing file.
+Deletion used the production owner and maintenance locks, and a subsequent
+check confirmed the directory was absent. Android 17 guest profiles and Debian
+directories were retained, including Android 17 profiles originally created
+on an Android 16 host. The frozen Android 16 source and release APK remain
+available; this device cleanup did not change them.
+
 ## Available controls
 
 | Control | Behavior |

@@ -476,3 +476,27 @@ FileStore discovery; direct per-path free-space queries completed instead.
 The signal sender is not established. Test files were removed and host/core
 identities, taint 4608, Enforcing and all six never policies remained unchanged.
 No actual guest data/settings were restored and no VM/GPU/physical GUI started.
+
+## Real GUI and Android GPU recovery request, later 2026-10-20
+
+The user now explicitly permits Galaxy GUI tests and asks to continue Android
+guest startup tests and recover GPU display. This supersedes the non-GUI-only
+restriction above. Use a separate Android 17 userspace runtime and test profile;
+preserve existing Debian and Android disks. Validate each stage before enabling
+the production guest gate. Keep the old Vulkan/crash-reproduction runners
+disabled: this is a GLES/display recovery task, not permission for Vulkan,
+reboot/soft reboot, host kernel/module/partition or protection changes. Retain
+health checks, the common owner lock, bounded policy guardians and RAM limits.
+
+## Android 16 guest disk retirement, 2026-10-20
+
+The user explicitly authorized deleting Android 16 guest disks from the device.
+The SDK 36 profile alone was identified by its system image hash matching the
+official SDK 36 ARM64 image. No other qcow2 backing reference depended on it.
+An owned native helper acquired the production owner and maintenance locks,
+validated the fixed directory and its seven regular files, and removed sdk36.
+The positive removal marker and subsequent absence check both passed; about
+4.68 GiB of allocated storage was released. Android 17 profiles and Debian
+directories remain. This permission does not authorize deleting Android 17
+profiles merely because they were created while the host ran Android 16.
+Keep the Android 16 frozen branch, tag and release APK unchanged.
