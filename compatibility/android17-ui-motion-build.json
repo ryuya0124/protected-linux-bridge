@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "version": "0.5.0-alpha.3",
+  "version_code": 22,
+  "source_commit": "dd6424ea7ad13c345d2ba0a7dd917d36580f2746",
+  "apk_sha256": "4b274414a17df4bde07740c4ab159c5c46e845684517e92b6eec0d6724a4a4db",
+  "apk_bytes": 20846457,
+  "signed_release": true,
+  "debuggable": false,
+  "min_sdk": 37,
+  "target_sdk": 37,
+  "signer_certificate_sha256": "548519a543d68d53e1db07743c8ddedff498ad38c7df2bd4bee51085b161948d",
+  "jvm_tests": 69,
+  "lint_errors": 0,
+  "lint_warnings": 32,
+  "emulator_checks": {
+    "sdk": 37,
+    "tab_fade_through": "recorded",
+    "detail_shared_axis_forward_and_return": "recorded",
+    "activity_shared_axis_forward_and_return": "recorded after transition-group correction",
+    "rapid_tabs": "passed",
+    "animations_disabled": "passed",
+    "physical_gui": "not operated"
+  },
+  "android_guest_enabled": false,
+  "vulkan_enabled": false,
+  "device_installation": "signed versionCode 22 installed on selected Galaxy; installed APK hash matched; no Activity launched"
+}
