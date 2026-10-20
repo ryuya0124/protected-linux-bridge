@@ -28,11 +28,12 @@ public final class StorageManagementActivity extends AppCompatActivity {
     super.onCreate(saved);
     EdgeToEdge.enable(this);
     LinearLayout root = column();
+    PageMotion.configureActivity(this, root);
     MaterialToolbar toolbar = new MaterialToolbar(this);
     toolbar.setTitle(R.string.asset_title);
     toolbar.setNavigationIcon(R.drawable.ic_back);
     toolbar.setNavigationContentDescription(R.string.asset_back);
-    toolbar.setNavigationOnClickListener(v -> finish());
+    toolbar.setNavigationOnClickListener(v -> finishAfterTransition());
     root.addView(toolbar);
     ScrollView scroll = new ScrollView(this);
     items = column();

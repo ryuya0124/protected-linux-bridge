@@ -24,11 +24,12 @@ public final class DebianSetupActivity extends AppCompatActivity {
     EdgeToEdge.enable(this);
     BackupModel model = new ViewModelProvider(this).get(BackupModel.class);
     LinearLayout root = UiKit.column(this);
+    PageMotion.configureActivity(this, root);
     MaterialToolbar toolbar = new MaterialToolbar(this);
     toolbar.setTitle(R.string.ui_debian_name);
     toolbar.setNavigationIcon(R.drawable.ic_back);
     toolbar.setNavigationContentDescription(R.string.asset_back);
-    toolbar.setNavigationOnClickListener(view -> finish());
+    toolbar.setNavigationOnClickListener(view -> finishAfterTransition());
     root.addView(toolbar);
     toolbar
         .getMenu()

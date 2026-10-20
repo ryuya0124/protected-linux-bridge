@@ -105,6 +105,7 @@ public final class MainActivity extends AppCompatActivity {
     super.onCreate(saved);
     EdgeToEdge.enable(this);
     rootView = column();
+    PageMotion.configureActivity(this, rootView);
     pageHost = new FrameLayout(this);
     rootView.addView(pageHost, new LinearLayout.LayoutParams(-1, 0, 1));
     navigation = new com.google.android.material.bottomnavigation.BottomNavigationView(this);
@@ -141,8 +142,7 @@ public final class MainActivity extends AppCompatActivity {
     getOnBackPressedDispatcher().addCallback(this, detailBack);
     navigation.setOnItemSelectedListener(
         item -> {
-          selectedTab = item.getItemId() - 100;
-          closeDetail();
+          selectTab(item.getItemId() - 100);
           return true;
         });
     setContentView(rootView);
@@ -207,13 +207,13 @@ public final class MainActivity extends AppCompatActivity {
         R.drawable.ic_backup,
         R.string.backup_title,
         R.string.ui_backup_summary,
-        () -> startActivity(new Intent(this, BackupActivity.class)));
+        () -> PageMotion.open(this, BackupActivity.class));
     UiKit.row(
         shortcuts,
         R.drawable.ic_storage,
         R.string.asset_title,
         R.string.ui_assets_summary,
-        () -> startActivity(new Intent(this, StorageManagementActivity.class)));
+        () -> PageMotion.open(this, StorageManagementActivity.class));
 
     UiKit.heading(pages[1], R.string.ui_vm_tab, R.string.ui_vm_description);
     UiKit.section(pages[1], R.string.ui_debian_name);
@@ -223,7 +223,7 @@ public final class MainActivity extends AppCompatActivity {
         R.drawable.ic_folder,
         R.string.debian_setup,
         R.string.ui_setup_summary,
-        () -> startActivity(new Intent(this, DebianSetupActivity.class)));
+        () -> PageMotion.open(this, DebianSetupActivity.class));
     UiKit.row(
         debian,
         R.drawable.ic_display,
@@ -281,13 +281,13 @@ public final class MainActivity extends AppCompatActivity {
         R.drawable.ic_backup,
         R.string.backup_title,
         R.string.ui_backup_summary,
-        () -> startActivity(new Intent(this, BackupActivity.class)));
+        () -> PageMotion.open(this, BackupActivity.class));
     UiKit.row(
         data,
         R.drawable.ic_storage,
         R.string.asset_title,
         R.string.ui_assets_summary,
-        () -> startActivity(new Intent(this, StorageManagementActivity.class)));
+        () -> PageMotion.open(this, StorageManagementActivity.class));
     UiKit.section(pages[3], R.string.ui_optional);
     LinearLayout optional = UiKit.group(pages[3]);
     UiKit.row(
@@ -402,16 +402,52 @@ public final class MainActivity extends AppCompatActivity {
 
   private void showDetail(Detail detail) {
     if (selectedTab != detail.tab) navigation.setSelectedItemId(100 + detail.tab);
-    selectedDetail = detail;
-    for (var entry : detailViews.entrySet())
-      entry.getValue().setVisibility(entry.getKey() == detail ? View.VISIBLE : View.GONE);
-    detailHost.setVisibility(View.VISIBLE);
-    navigation.setVisibility(View.GONE);
-    detailBack.setEnabled(true);
-    ViewCompat.requestApplyInsets(rootView);
+    View outgoing = selectedDetail == null ? pageHost.getChildAt(selectedTab) : detailHost;
+    PageMotion.change(
+        rootView,
+        outgoing,
+        detailHost,
+        true,
+        true,
+        () -> {
+          selectedDetail = detail;
+          for (int index = 0; index < 4; index++)
+            pageHost.getChildAt(index).setVisibility(View.GONE);
+          for (var entry : detailViews.entrySet())
+            entry.getValue().setVisibility(entry.getKey() == detail ? View.VISIBLE : View.GONE);
+          detailHost.setVisibility(View.VISIBLE);
+          navigation.setVisibility(View.GONE);
+          detailBack.setEnabled(true);
+          ViewCompat.requestApplyInsets(rootView);
+        });
   }
 
   private void closeDetail() {
+    View incoming = pageHost.getChildAt(selectedTab);
+    PageMotion.change(
+        rootView,
+        selectedDetail == null ? incoming : detailHost,
+        incoming,
+        true,
+        false,
+        this::showTabViews);
+  }
+
+  private void selectTab(int next) {
+    View outgoing = selectedDetail == null ? pageHost.getChildAt(selectedTab) : detailHost;
+    PageMotion.change(
+        rootView,
+        outgoing,
+        pageHost.getChildAt(next),
+        false,
+        true,
+        () -> {
+          selectedTab = next;
+          showTabViews();
+        });
+  }
+
+  private void showTabViews() {
     selectedDetail = null;
     detailHost.setVisibility(View.GONE);
     navigation.setVisibility(View.VISIBLE);
@@ -492,6 +528,7 @@ public final class MainActivity extends AppCompatActivity {
 
   @Override
   protected void onDestroy() {
+    androidx.transition.TransitionManager.endTransitions(rootView);
     worker.shutdownNow();
     super.onDestroy();
   }

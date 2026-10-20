@@ -54,11 +54,12 @@ public final class BackupActivity extends AppCompatActivity {
     if (saved != null && saved.containsKey("selectedRoots"))
       restoredSelection = Set.copyOf(saved.getStringArrayList("selectedRoots"));
     LinearLayout root = column();
+    PageMotion.configureActivity(this, root);
     MaterialToolbar toolbar = new MaterialToolbar(this);
     toolbar.setTitle(R.string.ui_app_data);
     toolbar.setNavigationIcon(R.drawable.ic_back);
     toolbar.setNavigationContentDescription(R.string.asset_back);
-    toolbar.setNavigationOnClickListener(view -> finish());
+    toolbar.setNavigationOnClickListener(view -> finishAfterTransition());
     root.addView(toolbar);
     toolbar.getMenu().add(0, 1, 0, R.string.backup_recover);
     toolbar.getMenu().add(0, 2, 1, R.string.ui_about);
