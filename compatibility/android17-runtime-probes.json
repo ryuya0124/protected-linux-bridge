@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "date": "2026-10-20",
+  "date": "2026-10-21",
   "host_build": "S948QOPU1BZI9",
   "host_sdk": 37,
   "production_android_guest_enabled": false,
@@ -11,11 +11,22 @@
     "source_gles_window_flush_ahb_colors": "passed",
     "surface_recreation": "passed",
     "async_fence_and_reuse": "unverified",
-    "presented_120_hz": "unverified"
+    "presented_120_hz": "unverified",
+    "legacy_resource_c_api_gles_flush": "passed",
+    "parent_120_hz_request": "accepted; actual presented FPS not measured"
   },
   "android_guest": {
-    "boot_completed": false,
-    "failure": "Gunyah map 13 / PAGE_FAULT attempt -22; meaning of hypervisor 13 unresolved"
+    "configured_ram_mib": 1024,
+    "boot_completed": true,
+    "adreno_gles": true,
+    "actual_gpu_home_screenshot": true,
+    "surface_recreation": true,
+    "guest_shutdown": "normal",
+    "vmm_exit": 0,
+    "controller_exit": 0,
+    "thp_pages": 262144,
+    "backing_pages": 262144,
+    "qualification": "one bounded developer session; not integrated APK or 4 GiB validation"
   },
   "cpu_comparisons": {
     "384_mib_stock_and_source": "full nonce-bound write/readback passed",
@@ -24,7 +35,39 @@
     "768_mib_pressure_then_advised": "one full write/readback passed, 59.99% THP",
     "1280_mib_pressure_then_advised": "failed, 58.27% THP; write progress is not readback"
   },
-  "host_python_native_tests": 221,
+  "host_python_native_tests": 227,
   "host_boundary": "same boot/core/trusted VM, taint 4608, Enforcing, all six policies restored never in completed postflights",
-  "record": "docs/android17-runtime-validation.md"
+  "record": "docs/android17-runtime-validation.md",
+  "host_compaction": {
+    "single_approved_attempt": "consumed",
+    "write_bytes": 2,
+    "write_errno": 0,
+    "elapsed_ms": 18,
+    "ordinary_free_blocks_at_least_64kib": "no observed improvement",
+    "post_compaction_16mib_handoff": "full content passed; 4096/4096 THP; causality unproven",
+    "host_kernel_files_or_partitions_modified": false,
+    "repeat_authorized": false
+  },
+  "android_guest_negative_comparisons": [
+    {
+      "configured_ram_mib": 1024,
+      "guest_refresh_requested_hz": 120,
+      "thp_pages": 111876,
+      "backing_pages": 262144,
+      "boot_completed": false,
+      "page_fault_attempt": -22,
+      "vmm_exit": 33,
+      "controller_exit": 33,
+      "motion_workload_started": false
+    }
+  ],
+  "presentation": {
+    "guest_refresh_hz": 120.00001,
+    "short_interval_seconds": 1.433333385,
+    "short_actual_presented_fps": 118.60464688750692,
+    "short_history_overlap_verified": true,
+    "sustained_120fps": "unverified; longer benchmark invalidated by observer HOME interference",
+    "observer_fix": "compiled, longer device retest pending",
+    "production_async_fences": "unverified"
+  }
 }

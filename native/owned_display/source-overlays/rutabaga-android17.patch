@@ -36,13 +36,33 @@
 -                    fds,
 -                    metadata: ahb_info.data,
 -                })))
-+                // SAFETY: successful renderer export returned a live borrowed AHB.
++                // SAFETY: successful renderer export transferred one live AHB reference.
 +                let info = unsafe { plb_ahb::export(stream_handle.os_handle as *mut c_void) }?;
 +                Ok(Arc::new(RutabagaHandle::from(info)))
              }
              #[cfg(not(target_os = "android"))]
              {
-@@ -1051,3 +1022,7 @@
+@@ -656,7 +627,18 @@
+ 
+         Ok(RutabagaResource {
+             resource_id,
+-            handle: None,
++            // The Android display imports a handle for legacy non-blob scanouts
++            // too. Unsupported/non-display resources keep their normal None.
++            handle: {
++                #[cfg(target_os = "android")]
++                {
++                    self.export_blob(resource_id).ok()
++                }
++                #[cfg(not(target_os = "android"))]
++                {
++                    None
++                }
++            },
+             blob: false,
+             blob_mem: 0,
+             blob_flags: 0,
+@@ -1051,3 +1033,7 @@
          Ok(())
      }
  }

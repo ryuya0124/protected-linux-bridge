@@ -31,6 +31,10 @@
 #include "preallocated_ready.h"
 #include "preallocated_vm.generated.h"
 
+#if defined(PLB_PREALLOCATED_REQUIRE_ALL_THP) && !defined(PLB_PREALLOCATED_ANDROID_PROXY)
+#error "The all-THP admission gate is restricted to the isolated Android developer profile"
+#endif
+
 #if defined(PLB_ANDROID4G_CUSTOM_GUEST) && !defined(PLB_PREALLOCATED_ANDROID_PROXY)
 #error "Custom guest kernel requires the isolated adopted-RAM Android proxy"
 #endif
@@ -195,6 +199,14 @@ static int observe_backing(const void *mapping, size_t bytes) {
     }
     printf("PLB_PREALLOCATED_ALIGNMENT virtual_2m=%d file_batch_2m=%d\n",
            (uintptr_t)mapping % PLB_COLLAPSE_BYTES == 0, bytes % PLB_COLLAPSE_BYTES == 0);
+#ifdef PLB_PREALLOCATED_REQUIRE_ALL_THP
+    /* Only admit the backing condition seen in the clean 1 GiB GPU session.
+     * This is a conservative gate, not proof that THP prevents every fault. */
+    if (!plb_page_all_thp(&summary, bytes / 4096)) {
+        puts("PLB_PREALLOCATED_THP_REFUSED vmm_started=0");
+        return 0;
+    }
+#endif
     return pages == bytes / 4096;
 }
 
@@ -310,6 +322,19 @@ static int prepare_and_exec(int memory, int touch, int small_folios, int chunked
         printf("PLB_PREALLOCATED_COLLAPSE_SUMMARY attempts=%zu successful_requests=%zu\n",
                collapse_attempts, collapse_successes);
     }
+#ifdef PLB_PREALLOCATED_REQUIRE_ALL_THP
+    /* Earlier batches can change while later batches are prepared. Recheck
+     * every owned page immediately before sealing/handoff; never inspect live
+     * protected/donated VMM memory. Resolving PTEs does not discard the backing. */
+    volatile unsigned char *whole = plb_aligned_shared_mapping(inherited, bytes, 0);
+    if (whole == MAP_FAILED)
+        return 93;
+    int all_thp = verify_after_pin(whole, bytes) && observe_backing((const void *)whole, bytes);
+    int unmapped = !munmap((void *)whole, bytes);
+    if (!all_thp || !unmapped)
+        return 93;
+    printf("PLB_PREALLOCATED_ALL_THP_GATE pages=%zu complete=1 vmm_started=0\n", bytes / 4096);
+#endif
     if (fcntl(inherited, F_ADD_SEALS, 7)) {
         return 88;
     }

@@ -136,7 +136,7 @@ static int prepare_memory(int owner, int monitor, int prepare_for_folios) {
         if (done == child)
             return WIFEXITED(status) && WEXITSTATUS(status) == 0 ? 0 : -1;
         if ((done < 0 && errno != EINTR) || !plb_host_memory_healthy() ||
-            plb_diagnostic_kernel_bad(monitor))
+            plb_diagnostic_kernel_bad_with_traces(monitor, 1))
             break;
         usleep(100000);
     }
@@ -226,7 +226,7 @@ int main(int argc, char **argv) {
     int observer_started = !gate && !pthread_create(&observer, NULL, android_memory_observer, NULL);
     long long deadline = plb_shmem_millis() + (gate ? 12000 : 180000);
     while (!stopping && plb_shmem_millis() < deadline) {
-        if (!plb_host_memory_healthy() || plb_diagnostic_kernel_bad(monitor)) {
+        if (!plb_host_memory_healthy() || plb_diagnostic_kernel_bad_with_traces(monitor, 1)) {
             result = 48;
             break;
         }

@@ -4,6 +4,7 @@
 #include "backend.h"
 #include "frame_buffer.h"
 #include "render_thread_info.h"
+#include "virtio_gpu_format_utils.h"
 #include "OpenGLESDispatch/DispatchTables.h"
 #include "gfxstream/virtio-gpu-gfxstream-renderer-unstable.h"
 #include <sys/stat.h>
@@ -102,20 +103,28 @@ Java_net_ryuya_1dev_protectedlinux_displayroot_RootDisplayProbe_start(JNIEnv *, 
     guestSurface = fb->createEmulatedEglWindowSurface(config, 480, 800);
     if (!guestContext || !guestSurface)
         return 10;
-    resource = fb->createColorBuffer(480, 800, GfxstreamFormat::R8G8B8A8_UNORM);
-    if (!resource || fb->openColorBuffer(resource) != 0)
+    stream_renderer_resource_create_args create{};
+    create.handle = 7;
+    create.target = 2; // PIPE_TEXTURE_2D from the renderer's resource API.
+    create.format = VIRGL_FORMAT_R8G8B8A8_UNORM;
+    create.bind = VIRGL_BIND_RENDER_TARGET | VIRGL_BIND_SCANOUT;
+    create.width = 480;
+    create.height = 800;
+    create.depth = create.array_size = 1;
+    if (stream_renderer_resource_create(&create, nullptr, 0))
         return 4;
+    resource = create.handle;
     if (!fb->setEmulatedEglWindowSurfaceColorBuffer(guestSurface, resource) ||
         !fb->bindContext(guestContext, guestSurface, guestSurface))
         return 11;
-    auto exported = fb->exportColorBuffer(resource);
-    if (!exported || exported->descriptorInfo.streamHandleType != STREAM_HANDLE_TYPE_PLATFORM_AHB)
+    stream_renderer_handle exported{};
+    if (stream_renderer_export_blob(resource, &exported) ||
+        exported.handle_type != STREAM_HANDLE_TYPE_PLATFORM_AHB)
         return 5;
-    // Keep our own reference after the descriptor's retained owner is released.
-    buffer = reinterpret_cast<AHardwareBuffer *>(exported->descriptorInfo.handle);
+    // This C API transfers one consumer reference, as it does to rutabaga.
+    buffer = reinterpret_cast<AHardwareBuffer *>(exported.os_handle);
     if (!buffer)
         return 6;
-    AHardwareBuffer_acquire(buffer);
     endpoint = create_android_display_context("owned-renderer-no-vm", error);
     if (!endpoint)
         return 7;
@@ -178,7 +187,7 @@ Java_net_ryuya_1dev_protectedlinux_displayroot_RootDisplayProbe_stop(JNIEnv *, j
         AHardwareBuffer_release(buffer);
     buffer = nullptr;
     if (resource && FrameBuffer::getFB())
-        FrameBuffer::getFB()->closeColorBuffer(resource);
+        stream_renderer_resource_unref(resource);
     resource = 0;
     threadInfo.reset();
     if (initialized)

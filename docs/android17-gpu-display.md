@@ -2,7 +2,9 @@
 
 2026-10-20. This section records the initial saved-ROM/source investigation.
 Subsequent [device validation](android17-runtime-validation.md) established owned
-Adreno Surface presentation, but not complete Android guest boot.
+Adreno Surface presentation, followed by one clean 1 GiB Android guest boot,
+GPU home display, Surface recreation and normal guest shutdown. This bounded
+developer result does not qualify the product runtime or 60/120 fps.
 The initial investigation below used saved-ROM analysis and public source comparison only. No phone was
 connected, no ARM binary was executed or loaded, and no VM/GPU allocation test
 was performed. Android 16 remains frozen. Android guest launch and Vulkan remain

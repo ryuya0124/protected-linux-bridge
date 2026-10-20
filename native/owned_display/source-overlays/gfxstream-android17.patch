@@ -299,7 +299,7 @@ index 103b18e..f98cddf 100644
      target_link_libraries(EGL_translator_static PUBLIC "-lscreen -lregex -lEGL -lGLESv2")
  else()
 diff --git a/host/virtio_gpu_resource.cpp b/host/virtio_gpu_resource.cpp
-index 8f081c9..d981065 100644
+index 8f081c9..57cb294 100644
 --- a/host/virtio_gpu_resource.cpp
 +++ b/host/virtio_gpu_resource.cpp
 @@ -15,6 +15,9 @@
@@ -321,7 +321,32 @@ index 8f081c9..d981065 100644
      for (auto it : virglFormatInfoMap) {
          if (it.second.drm_fourcc == drm_fourcc) {
              return it.first;
-@@ -760,6 +763,10 @@ int VirtioGpuResource::ExportBlob(struct stream_renderer_handle* outHandle) {
+@@ -738,6 +741,24 @@ int VirtioGpuResource::TransferWithIov(uint64_t offset, const stream_renderer_bo
+ 
+ int VirtioGpuResource::ExportBlob(struct stream_renderer_handle* outHandle) {
+     if (!mBlobMemory) {
++#ifdef __ANDROID__
++        // Legacy resource_create_3d scanouts still need a real AHB handle.
++        // Keep the ColorBuffer's normal draw/flush and lifetime, exporting a
++        // separate consumer reference rather than substituting a CPU buffer.
++        if (mResourceType == VirtioGpuResourceType::COLOR_BUFFER) {
++            auto info = FrameBuffer::getFB()->exportColorBuffer(mId);
++            if (info && info->descriptorInfo.streamHandleType == STREAM_HANDLE_TYPE_PLATFORM_AHB) {
++                auto buffer = reinterpret_cast<AHardwareBuffer*>(info->descriptorInfo.handle);
++                if (!buffer) return -EINVAL;
++                if (info->platformOwner) AHardwareBuffer_acquire(buffer);
++                outHandle->os_handle = info->descriptorInfo.handle;
++                outHandle->handle_type = STREAM_HANDLE_TYPE_PLATFORM_AHB;
++                return 0;
++            }
++            GFXSTREAM_ERROR("ColorBuffer AHB export unavailable format=%u width=%u height=%u",
++                            mCreateArgs->format, mCreateArgs->width, mCreateArgs->height);
++        }
++#endif
+         return -EINVAL;
+     }
+ 
+@@ -760,6 +781,10 @@ int VirtioGpuResource::ExportBlob(struct stream_renderer_handle* outHandle) {
          auto& memory = std::get<ExternalMemoryInfo>(*mBlobMemory);
  #ifdef __ANDROID__
          auto rawDescriptor = memory->descriptorInfo.handle;

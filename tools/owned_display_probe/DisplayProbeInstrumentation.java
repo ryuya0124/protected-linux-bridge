@@ -18,6 +18,9 @@ public final class DisplayProbeInstrumentation extends Instrumentation {
   private boolean vm;
   private boolean renderer;
   private boolean reclaim;
+  private float requestedHz;
+  private volatile boolean rateRefused;
+  private int holdSeconds;
   private Activity activity;
   private FrameLayout container;
   private SurfaceView view;
@@ -33,6 +36,18 @@ public final class DisplayProbeInstrumentation extends Instrumentation {
     vm = arguments != null && "true".equals(arguments.getString("vm"));
     renderer = arguments != null && "true".equals(arguments.getString("renderer"));
     reclaim = arguments != null && "true".equals(arguments.getString("reclaim"));
+    String rate = arguments == null ? null : arguments.getString("rate_hz");
+    if (rate != null) {
+      requestedHz = Float.parseFloat(rate);
+      if (requestedHz != 60f && requestedHz != 120f)
+        throw new IllegalArgumentException("Reviewed display rates: 60 or 120 Hz");
+    }
+    String hold = arguments == null ? null : arguments.getString("hold_seconds");
+    if (hold != null) {
+      holdSeconds = Integer.parseInt(hold);
+      if (holdSeconds != 0 && holdSeconds != 30 && holdSeconds != 60)
+        throw new IllegalArgumentException("Reviewed hold times: 0, 30 or 60 seconds");
+    }
     start();
   }
 
@@ -199,6 +214,17 @@ public final class DisplayProbeInstrumentation extends Instrumentation {
     waitForSurface();
     Thread.sleep(1500);
     saveVmFrame("vm-reattached");
+    if (holdSeconds > 0) {
+      Bundle holding = new Bundle();
+      holding.putString("phase", "VM_HOLD_READY");
+      sendStatus(1, holding);
+      long holdDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(holdSeconds);
+      while (System.nanoTime() < holdDeadline) {
+        if (!producer.isAlive()) throw new IOException("VM stopped during observation");
+        Thread.sleep(100);
+      }
+      saveVmFrame("vm-after-hold");
+    }
     java.lang.Process shutdown =
         new ProcessBuilder("su", "-M", "-c", base + "/shutdown-guest")
             .redirectErrorStream(true)
@@ -243,6 +269,7 @@ public final class DisplayProbeInstrumentation extends Instrumentation {
             new SurfaceHolder.Callback() {
               @Override
               public void surfaceCreated(SurfaceHolder holder) {
+                requestSurfaceRate(holder);
                 attachedGeneration[0] = connection.attach(holder.getSurface(), false);
                 generation = attachedGeneration[0];
               }
@@ -264,6 +291,7 @@ public final class DisplayProbeInstrumentation extends Instrumentation {
   private void waitForSurface() throws Exception {
     long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
     while (System.nanoTime() < deadline) {
+      if (rateRefused) throw new IOException("Requested owned-Surface rate unavailable");
       if (view.getHolder().getSurface().isValid() && generation > 0) return;
       Thread.sleep(30);
     }
@@ -284,6 +312,44 @@ public final class DisplayProbeInstrumentation extends Instrumentation {
             + activity.isDestroyed()
             + " focus="
             + view.hasWindowFocus());
+  }
+
+  private void requestSurfaceRate(SurfaceHolder holder) {
+    if (requestedHz == 0) return;
+    android.view.Display display = activity.getDisplay();
+    android.view.Display.Mode current = display == null ? null : display.getMode();
+    boolean supported = false;
+    if (current != null) {
+      for (android.view.Display.Mode mode : display.getSupportedModes()) {
+        supported |=
+            mode.getPhysicalWidth() == current.getPhysicalWidth()
+                && mode.getPhysicalHeight() == current.getPhysicalHeight()
+                && Math.abs(mode.getRefreshRate() - requestedHz) < 0.5f;
+      }
+    }
+    if (!supported) {
+      rateRefused = true;
+      return;
+    }
+    try {
+      holder
+          .getSurface()
+          .setFrameRate(
+              requestedHz,
+              android.view.Surface.FRAME_RATE_COMPATIBILITY_DEFAULT,
+              android.view.Surface.CHANGE_FRAME_RATE_ONLY_IF_SEAMLESS);
+      synchronized (output) {
+        // A successful request is not a measurement of presented frame rate.
+        output
+            .append("OWNED_RATE_REQUEST hz=")
+            .append(requestedHz)
+            .append(" display_hz_at_request=")
+            .append(display.getRefreshRate())
+            .append('\n');
+      }
+    } catch (RuntimeException failure) {
+      rateRefused = true;
+    }
   }
 
   private void awaitLine(String expected) throws Exception {

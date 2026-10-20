@@ -13,6 +13,25 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class OwnedDisplayTest(unittest.TestCase):
+    def test_exact_vendor_trace_does_not_hide_actual_kernel_failures(self):
+        with tempfile.TemporaryDirectory() as directory:
+            executable = Path(directory) / "kernel-message"
+            subprocess.run(
+                [
+                    "cc",
+                    "-Wall",
+                    "-Wextra",
+                    "-Werror",
+                    "-I",
+                    str(ROOT / "tools"),
+                    str(ROOT / "tests/fixtures/diagnostic_kernel_monitor.c"),
+                    "-o",
+                    str(executable),
+                ],
+                check=True,
+            )
+            subprocess.run([str(executable)], check=True)
+
     def test_cpu_probe_requires_nonce_bound_readback_not_vmm_exit(self):
         with tempfile.TemporaryDirectory() as directory:
             executable = Path(directory) / "cpu-probe-result"

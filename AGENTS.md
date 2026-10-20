@@ -533,3 +533,69 @@ of arbitrary formats, guest GPU protocol or asynchronous release fences.
 The explicit developer --run-approved-gles-reclaim comparison performs ordinary
 owned pressure before RAM allocation even when MemAvailable is high; the normal
 released APK does not adopt it. Preserve guards and negative capacity results.
+
+Read-only migrate-type counts show that remaining large free blocks can be CMA,
+while ordinary Movable has none at those sizes. Do not treat aggregate buddy
+counts as ordinary pinned RAM or open dedicated trusted/OEM CMA allocators.
+Both shmem and anonymous fresh 2 MiB collapse checks remained negative. The
+proposed one-shot global compaction in docs/android17-compaction-proposal.md is
+NOT authorized or executed; the six-key exception does not cover that node.
+The 1536 MiB low-RAM/guest-zram Android comparison still failed -22. Preserve
+VMM exit33 and supervisor52 separately; the latter has a residual teardown/RSS
+race and is not proof of a RAM-limit breach.
+
+## First clean new Android GPU session, 2026-10-21 JST
+
+A separate 1024 MiB/low-RAM/guest-only-zram profile prepared all 262144 backing
+pages as THP and reached Android BOOT=1, Adreno GLES, QuickstepLauncher and actual
+GPU home screenshots before/after Surface recreation. Guest shutdown, VMM0 and
+controller0 completed. Host boot/core/trusted VM, taint4608, Enforcing, six never
+values and three original source-disk hashes were retained. This is one bounded
+developer session, not 4 GiB or a qualified product runtime. Keep the APK gate
+false until integration/fence/lifetime checks and required checks are complete.
+
+The exact ROM's key_thread_write normally prints three exact BUG:svprt traces.
+Offline code/string verification distinguishes them from Linux BUG/WARN traps.
+Only the exact-host developer controller selects the tested exact-message
+exception; default monitors, all other failures and health taints remain strict.
+Legacy non-blob GLES ColorBuffers now export real AHB references and rutabaga
+caches their real handles, preserving normal flush. Parent120Hz was accepted,
+but actual presented120fps is unverified. No global compaction write is approved.
+
+## One-shot host compaction approval, user 2026-10-21 JST
+
+The user explicitly permits host memory compaction provided it does not modify
+host kernel files or partitions. Apply the prepared proposal as one write of
+`1\n` to `/proc/sys/vm/compact_memory` with no owned VM or RAM pressure running.
+Keep exact host/boot, locks, healthy taint/new-kernel-message checks, the 1536 MiB
+floor and a 45-second owned-child supervisor. Use a durable single-use receipt;
+a timeout or failed operation consumes this attempt and never triggers a retry.
+Compaction relocates runtime pages across the host and may stall other apps;
+it has no page-placement rollback. Do not change persistent tuning, extra THP
+nodes, cache-drop, kernel/modules/partitions/protections or reboot Android.
+Afterward compare migrate-type counts and a separate bounded 16 MiB full-content
+handoff. A successful write alone is not evidence of improved VM backing.
+
+The single compaction attempt is now consumed: one two-byte write returned errno
+zero in 18 ms. Ordinary free blocks >=64 KiB did not increase in the immediate
+snapshots; CMA recovered separately. Post-compaction 16 MiB handoff passed all
+contents with 4096/4096 THP pages. Same boot/core/trusted VM, taint4608, Enforcing,
+six never values and original three disk hashes were retained. No global
+compaction repeat is authorized; keep the spent receipt and negative comparison.
+
+The first explicit guest120Hz trial failed before BOOT=1 with only 42.68% THP,
+VMM33/controller33 and Gunyah attempt -22. The developer-only all-THP admission
+then checked every batch and all 1 GiB again before handoff. Its next session
+reached Android home, guest120Hz, an owned Adreno GLES motion workload, normal
+guest shutdown and VMM0/controller0. A short independent layer-history capture
+measured about118.6fps over1.43s; this is not sustained120fps qualification.
+The capture driver initially misparsed Samsung's RequestedLayerState wrapper;
+that orchestration assertion is retained separately from the passing VM result.
+Keep production readiness false pending runtime/fence/input/network integration.
+
+The longer120Hz comparison was interrupted by the diagnostic observer's repeated
+HOME request when an O_EXCL evidence PNG already existed. Its mixed-content
+41.61fps rate is not a continuous-motion benchmark. The observer now attempts
+HOME/capture once per session; this fix is compiled but not yet device-qualified.
+Retain the longer session's guest shutdown/VMM0, controller52 teardown race and
+clean postflight separately. No additional compaction was used or approved.

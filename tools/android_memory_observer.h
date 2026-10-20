@@ -22,7 +22,7 @@ static void *android_memory_observer(void *unused) {
                          "echo SURFACEFLINGER=$(pidof surfaceflinger); "
                          "echo SYSTEMUI=$(pidof com.android.systemui)'";
     const char expected[] = "vsoc_arm64_only\ncutf_cvm\n16373615\n";
-    int captured = 0, setup = 0;
+    int captured = 0, setup = 0, capture_attempted = 0;
 #ifdef PLB_ANDROID_GPU_RENDER_PROBE
     int render_probe_started = 0, render_probe_captured = 0;
 #endif
@@ -93,6 +93,12 @@ static void *android_memory_observer(void *unused) {
                 render_probe_captured = 1;
             }
 #endif
+            /* A retained O_EXCL evidence file must not make every later
+             * sample send HOME again and interrupt an interactive workload.
+             * Attempt this GUI preparation/capture once per owned session. */
+            if (capture_attempted)
+                continue;
+            capture_attempted = 1;
             const char home[] =
                 "exec:sh -c 'cmd power wakeup; wm dismiss-keyguard; input keyevent 3; sleep 2; "
                 "dumpsys activity activities | grep -E \"mResumedActivity|topResumedActivity\"'";

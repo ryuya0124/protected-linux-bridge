@@ -1,8 +1,10 @@
 # Android 17 runtime recovery: device evidence
 
 2026-10-20, follow-up to the offline port and owned-display design. This is a
-**developer validation record**, not a working Android guest release. The APK's
-`ANDROID_GUEST_READY` gate remains false. Android 16 is frozen.
+**developer validation record**, not a working Android guest release. A later
+1 GiB developer session completed Android boot, real GPU home presentation,
+Surface recreation and guest shutdown. The APK's `ANDROID_GUEST_READY` gate
+remains false pending product integration and further qualification. Android 16 is frozen.
 
 ## Boundaries
 
@@ -153,3 +155,177 @@ Pinned [source overlays and limitations](../native/owned_display/source-overlays
 are published; generated device inputs and binary artifacts remain private. Android boot, guest frames, repeated reopen,
 network/input and sustained 60/120 Hz still need qualification before app
 integration or release.
+
+## Later fragmentation detail and retained negative comparison
+
+A migrate-type snapshot explains why total buddy counts overstate useful large
+blocks: Movable had no free 64 KiB-or-larger blocks, while CMA had 66 free 4 MiB
+blocks. Unmovable/Reclaimable also had no free 64 KiB blocks. These are transient
+counts, not a universal threshold. The metadata tool now accepts optional
+pagetypeinfo and separates CMA/HighAtomic/Isolate from ordinary candidate types.
+GFP/watermark/pinning rules still prevent this from being an allocation promise.
+
+Read-only host config confirms COMPACTION and MIGRATION are compiled in. Fresh
+16 MiB shmem collapse still failed all eight 2 MiB requests after pressure.
+A separate anonymous mapping was THP-eligible, retained its contents, but both
+2 MiB collapse requests returned ENOMEM. During each anonymous call interval,
+compact_stall/compact_fail increased by three and compact_success by zero;
+these counters cover the whole host. No global compaction control was written.
+
+Offline inspection finds dedicated trusted/OEM CMA device allocators, not a
+general ordinary-memfd import. They are configured/single-lease vendor devices;
+only path/permission metadata was read. No FD allocation/ioctl or unrelated VM
+operation was attempted. Public long-term-pinning rules also distinguish CMA
+from ordinary pinned backing; a large CMA free count does not establish usable
+protected-guest RAM.
+
+The subsequent 1536 MiB/one-CPU Android comparison used a new disk clone, low-RAM
+guest boot parameter, guest-only 1 GiB zram capacity and explicit pressure before
+backing. It prepared 223872/393216 THP pages (56.93%), reached early guest setup,
+and stopped with PAGE_FAULT -22; no BOOT=1 or guest frame. Its VMM reported exit
+33, while the supervisor's missing-RSS exit-boundary race still reported 52.
+The earlier waitpid fix handles one race but not all process teardown ordering;
+52 must not be described as proof of exceeding the RAM limit.
+
+An optional developer Surface-rate request now accepts only supported 60/120 Hz
+modes at the current resolution and requests a seamless change for its own
+Surface. A request is not a measurement of actual presentation. The 120 Hz
+performance goal remains unverified.
+
+## Android boot and real guest Surface recovery, 2026-10-21 JST
+
+The 1024 MiB low-RAM comparison prepared **262144/262144 THP pages** before
+adoption. Its 128 MiB shared I/O pool is inside that RAM; the guest reports about
+855000 KiB usable memory. Guest-only zram capacity is 1 GiB. No Gunyah page-fault
+attempt was logged in this bounded session. Android reached BOOT=1, SurfaceFlinger,
+SystemUI and Adreno GLES. The initial session still failed display ResourceFlush
+and stopped when the broad kernel-log scanner saw vendor `BUG:svprt` text.
+
+Offline analysis of the exact saved ROM identifies both strings as unconditional
+printk calls on the normal key_thread_write proc-write path, not a BUG/WARN trap.
+The exact-format trace exception is now used only by the exact-host-17 developer
+controller. All other BUG text, unknown values/suffixes, Oops/panic/page failures,
+unreadable monitor state and health taints still stop it. Default diagnostics
+retain the strict original behavior. Tests cover these distinctions.
+
+The transfer failure had a separate cause: legacy non-blob resources had no
+exported/cached handle in the new renderer/rutabaga path. The renderer now exports
+its real ColorBuffer AHB for that resource type, and Android create_3d caches the
+actual duplicated-FD handle. Unsupported resources still have no handle. No
+native-window setter, CPU-frame fallback or flush bypass was added. A no-VM test
+now exercises resource_create/export through the same public renderer C API,
+normal GLES window flush, three actual presented colors and Surface recreation.
+
+A fresh clone using that stack then passed:
+
+- 1024 MiB backing, all sampled pages THP; exact identity/seals adopted.
+- Android BOOT=1; Adreno GLES 3.1; QuickstepLauncher actually resumed.
+- A host screenshot of the owned GPU layer shows the Android home and icons.
+- Recreating its Surface shows the same home; a separate guest screenshot was
+  captured for diagnosis, not used as the GPU display source.
+- Identity-checked guest shutdown, VMM exit 0 and controller exit 0.
+- Same host boot, system_server/zygote/trusted VM PIDs, taint 4608, Enforcing,
+  six policy values restored never, and all three original Android source-disk
+  hashes unchanged.
+
+The parent Surface accepted a supported seamless **120 Hz request**, with the
+host display reporting about 120.00002 Hz at request time. Neither that fact nor
+three screenshots establishes sustained 120 presented frames per second. Buffer
+reuse/acquire/release ordering, longer runs, guest refresh configuration and
+actual presentation timing remain follow-up work. One clean 1 GiB session is
+not 4 GiB qualification or a ready general-user APK.
+
+
+## One-shot host compaction, 2026-10-21 JST
+
+The first explicit 120 Hz guest-display comparison failed before BOOT=1 and
+before the motion workload was installed. Although its 16 MiB handoff gate
+passed with 2656/4096 THP pages, the actual 1 GiB preparation produced only
+111876/262144 THP pages (42.68%). The later batches fell back to base pages.
+Gunyah stopped at attempt -22; VMM33 and controller33 were retained. This is
+not a 120 fps result, nor proof that refresh rate caused the fault. Completed
+postflight preserved the host boundary, all six never values and source disks.
+
+The user then explicitly permitted host runtime memory compaction provided
+host kernel files and partitions were not modified. A boot-bound root helper
+held the common owner/maintenance leases, checked the exact platform, healthy
+taint, Enforcing, six original policies and the 1536 MiB available floor. It
+consumed a durable O_EXCL receipt and issued exactly one write of `1\n` to
+`/proc/sys/vm/compact_memory`, supervised through its known child with a
+45-second deadline. No VM or owned pressure ran concurrently. No persistent
+tuning, cache drop, host kernel/module/partition change or reboot was used.
+
+The write returned two bytes, errno zero, in **18 ms**. Snapshot comparisons:
+
+| Observation | Before | After |
+| --- | ---: | ---: |
+| MemAvailable, KiB | 4934608 | 4931156 |
+| Ordinary Movable/Reclaimable/Unmovable free bytes in blocks >=64 KiB | 0 | 0 |
+| CMA free KiB in blocks >=64 KiB | 0 | 6336 |
+| compact_migrate_scanned | 74796414 | 74801182 |
+| compact_free_scanned | 176489176 | 176901139 |
+| compact_isolated | 11106838 | 11111838 |
+
+These global snapshots include concurrent Android activity. They establish
+that the request completed and scanning counters advanced, not how many useful
+ordinary pages became available or which process caused every counter change.
+The ordinary >=64 KiB free count did not improve; recovered CMA is not normal
+long-term-pinnable VM backing. compact_success/fail did not change in this
+interval; those counters alone do not classify this explicit sysctl attempt.
+
+A separate post-compaction 16 MiB handoff observed **4096/4096 THP pages** and
+512 compound heads, and passed identity/seals/offsets/full-content checks plus
+unchanged observed PFNs. Both restorers succeeded. Host boot/core/trusted-VM
+identities, taint4608, Enforcing, all six never values and original three disk
+hashes were retained. Natural allocation variability prevents attributing the
+16 MiB improvement to compaction alone. Large Android RAM is not qualified by
+this result. The single-use receipt remains consumed; no repeat is scheduled.
+
+The new developer-only `PLB_PREALLOCATED_REQUIRE_ALL_THP` gate conservatively
+requires the backing condition from the clean 1 GiB GPU session. It checks
+every prepared batch and all RAM again immediately before handoff. Missing,
+unreadable or base-page backing refuses before VMM exec. This does not pin the
+pages or guarantee later Gunyah/GPU stability. It is not enabled in the APK or
+the CPU comparison by default.
+
+## Guest 120 Hz and actual presentation measurements
+
+With the conservative all-THP gate, a later 1 GiB session passed the per-batch
+and final complete-backing observations, BOOT=1, Adreno GLES and Surface
+recreation. The guest display reported about 120.00001 Hz and an 8333333 ns period.
+A separate permission-free guest GLES motion APK was installed through the fixed,
+identity/hash-checked guest-only client and removed after observation.
+
+Samsung's SurfaceFlinger `--list` wrapped names in `RequestedLayerState{...}`.
+The initial collector wrongly expected a plain name. Its assertion failed and
+removed the motion APK, while the VM instrumentation itself later passed normal
+guest shutdown, VMM0 and controller0. A short independent collection during the
+same session used the actual `PLB owned display#...` debug name, relaunched the
+matching guest-only workload, and successfully removed it afterward.
+
+The six overlapping 127-frame histories yielded **170 new actual-present times
+in 1.433333385 s: 118.6046 fps**. Median interval was 8.333333 ms, p95 about 8.333386 ms and
+longest 16.666615 ms. Each adjacent history overlapped, so the collector did not
+skip a whole ring. This is a short bounded result, not sustained 120 fps or input
+latency. It counts unique finite second-column actual-present timestamps, not
+render callbacks, guest requested refresh or duplicate timestamps. The column
+semantics are defined by AOSP
+[FrameTracker::dumpStats](https://android.googlesource.com/platform/frameworks/native/+/refs/heads/main/services/surfaceflinger/FrameTracker.cpp).
+`tools/presentation_report.py` rejects malformed/reset histories and withholds a
+complete FPS result when adjacent histories do not overlap. Tests distinguish
+unsignaled/zero fences, duplicate presentation times and lost history.
+
+A longer comparison retained 48 overlapping histories over 21.82 s, but is **not a
+valid continuous-motion performance benchmark**: the developer observer retried
+HOME whenever its O_EXCL evidence PNG already existed, interrupting the workload
+repeatedly. The overall mixed-content layer rate was 41.61 fps and must not be
+attributed to the motion workload. The observer now attempts GUI preparation
+and evidence capture once per owned session, regardless of an existing file.
+That fix is compiled; a clean longer device benchmark remains pending.
+
+This longer session reached normal guest shutdown/VMM 0, while the controller
+reported 52 due to the retained teardown/RSS observation race. Keep these exit
+codes separate. Completed postflight retained the host boundary, six never
+values and original source disks. No extra compaction was performed. Product
+Android readiness remains false; asynchronous acquire/release ordering and
+product runtime/input/network integration are still open.

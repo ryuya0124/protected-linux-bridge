@@ -19,6 +19,28 @@ Mlocked: 8 kB
 
 
 class FragmentationReportTest(unittest.TestCase):
+    def test_large_cma_blocks_do_not_become_ordinary_candidates(self):
+        types = (
+            "Free pages count per migrate type at order 0 1 2 3 4\n"
+            "Node 0, zone Normal, type Movable 1000 500 0 0 0\n"
+            "Node 0, zone Normal, type CMA 0 0 0 0 100\n"
+            "Number of blocks type Movable CMA\nNode 0, zone Normal 20 10\n"
+        )
+        result = REPORT.summarize(
+            "Node 0, zone Normal 1000 500 0 0 100", MEMORY, pagetypeinfo=types
+        )
+        ordinary, cma = result["migrate_types"]
+        self.assertTrue(ordinary["ordinary_candidate_type"])
+        self.assertEqual(ordinary["free_kib_at_least_size"]["64"], 0)
+        self.assertFalse(cma["ordinary_candidate_type"])
+        self.assertEqual(cma["free_kib_at_least_size"]["64"], 6400)
+        with self.assertRaises(ValueError):
+            REPORT.summarize(
+                "Node 0, zone Normal 1",
+                MEMORY,
+                pagetypeinfo="Node 0, zone Normal, type CMA >100000",
+            )
+
     def test_free_blocks_are_split_without_double_counting_within_one_size(self):
         result = REPORT.summarize("Node 0, zone Normal 1 2 3 4\n", MEMORY)
         zone = result["zones"][0]

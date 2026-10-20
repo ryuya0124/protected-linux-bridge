@@ -1,12 +1,12 @@
 # Android 17 host port
 
-Status: Android 17 host/Terminal admission, bounded CPU VMs and no-VM Adreno
-owned-Surface presentation have passed device checks. **The new Android guest
-path has not completed boot; the production Android gate remains disabled.**
-The [current runtime/fragmentation validation record](android17-runtime-validation.md)
-separates successes from failed Android trials. Earlier sections retain their
-original test scope; later explicit GUI/VM authorization superseded the prior
-non-GUI-only pause. Host Android and guest Android versions remain distinct.
+Status: an Android 17 **1 GiB developer session** completed boot, real Adreno
+GPU home presentation, Surface recreation and guest shutdown. The production
+Android gate remains disabled pending integration and further qualification.
+The [current runtime/fragmentation record](android17-runtime-validation.md)
+separates this result from failed larger profiles and unverified 120 fps.
+Earlier sections retain their historical test scope. Host and guest Android
+versions remain distinct; the frozen Android 16 release is unchanged.
 
 ## Frozen Android 16 line
 

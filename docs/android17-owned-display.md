@@ -1,11 +1,11 @@
 # Android 17: owned display connection
 
-Status: the new source VMM/renderer now build and load. Real Adreno AHB colors,
-owned Binder presentation and Surface recreation passed on the Galaxy. **Android
-guest boot remains incomplete, and fence/reuse correctness plus sustained frame
-rate remain unverified.** The app's Android guest gate is still disabled.
-See the [current device trials and failed cases](android17-runtime-validation.md).
-The original offline implementation and earlier linkage-only checks follow.
+Status: source VMM/renderer build, no-VM Adreno tests and a **1 GiB Android
+boot/GPU-home/Surface-recreation/guest-shutdown** session passed on the Galaxy.
+The APK gate remains disabled pending product integration. Long-running memory,
+all-format support, asynchronous fences and sustained 60/120 fps remain
+unverified. See [current device evidence](android17-runtime-validation.md).
+The original transport design and earlier checks follow.
 
 ## Replaced connection
 
