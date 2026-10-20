@@ -1,5 +1,6 @@
 /* No host hardware or VM. Exercise the real wire bytes and permission/clock gates. */
 #include "android_guest_sensors.h"
+#include "android_sensor_pipe.h"
 #include <assert.h>
 
 static int control(struct plb_guest_sensors *state, const char *text) {
@@ -7,6 +8,36 @@ static int control(struct plb_guest_sensors *state, const char *text) {
     return plb_sensor_control(state, text, strlen(text), 1000000000, reply, sizeof(reply));
 }
 int main(void) {
+    unsigned char header[PLB_SENSOR_PIPE_HEADER_BYTES] = {0};
+    memcpy(header, "PLD1", 4);
+    header[6] = 0x29;
+    header[7] = 0xab; /* fixed test UID 10667 */
+    memcpy(header + 40, "PLS1", 4);
+    header[47] = 1;
+    uint32_t selected = 0;
+    assert(plb_sensor_pipe_header(header, 10667, &selected) && selected == 1);
+    assert(!plb_sensor_pipe_header(header, 10668, &selected));
+    header[44] = 128;
+    assert(!plb_sensor_pipe_header(header, 10667, &selected));
+    unsigned char reading[PLB_SENSOR_PIPE_SAMPLE_BYTES] = {0};
+    reading[7] = 3;
+    reading[15] = 1;
+    reading[16] = 0x3f;
+    reading[17] = 0x80; /* 1.0f */
+    struct plb_sensor_pipe_sample decoded;
+    assert(plb_sensor_pipe_decode(reading, 1, &decoded));
+    assert(decoded.id == 0 && decoded.count == 3 && decoded.timestamp_ns == 1 &&
+           decoded.values[0] == 1.0f);
+    assert(!plb_sensor_pipe_decode(reading, 0, &decoded));
+    reading[31] = 1;
+    assert(!plb_sensor_pipe_decode(reading, 1, &decoded));
+    reading[31] = 0;
+    reading[16] = 0x7f;
+    reading[17] = 0xc0; /* NaN */
+    assert(!plb_sensor_pipe_decode(reading, 1, &decoded));
+    reading[16] = reading[17] = 0;
+    reading[8] = 0x80;
+    assert(!plb_sensor_pipe_decode(reading, 1, &decoded));
     struct plb_guest_sensors state;
     unsigned char frame[256];
     float xyz[] = {1, 2, 3};

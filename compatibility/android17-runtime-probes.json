@@ -91,8 +91,20 @@
     "host_camera": "permission and session opt-in denial passed; not opened",
     "diskless_virtio_snd": "card detected with null backend, capture disabled; 16 MiB full readback passed",
     "headless_android_guest": "BOOT=1, Adreno GLES, metadata, VMM0/controller0; no host Activity or Surface",
-    "android_audio": "AIDL present; normal profile has no ALSA card; physical forwarding pending",
-    "android_camera": "emulated AIDL provider; host camera injection pending",
-    "android_sensors": "AIDL present; default empty mask; authenticated source connection pending"
+    "android_audio": "AudioTrack wrote 153600 silent bytes; playback head 28672 frames; one guest ALSA PCM descriptor; null backend/no capture; VMM0/controller0",
+    "android_camera": "guest virtual_camera service/provider connected; null/pipe stdio fixed guest PTY FD denial; test registration refuses GL_EXT_YUV_target unsupported; no frames, physical forwarding pending",
+    "android_sensors": "live host accelerometer -> private session pipe -> Goldfish HAL -> SensorManager: 10 finite/increasing events; normal VMM0/controller0",
+    "physical_audio": "not connected; no physical speaker/microphone opened",
+    "sensor_controller_samples": [
+      202,
+      252
+    ],
+    "negative_comparisons": [
+      "two initial audio checks failed on optional PCM proc debug file; VMM0/controller52; not clean passes",
+      "initial camera session refused before VMM exec: 24/262144 pages not THP; controller52",
+      "camera command initially failed on SELinux PTY FD transfer; null stdin/piped output fixed it without policy changes",
+      "camera hardware check refuses missing GL_EXT_YUV_target; clean VM shutdown does not make failed camera test a pass"
+    ],
+    "latest_camera_session_shutdown": "VMM0/controller0, normal guest shutdown and clean host postflight; camera/overall instrumentation failed"
   }
 }

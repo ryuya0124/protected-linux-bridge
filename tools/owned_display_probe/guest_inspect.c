@@ -24,6 +24,11 @@ int main(void) {
     const char inspect[] =
         "exec:sh -c 'echo PLB_GUEST_PERIPHERAL_INSPECT_BEGIN; "
         "echo BOOT=$(getprop sys.boot_completed); cat /proc/asound/cards; "
+        "cat /proc/asound/pcm; ls /dev/snd; "
+        "echo AUDIO_IGNORE_OUTPUT=$(getprop ro.boot.audio.tinyalsa.ignore_output); "
+        "echo VIRTUAL_CAMERA_STATE=$(getprop init.svc.virtual_camera); "
+        "service check virtual_camera; "
+        "ls /system/bin/virtual_camera /system/etc/init/virtual_camera.hal.rc; "
         "ls /vendor/lib64/hw/audio* /vendor/bin/hw/*audio* /vendor/bin/hw/*camera*; "
         "getprop ro.hardware.audio.primary; getprop ro.hardware.camera; "
         "service list | grep -E \"audio|camera|sensor\"; "

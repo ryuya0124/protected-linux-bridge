@@ -5,6 +5,13 @@
 #include <string>
 #include <vector>
 
+/* Compile-time pinned variant only. No caller-selected library path. */
+#ifndef PLB_OWNED_VMM_LIBRARY
+#define PLB_OWNED_VMM_LIBRARY                                                                      \
+    "/data/user/0/net.ryuya_dev.protectedlinux/files/android17-owned-runtime/"                     \
+    "libplb_vmm_android17.so"
+#endif
+
 extern "C" JNIEXPORT jint JNICALL Java_net_ryuya_1dev_protectedlinux_displayroot_RootOwnedVmm_run(
     JNIEnv *env, jclass, jobjectArray arguments) {
     setvbuf(stdout, nullptr, _IONBF, 0);
@@ -30,9 +37,7 @@ extern "C" JNIEXPORT jint JNICALL Java_net_ryuya_1dev_protectedlinux_displayroot
     std::vector<const char *> argv;
     for (const auto &string : strings)
         argv.push_back(string.c_str());
-    void *library = dlopen("/data/user/0/net.ryuya_dev.protectedlinux/files/"
-                           "android17-owned-runtime/libplb_vmm_android17.so",
-                           RTLD_NOW | RTLD_LOCAL);
+    void *library = dlopen(PLB_OWNED_VMM_LIBRARY, RTLD_NOW | RTLD_LOCAL);
     // Keep the path literal in sync with the pinned private runtime, not caller input.
     if (!library)
         return 75;

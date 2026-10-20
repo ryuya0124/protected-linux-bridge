@@ -632,3 +632,40 @@ Audio/camera AIDL services exist; virtual advertised ports are not actual host
 forwarding. Sensors default to empty. Source-to-controller IPC, Android audio
 HAL transport and guest camera injection remain to connect. Keep production
 readiness false, old Vulkan/crash runners disabled and all host boundaries.
+
+## Actual headless HAL connection, 2026-10-21 JST
+
+After pushing aa97004 first as requested, the developer controller connected
+the app's live accelerometer source over a private inherited pipe, forwarding
+the original display capability separately to its Binder publisher. Default
+callers remain empty. Guest SensorManager received 10 finite, increasing-time
+events from 202 forwarded physical samples; VMM0/controller0 and host postflight
+passed. No raw physical values were saved. Other sensor kinds are not yet
+end-to-end device-qualified.
+
+The separately pinned audio-feature VMM booted Android17 with null-backed
+virtio-snd and zero input streams. AudioTrack wrote153600 silent bytes, advanced
+28672 frames and found one open guest PCM playback descriptor. Combined sensor
+and audio checks, normal guest shutdown, VMM0/controller0 and host boundary
+passed. Physical speaker/microphone are still not connected/opened. The first
+two audio fixtures failed on a missing optional CONFIG_SND_VERBOSE_PROCFS file;
+uncaught guest Java exceptions explained Killed/137, not demonstrated host OOM.
+Keep their controller52 failures distinct from the later clean success.
+
+The next synthetic-camera attempt was refused pre-exec: the final full-RAM
+scan had24 non-THP pages. No VMM/camera ran in that attempt. Keep this evidence,
+all-THP admission, one bounded PTE refresh and spent compaction receipts. No
+additional compact_memory or tuning write is approved. Lazy guest virtual_camera
+binary/init entries exist; physical host capture remains off. Product readiness
+is still false, and Android16/frozen disks remain unchanged.
+
+The subsequent camera connection reached the guest's stock virtual_camera
+service and CameraService virtual/0 provider. Its shell call initially failed
+on SELinux receipt of a guest PTY FD. Null stdin plus piped stdout/stderr fixed
+that transaction without host/guest policy or enforcement changes. Registration
+then explicitly refused GL_EXT_YUV_target unsupported. No test camera/frames
+were created; do not fake the extension, bypass the requirement or claim physical
+camera forwarding. Other vendor-property read denials are observed, causality
+unproven. Final sensor+silent-audio checks passed, VMM0/controller0 and unchanged
+host/source-disk postflight passed, but camera/overall instrumentation failed.
+No further compaction was performed. Preserve gate=false and existing constraints.

@@ -6,6 +6,7 @@ import android.os.Bundle;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.util.EnumSet;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -15,14 +16,25 @@ public final class HeadlessGuestInstrumentation extends Instrumentation {
   private static final String BASE =
       "/data/user/0/net.ryuya_dev.protectedlinux/files/android17-owned-runtime";
 
+  private boolean relaySensors;
+  private boolean nullAudio;
+  private boolean syntheticCamera;
+
   @Override
   public void onCreate(Bundle arguments) {
     super.onCreate(arguments);
+    relaySensors = arguments != null && "true".equals(arguments.getString("relay_sensors"));
+    nullAudio = arguments != null && "true".equals(arguments.getString("null_audio"));
+    syntheticCamera = arguments != null && "true".equals(arguments.getString("synthetic_camera"));
     start();
   }
 
   private String fixedHelper(String name) throws Exception {
-    if (!name.equals("guest-inspect") && !name.equals("shutdown-guest"))
+    if (!name.equals("guest-inspect")
+        && !name.equals("guest-sensor-check")
+        && !name.equals("guest-audio-check")
+        && !name.equals("guest-camera-check")
+        && !name.equals("shutdown-guest"))
       throw new IllegalArgumentException("Fixed guest helper only");
     Process helper =
         new ProcessBuilder("su", "-M", "-c", BASE + "/" + name).redirectErrorStream(true).start();
@@ -47,14 +59,37 @@ public final class HeadlessGuestInstrumentation extends Instrumentation {
     Bundle result = new Bundle();
     Process producer = null;
     OwnedDisplayConnection connection = null;
+    AndroidGuestSensorSource sensors = null;
+    AndroidGuestSensorPipe sensorPipe = null;
     LinkedBlockingQueue<String> lines = new LinkedBlockingQueue<>();
     StringBuilder log = new StringBuilder();
     boolean booted = false, shutdownRequested = false;
     int status = Activity.RESULT_CANCELED;
     try {
       connection = new OwnedDisplayConnection();
+      int sensorMask = 0;
+      if (relaySensors) {
+        sensorPipe = new AndroidGuestSensorPipe();
+        AndroidGuestSensorPipe stream = sensorPipe;
+        sensors =
+            new AndroidGuestSensorSource(
+                getTargetContext(),
+                EnumSet.of(AndroidGuestSensorSource.Kind.ACCELEROMETER),
+                stream::offer,
+                failure -> lines.offer("HEADLESS_SENSOR_SOURCE_FAILED"));
+        sensorMask = sensors.start();
+        if (sensorMask != 1) throw new IOException("Selected accelerometer unavailable");
+      }
       producer =
-          new ProcessBuilder("su", "-M", "-c", BASE + "/vm-controller --run-approved-gles-reclaim")
+          new ProcessBuilder(
+                  "su",
+                  "-M",
+                  "-c",
+                  BASE
+                      + (nullAudio ? "/vm-controller-audio " : "/vm-controller ")
+                      + (relaySensors
+                          ? "--run-approved-gles-sensors"
+                          : "--run-approved-gles-reclaim"))
               .redirectErrorStream(true)
               .start();
       Process owned = producer;
@@ -80,10 +115,13 @@ public final class HeadlessGuestInstrumentation extends Instrumentation {
       reader.setDaemon(true);
       reader.start();
       connection.writeCapability(producer.getOutputStream());
+      if (relaySensors) sensorPipe.start(producer.getOutputStream(), sensorMask);
       long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(145);
       while (System.nanoTime() < deadline) {
         String line = lines.poll(100, TimeUnit.MILLISECONDS);
         if (line == null) continue;
+        if (line.equals("HEADLESS_SENSOR_SOURCE_FAILED"))
+          throw new IOException("Host sensor source stopped");
         if (line.contains("PLB_ANDROID_MEMORY_HOME")) {
           booted = true;
           break;
@@ -97,6 +135,26 @@ public final class HeadlessGuestInstrumentation extends Instrumentation {
       result.putString("guest_inventory", inventory);
       if (!inventory.contains("PLB_GUEST_PERIPHERAL_INSPECT_COMPLETE"))
         throw new IOException("Guest metadata completion missing");
+      if (relaySensors) {
+        String sensorCheck = fixedHelper("guest-sensor-check");
+        result.putString("sensor_check", sensorCheck);
+        result.putLong("sensor_pipe_written", sensorPipe.written());
+        if (!sensorCheck.contains("PLB_GUEST_SENSOR_EVENTS_PASS") || sensorPipe.failure() != null)
+          throw new IOException("Guest sensor event verification failed");
+      }
+      if (nullAudio) {
+        String audioCheck = fixedHelper("guest-audio-check");
+        result.putString("audio_check", audioCheck);
+        if (!audioCheck.contains("PLB_GUEST_AUDIO_HAL_PASS"))
+          throw new IOException("Guest audio HAL verification failed");
+      }
+      if (syntheticCamera) {
+        String cameraCheck = fixedHelper("guest-camera-check");
+        result.putString("camera_check", cameraCheck);
+        if (!cameraCheck.contains("PLB_GUEST_CAMERA_HAL_PASS")
+            || !cameraCheck.contains("PLB_GUEST_CAMERA_REVOKED=0"))
+          throw new IOException("Guest synthetic camera HAL verification failed");
+      }
       result.putString("guest_shutdown", fixedHelper("shutdown-guest"));
       shutdownRequested = true;
       if (!producer.waitFor(20, TimeUnit.SECONDS)) throw new IOException("Owned shutdown deadline");
@@ -111,6 +169,8 @@ public final class HeadlessGuestInstrumentation extends Instrumentation {
     } catch (Exception failure) {
       result.putString("error", failure.getClass().getSimpleName() + ": " + failure.getMessage());
     } finally {
+      if (sensors != null) sensors.close();
+      if (sensorPipe != null) sensorPipe.close();
       if (booted && !shutdownRequested && producer != null && producer.isAlive()) {
         try {
           result.putString("guest_shutdown_recovery", fixedHelper("shutdown-guest"));

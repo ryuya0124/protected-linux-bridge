@@ -28,6 +28,7 @@
 #include "pins.generated.h"
 #include "android_owned_process.h"
 #include "android_sensor_transport.h"
+#include "android_sensor_pipe.h"
 static volatile _Atomic sig_atomic_t stopping;
 #include "android_gpu_console.h"
 #define PLB_ANDROID_ADOPTED_PROBE 1
@@ -36,6 +37,65 @@ static volatile _Atomic sig_atomic_t stopping;
 static void stop(int number) {
     (void)number;
     stopping = 1;
+}
+
+/* The app's private stdin capability remains private: never print its token.
+ * Forward exactly the original 40 bytes to the VMM publisher on a distinct pipe.
+ * This prevents Java buffering from consuming the controller's sensor stream. */
+static int sensor_bootstrap(int *child_input, uint32_t *selected) {
+    unsigned char header[PLB_SENSOR_PIPE_HEADER_BYTES];
+    size_t used = 0;
+    long long deadline = plb_shmem_millis() + 5000;
+    while (used < sizeof(header) && plb_shmem_millis() < deadline) {
+        struct pollfd input = {.fd = STDIN_FILENO, .events = POLLIN};
+        if (poll(&input, 1, 100) <= 0)
+            continue;
+        ssize_t count = read(STDIN_FILENO, header + used, sizeof(header) - used);
+        if (count <= 0)
+            return -1;
+        used += (size_t)count;
+    }
+    if (used != sizeof(header) || !plb_sensor_pipe_header(header, PLB_VIEWER_UID, selected))
+        return -1;
+    int channel[2];
+    if (pipe2(channel, O_CLOEXEC))
+        return -1;
+    int okay = write(channel[1], header, 40) == 40;
+    close(channel[1]);
+    int flags = fcntl(STDIN_FILENO, F_GETFL);
+    if (!okay || flags < 0 || fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK)) {
+        close(channel[0]);
+        return -1;
+    }
+    *child_input = channel[0];
+    return 0;
+}
+
+static int sensor_app_poll(struct sensor_endpoint *control, struct sensor_endpoint *data,
+                           uint32_t selected, unsigned long long *forwarded) {
+    static unsigned char frame[PLB_SENSOR_PIPE_SAMPLE_BYTES];
+    static size_t used;
+    /* Bound each pass, even if the app violates the normal 50 Hz producer limit. */
+    for (int i = 0; i < 16; i++) {
+        ssize_t count = read(STDIN_FILENO, frame + used, sizeof(frame) - used);
+        if (count < 0 && (errno == EAGAIN || errno == EINTR))
+            return 0;
+        if (count <= 0)
+            return -1;
+        used += (size_t)count;
+        if (used != sizeof(frame))
+            continue;
+        struct plb_sensor_pipe_sample sample;
+        if (!plb_sensor_pipe_decode(frame, selected, &sample))
+            return -1;
+        used = 0;
+        int sent = sensor_forward_sample(control, data, sample.id, sample.timestamp_ns,
+                                         sample.values, sample.count);
+        if (sent < 0)
+            return -1;
+        *forwarded += sent;
+    }
+    return 0;
 }
 static int platform(void) {
     char value[PROP_VALUE_MAX];
@@ -110,6 +170,24 @@ static int enough_memory(void) {
     fclose(input);
     return available >= (PLB_ANDROID4G_MEMORY_MIB + 1536ULL) * 1024;
 }
+
+static int child_is_zombie(pid_t child) {
+    char path[96], line[256];
+    snprintf(path, sizeof(path), "/proc/%ld/status", (long)child);
+    FILE *input = fopen(path, "re");
+    if (!input)
+        return 0;
+    int zombie = 0;
+    char state;
+    while (fgets(line, sizeof(line), input)) {
+        if (sscanf(line, "State: %c", &state) == 1) {
+            zombie = state == 'Z';
+            break;
+        }
+    }
+    fclose(input);
+    return zombie;
+}
 static int prepare_memory(int owner, int monitor, int prepare_for_folios) {
     /* MemAvailable can be mostly fragmented/reclaimable cache. The explicit
      * comparison mode prepares before backing exists even with enough bytes. */
@@ -151,6 +229,8 @@ int main(int argc, char **argv) {
     int check = argc == 2 && !strcmp(argv[1], "--check");
     int gate = argc == 2 && !strcmp(argv[1], "--folio-gate");
     int reclaim = argc == 2 && !strcmp(argv[1], "--run-approved-gles-reclaim");
+    int relay_sensors = argc == 2 && !strcmp(argv[1], "--run-approved-gles-sensors");
+    reclaim |= relay_sensors;
     int run = (argc == 2 && !strcmp(argv[1], "--run-approved-gles")) || reclaim;
     if ((!check && !gate && !run) || !platform())
         return 40;
@@ -171,6 +251,11 @@ int main(int argc, char **argv) {
     signal(SIGTERM, stop);
     signal(SIGINT, stop);
     signal(SIGPIPE, SIG_IGN);
+    int child_input = -1;
+    uint32_t selected = 0;
+    unsigned long long forwarded = 0;
+    if (relay_sensors && sensor_bootstrap(&child_input, &selected))
+        return 56;
     if (!gate && (prepare_memory(owner, monitor, reclaim) || !enough_memory()))
         return 55;
     struct plb_shmem_guard policy = {.guardian = -1, .alive_write = -1};
@@ -192,6 +277,8 @@ int main(int argc, char **argv) {
         plb_shmem_finish(&policy);
         return 46;
     }
+    if (relay_sensors)
+        sensor_enable_relay(&control, selected);
     pid_t parent = getpid(), child = fork();
     if (!child) {
         if (prctl(PR_SET_PDEATHSIG, SIGKILL) || getppid() != parent)
@@ -200,6 +287,11 @@ int main(int argc, char **argv) {
         snprintf(text, sizeof(text), "%d", owner);
         if (fcntl(owner, F_SETFD, 0) || setenv("PLB_DIAGNOSTIC_OWNER_FD", text, 1))
             _exit(127);
+        if (relay_sensors) {
+            if (dup2(child_input, STDIN_FILENO) < 0)
+                _exit(127);
+            close(child_input);
+        }
         if (gate) {
             execl(PLB_ANDROID4G_RUNTIME "/allocation-probe", "allocation-probe", "--small-folios",
                   (char *)NULL);
@@ -216,6 +308,8 @@ int main(int argc, char **argv) {
         plb_shmem_finish(&policy);
         return 47;
     }
+    if (child_input >= 0)
+        close(child_input);
     if (ready[1] >= 0)
         close(ready[1]);
     int status = 0, done = 0, restored = 0, result = 124;
@@ -258,18 +352,32 @@ int main(int argc, char **argv) {
             sensor_poll(&control, 0);
             sensor_poll(&data, 0);
             sensor_poll(&oemlock, 1);
+            if (relay_sensors && sensor_app_poll(&control, &data, selected, &forwarded)) {
+                result = 57;
+                break;
+            }
             if (!plb_android4g_resource_limits(child)) {
                 /* The child may exit between the initial wait and /proc read.
                  * Preserve its actual failure instead of calling a missing RSS
                  * record a memory-limit violation. Never signal a reaped PID. */
                 done = waitpid(child, &status, WNOHANG);
+                /* Linux drops VmRSS before a dying child is waitable. Only an
+                 * explicitly observed zombie gets this bounded reap window;
+                 * live/unreadable tasks and actual memory-limit failures still
+                 * fail closed. Never signal or reuse an already reaped PID. */
+                if (done == 0 && child_is_zombie(child)) {
+                    for (int i = 0; i < 10 && done == 0; i++) {
+                        usleep(10000);
+                        done = waitpid(child, &status, WNOHANG);
+                    }
+                }
                 result = done == child
                              ? (WIFEXITED(status) ? WEXITSTATUS(status) : 128 + WTERMSIG(status))
                              : 52;
                 break;
             }
         }
-        usleep(100000);
+        usleep(relay_sensors ? 20000 : 100000);
     }
     if (plb_shmem_finish(&policy))
         result = 53;
@@ -303,6 +411,8 @@ int main(int argc, char **argv) {
     close(monitor);
     close(owner);
     close(maintenance);
+    if (relay_sensors)
+        printf("ANDROID17_SENSOR_RELAY mask=%u forwarded=%llu\n", selected, forwarded);
     printf("ANDROID17_DEVELOPER_SESSION_EXIT %d\n", result);
     return result;
 }
