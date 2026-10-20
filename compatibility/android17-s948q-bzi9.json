@@ -41,7 +41,12 @@
     "separate_apex_library_present": false,
     "crosvm_gfxstream_implementation_strings_present": true,
     "runtime_linkage_verified": false,
-    "old_gpu_bundle_enabled": false
+    "old_gpu_bundle_enabled": false,
+    "builtin_renderer_function_bodies_confirmed": true,
+    "android_display_ahb_functions_confirmed": true,
+    "dynamic_gpu_exports": [],
+    "stock_vmm_is_pie": true,
+    "static_analysis": "android17-display-analysis.json"
   },
   "host_kernel_config": {
     "CONFIG_ARM64_4K_PAGES": "y",

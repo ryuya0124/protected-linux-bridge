@@ -377,7 +377,26 @@ Do not retry another VM/startup/allocation trial under either spent approval.
   Android 16 runtime branches or backport the new storage UI into the frozen line.
 - No Galaxy is available now. ROM inspection and host builds are not device tests.
 - The inspected SM-S948Q S948QOPU1BZI9 ROM has kernel 6.12.69, Terminal versionCode
-  37 and a different stock VMM. Its virtualization APEX has no gfxstream backend.
+  37 and a different stock VMM. Its virtualization APEX has no separate gfxstream
+  backend DSO; saved-image analysis confirms built-in gfxstream and Android AHB
+  display function bodies.
   Do not substitute old hashes or declare Android/GPU guests compatible. This
   branch omits their old bundled runtime; retain guest data unchanged.
 - Keep inspection-heavy images on Windows/WSL, not the space-constrained Mac.
+
+
+## Android 17 GPU display investigation, offline 2026-10-20
+
+- Static ROM inspection now identifies real gfxstream, AndroidDisplay import and
+  AHardwareBuffer presentation functions. The stock VMM is PIE and does not
+  dynamically export the renderer or Bridge entry points. MiniDebugInfo symbols
+  are not a dlsym API; do not patch the stock ELF or call discovered addresses.
+- AOSP 17 reference code uses an unscoped display-service registration in the
+  system virtualization service. The Bridge must not replace/clear that global
+  slot or fetch an unrelated VM's display. A unique CLI display name does not
+  prove isolation. Design an owned per-session Binder handoff in a separate
+  app-private source-built runtime instead; no system service hooks/changes.
+- The AHB import/flip route replaces the old native-window setup and resource
+  flush bypass. Do not re-enable the old GPU bundle, Vulkan or VM/allocation
+  tests on the strength of offline analysis. Device display, fence ordering,
+  source/ABI equivalence and memory stability remain unverified.

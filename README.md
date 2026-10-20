@@ -21,7 +21,7 @@ Android 16の最終版は、[v0.4.0-preview.9](https://github.com/ryuya0124/prot
 
 DebianのGUI、GPU、通信、音声などのコードは残していますが、このホストOSでは実機未検証です。Android 16での検証結果を17版の保証として扱わないでください。
 
-**Androidゲストの起動は現在停止しています。** Android 17のVMM／描画構成が変わっており、16版用GPUランタイムは同梱していません。既存のAndroidゲストディスクは削除・変換しません。Vulkanの実験経路も無効のままです。[移植状況と確認事項](docs/android17-port.md)を参照してください。
+**Androidゲストの起動は現在停止しています。** Android 17のVMM／描画構成が変わっており、16版用GPUランタイムは同梱していません。既存のAndroidゲストディスクは削除・変換しません。Vulkanの実験経路も無効のままです。[移植状況と確認事項](docs/android17-port.md)、[GPU表示の解析記録](docs/android17-gpu-display.md)を参照してください。
 
 ## 必要な環境
 

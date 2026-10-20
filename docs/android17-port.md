@@ -76,11 +76,14 @@ hashes. A matching identity is an admission condition, not a stability claim.
 
 The old app loads `/apex/com.android.virt/lib64/libgfxstream_backend.so` and uses
 its measured ABI from a private source-built VMM. That library is absent here.
-The new crosvm contains `gfxstream::host::FrameBuffer`, `ColorBuffer`,
-`VirtioGpuFrontend` and renderer initialization strings; its ELF NEEDED list
-contains no gfxstream shared library. This suggests a built-in renderer, but
-symbols/strings alone do not establish a callable ABI or working GPU path.
-Do not describe the ROM as lacking GPU support solely because the old file is absent.
+Follow-up saved-image analysis now confirms actual built-in gfxstream and
+Android AHardwareBuffer display function bodies, beyond strings. The stock
+executable is PIE and has no dynamic renderer/Bridge exports; MiniDebugInfo is
+not a callable loader API. See the [GPU display investigation](android17-gpu-display.md)
+for the AHB import route, per-session Binder design and global-service trap.
+Neither static implementation presence nor source comparison establishes
+working GPU presentation. Do not describe the ROM as lacking GPU support
+solely because the old separate library is absent.
 
 The new product build omits old Android/GPU assets and removes only their stale
 **generated build outputs**, never phone data. Android guest startup fails before

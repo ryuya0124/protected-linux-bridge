@@ -1,0 +1,130 @@
+{
+  "elf_type": 3,
+  "df_1_pie": true,
+  "needed_libraries": [
+    "libaaudio.so",
+    "libcap.so",
+    "libc++.so",
+    "libbinder_ndk.so",
+    "libnativewindow.so",
+    "libcutils.so",
+    "liblog.so",
+    "libc.so",
+    "libm.so",
+    "libdl.so",
+    "libminijail.so",
+    "libprocessgroup.so"
+  ],
+  "dynamic_gpu_exports": [],
+  "functions": {
+    "display-surface-flip": {
+      "name": "<gpu_display::gpu_display_android::AndroidSurface as gpu_display::GpuDisplaySurface>::flip_to",
+      "bytes": 1008,
+      "referenced_plt_symbols": [
+        "free",
+        "malloc"
+      ]
+    },
+    "display-import": {
+      "name": "<gpu_display::gpu_display_android::DisplayAndroid as gpu_display::DisplayT>::import_resource",
+      "bytes": 1196,
+      "referenced_plt_symbols": [
+        "close",
+        "free"
+      ]
+    },
+    "display-buffer": {
+      "name": "(anonymous namespace)::AndroidDisplaySurface::setBufferLocked(AHardwareBuffer*)",
+      "bytes": 1128,
+      "referenced_plt_symbols": [
+        "AHardwareBuffer_acquire",
+        "AHardwareBuffer_release",
+        "_ZNSt3__114basic_iostreamIcNS_11char_traitsIcEEED2Ev",
+        "_ZNSt3__16localeC1Ev",
+        "_ZNSt3__16localeD1Ev",
+        "_ZNSt3__18ios_base4initEPv",
+        "_ZNSt3__19basic_iosIcNS_11char_traitsIcEEED2Ev",
+        "_ZdlPvm",
+        "__cxa_guard_acquire",
+        "__cxa_guard_release",
+        "__errno",
+        "__stack_chk_fail"
+      ]
+    },
+    "display-flip": {
+      "name": "android_display_flip_to",
+      "bytes": 1976,
+      "referenced_plt_symbols": [
+        "AHardwareBuffer_createFromHandle",
+        "AHardwareBuffer_release",
+        "_ZNSt3__113basic_ostreamIcNS_11char_traitsIcEEElsEi",
+        "_ZNSt3__114basic_iostreamIcNS_11char_traitsIcEEED2Ev",
+        "_ZNSt3__15mutex4lockEv",
+        "_ZNSt3__15mutex6unlockEv",
+        "_ZNSt3__16localeC1Ev",
+        "_ZNSt3__16localeD1Ev",
+        "_ZNSt3__18ios_base4initEPv",
+        "_ZNSt3__19basic_iosIcNS_11char_traitsIcEEED2Ev",
+        "_ZdlPvm",
+        "__errno",
+        "__stack_chk_fail",
+        "memcpy",
+        "native_handle_create",
+        "native_handle_delete"
+      ]
+    },
+    "display-create": {
+      "name": "create_android_display_context",
+      "bytes": 752,
+      "referenced_plt_symbols": [
+        "ABinderProcess_startThreadPool",
+        "AIBinder_decStrong",
+        "AServiceManager_waitForService",
+        "AStatus_delete",
+        "AStatus_isOk",
+        "_ZNSt3__111__call_onceERVmPvPFvS2_E",
+        "_ZNSt3__119__shared_weak_count14__release_weakEv",
+        "_Znwm",
+        "__assert",
+        "__stack_chk_fail",
+        "calloc"
+      ]
+    },
+    "renderer-export": {
+      "name": "stream_renderer_export_blob",
+      "bytes": 156,
+      "referenced_plt_symbols": [
+        "_Znwm",
+        "__cxa_guard_acquire",
+        "__cxa_guard_release"
+      ]
+    },
+    "renderer-init": {
+      "name": "stream_renderer_init",
+      "bytes": 12124,
+      "referenced_plt_symbols": [
+        "_ZNSt3__119__shared_weak_count14__release_weakEv",
+        "_ZdlPvm",
+        "_Znwm",
+        "__cxa_atexit",
+        "__cxa_guard_acquire",
+        "__cxa_guard_release",
+        "__stack_chk_fail",
+        "access",
+        "getenv",
+        "memmove",
+        "memset",
+        "setenv",
+        "strlen"
+      ]
+    }
+  },
+  "schema": 1,
+  "image_sha256": "a0cfa5b957d119202b85a069928b3b56bd080329efed42eb83b182c9513885e9",
+  "image_bytes": 13511360,
+  "image_executed": false,
+  "image_patched": false,
+  "device_accessed": false,
+  "gpu_rendering_validated": false,
+  "display_connected": false
+}

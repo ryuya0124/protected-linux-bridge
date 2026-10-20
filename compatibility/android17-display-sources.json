@@ -1,0 +1,131 @@
+{
+  "purpose": "Reference sources; not asserted to be the exact Samsung build inputs",
+  "sources": [
+    {
+      "repo": "external/crosvm",
+      "revision": "c7dd8d6950912fa5e6fde7ec2d1616e0ddc090f8",
+      "path": "gpu_display/src/gpu_display_android.rs",
+      "url": "https://android.googlesource.com/platform/external/crosvm/+/c7dd8d6950912fa5e6fde7ec2d1616e0ddc090f8/gpu_display/src/gpu_display_android.rs",
+      "sha256": "8e962a26953bf402ca8725080f88c279372b3258990403b0533d38cecbaa3c0d",
+      "bytes": 12476
+    },
+    {
+      "repo": "external/crosvm",
+      "revision": "c7dd8d6950912fa5e6fde7ec2d1616e0ddc090f8",
+      "path": "gpu_display/Android.bp",
+      "url": "https://android.googlesource.com/platform/external/crosvm/+/c7dd8d6950912fa5e6fde7ec2d1616e0ddc090f8/gpu_display/Android.bp",
+      "sha256": "366bde32ee6c10cbbe6c958b643c835eae6b2a8ed40f1aee016b35321372b6fe",
+      "bytes": 4277
+    },
+    {
+      "repo": "external/crosvm",
+      "revision": "c7dd8d6950912fa5e6fde7ec2d1616e0ddc090f8",
+      "path": "Android.bp",
+      "url": "https://android.googlesource.com/platform/external/crosvm/+/c7dd8d6950912fa5e6fde7ec2d1616e0ddc090f8/Android.bp",
+      "sha256": "e6a7db97c6e72093a27a99e067b6a3878881503d32f55cd0bcc8c18c50bffd49",
+      "bytes": 7853
+    },
+    {
+      "repo": "external/crosvm",
+      "revision": "c7dd8d6950912fa5e6fde7ec2d1616e0ddc090f8",
+      "path": "gpu_display/src/lib.rs",
+      "url": "https://android.googlesource.com/platform/external/crosvm/+/c7dd8d6950912fa5e6fde7ec2d1616e0ddc090f8/gpu_display/src/lib.rs",
+      "sha256": "18501bf813f12aebea4e9ef706f5529311f7273ce56c329a0902414f749cd35b",
+      "bytes": 22827
+    },
+    {
+      "repo": "external/crosvm",
+      "revision": "c7dd8d6950912fa5e6fde7ec2d1616e0ddc090f8",
+      "path": "devices/src/virtio/gpu/virtio_gpu.rs",
+      "url": "https://android.googlesource.com/platform/external/crosvm/+/c7dd8d6950912fa5e6fde7ec2d1616e0ddc090f8/devices/src/virtio/gpu/virtio_gpu.rs",
+      "sha256": "b0d180d7cae4aaf9e12738b15e9c06260ca7cdd4d16dcf51620fb41440d99cdc",
+      "bytes": 54075
+    },
+    {
+      "repo": "external/crosvm",
+      "revision": "c7dd8d6950912fa5e6fde7ec2d1616e0ddc090f8",
+      "path": "src/crosvm/cmdline.rs",
+      "url": "https://android.googlesource.com/platform/external/crosvm/+/c7dd8d6950912fa5e6fde7ec2d1616e0ddc090f8/src/crosvm/cmdline.rs",
+      "sha256": "53fb7a4fb35d15deb2ee0704b70fa22de6b09a282c94c13db1d00a9b8cc4ad33",
+      "bytes": 121043
+    },
+    {
+      "repo": "external/crosvm",
+      "revision": "c7dd8d6950912fa5e6fde7ec2d1616e0ddc090f8",
+      "path": "Cargo.toml",
+      "url": "https://android.googlesource.com/platform/external/crosvm/+/c7dd8d6950912fa5e6fde7ec2d1616e0ddc090f8/Cargo.toml",
+      "sha256": "c1695e76220acfe0fe8249130ede5e0d971a21367de70dbbc40e13b446e55880",
+      "bytes": 19809
+    },
+    {
+      "repo": "packages/modules/Virtualization",
+      "revision": "22f1c9ee92b146e10c8f5e71338618f77ab1631e",
+      "path": "libs/android_display_backend/crosvm_android_display_client.cpp",
+      "url": "https://android.googlesource.com/platform/packages/modules/Virtualization/+/22f1c9ee92b146e10c8f5e71338618f77ab1631e/libs/android_display_backend/crosvm_android_display_client.cpp",
+      "sha256": "7ba2aa94b85190dd8105a227668b65f9ebbb40b6cfddb2a79f5da98abc826004",
+      "bytes": 16228
+    },
+    {
+      "repo": "packages/modules/Virtualization",
+      "revision": "22f1c9ee92b146e10c8f5e71338618f77ab1631e",
+      "path": "libs/android_display_backend/crosvm_android_display_client.h",
+      "url": "https://android.googlesource.com/platform/packages/modules/Virtualization/+/22f1c9ee92b146e10c8f5e71338618f77ab1631e/libs/android_display_backend/crosvm_android_display_client.h",
+      "sha256": "5277a2a003f1a92f7026e25b72ee3004a5ab06f880947fa29e3d2083cd342ce9",
+      "bytes": 1259
+    },
+    {
+      "repo": "packages/modules/Virtualization",
+      "revision": "22f1c9ee92b146e10c8f5e71338618f77ab1631e",
+      "path": "libs/android_display_backend/Android.bp",
+      "url": "https://android.googlesource.com/platform/packages/modules/Virtualization/+/22f1c9ee92b146e10c8f5e71338618f77ab1631e/libs/android_display_backend/Android.bp",
+      "sha256": "9a5e4f2b164e148534b261a9ef79cda595f2362582593491af71fbb11cd59913",
+      "bytes": 1484
+    },
+    {
+      "repo": "packages/modules/Virtualization",
+      "revision": "22f1c9ee92b146e10c8f5e71338618f77ab1631e",
+      "path": "libs/android_display_backend/aidl/android/crosvm/ICrosvmAndroidDisplayService.aidl",
+      "url": "https://android.googlesource.com/platform/packages/modules/Virtualization/+/22f1c9ee92b146e10c8f5e71338618f77ab1631e/libs/android_display_backend/aidl/android/crosvm/ICrosvmAndroidDisplayService.aidl",
+      "sha256": "77dd56c3f1a26b78cfbbed73f76af042c0d6cc9e7aef561b695ca41964fcab6e",
+      "bytes": 1011
+    },
+    {
+      "repo": "packages/modules/Virtualization",
+      "revision": "22f1c9ee92b146e10c8f5e71338618f77ab1631e",
+      "path": "android/virtualizationservice/src/aidl.rs",
+      "url": "https://android.googlesource.com/platform/packages/modules/Virtualization/+/22f1c9ee92b146e10c8f5e71338618f77ab1631e/android/virtualizationservice/src/aidl.rs",
+      "sha256": "b273ed3d8da22013044b3e410edfbe82898575753ff24a507002a57b4afd9348",
+      "bytes": 50821
+    },
+    {
+      "repo": "packages/modules/Virtualization",
+      "revision": "22f1c9ee92b146e10c8f5e71338618f77ab1631e",
+      "path": "android/virtmgr/src/crosvm.rs",
+      "url": "https://android.googlesource.com/platform/packages/modules/Virtualization/+/22f1c9ee92b146e10c8f5e71338618f77ab1631e/android/virtmgr/src/crosvm.rs",
+      "sha256": "f7a87cdd508e25ccf66a20ab477b7f0637ad6b238230dd3eda0b4fa9dc7b2de4",
+      "bytes": 109984
+    },
+    {
+      "repo": "packages/modules/Virtualization",
+      "revision": "22f1c9ee92b146e10c8f5e71338618f77ab1631e",
+      "path": "libs/android_display_backend/surface_control_abi.h",
+      "url": "https://android.googlesource.com/platform/packages/modules/Virtualization/+/22f1c9ee92b146e10c8f5e71338618f77ab1631e/libs/android_display_backend/surface_control_abi.h",
+      "sha256": "1d8e12243d3b386736d98c9bbb48654c740865ddee3d7383a2933bd0690be64d",
+      "bytes": 1627
+    },
+    {
+      "repository": "external/rust/rutabaga_gfx",
+      "revision": "1f181b0b3e4b821459f21fd9025cd4c408c4f9ec",
+      "url": "https://android.googlesource.com/platform/external/rust/rutabaga_gfx/+/1f181b0b3e4b821459f21fd9025cd4c408c4f9ec/src/gfxstream.rs?format=TEXT",
+      "bytes": 35532,
+      "sha256": "53d75b4acda531dd4da556b4c6fb86cc91b83e5b5f5c9f58984156fdf5912b2b"
+    }
+  ],
+  "local_reference": {
+    "component": "Android NDK",
+    "version": "28.2.13676358",
+    "header": "android/native_window_aidl.h",
+    "sha256": "0fe2a439e806f863200abca14acbb967008d8727e8ff0ac10f2275fd30051289",
+    "note": "Surface is a C++ alias of NativeWindow, not evidence of a type mismatch"
+  }
+}
