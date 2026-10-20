@@ -20,7 +20,7 @@
   "debuggable": false,
   "signer_certificate_sha256": "548519a543d68d53e1db07743c8ddedff498ad38c7df2bd4bee51085b161948d",
   "device_checks": {
-    "wireless_host_identity": "passed-before-user-reboot",
+    "wireless_host_identity": "passed before and after user soft reboot; read-only admission",
     "terminal_reflection": "passed-not-Vector-interception",
     "display_backend_linkage": "passed-no-display-calls",
     "cpu_probes": "512 MiB 1 vCPU diskless and read-only Debian; nonce-bound 16 MiB readback",
@@ -30,11 +30,11 @@
     "new_in_app_terminal_ui": "not-tested",
     "display_presentation": "not-tested-disabled",
     "current_access": "non-GUI checks explicitly resumed",
-    "synthetic_backup_restore": "passed: 2 MiB, production codec/JNI lock, owned temporary roots only; no real-disk restore"
+    "synthetic_backup_restore": "passed: 2 MiB, production codec/JNI lock, owned temporary roots only; no real-disk restore",
+    "apk_installation": "signed versionCode 21 installed without launching an Activity; host boundary unchanged"
   },
   "host_real_debian_archive_codec": "full pinned archive install/hash passed; temporary image removed",
   "backup_native_sha256": "c149e8f538648f9d09d05c25b919225b7a2d9a07a7770356426292b4c293d575",
-  "artifact_record_pending": true,
   "emulator_ui_checks": {
     "sdk": 37,
     "architecture": "arm64",
@@ -49,5 +49,8 @@
     "font_scale": 1.4,
     "rotation": "portrait and landscape",
     "vm_started": false
-  }
+  },
+  "source_commit": "b3ebdcae91f7d3ea877796234af959cb82b44d1c",
+  "apk_sha256": "dbc8e1338873666b5e920ef93cf346ee6bea61d6c96c49d43f98d89bd5a61eb9",
+  "apk_bytes": 20830009
 }
