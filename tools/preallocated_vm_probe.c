@@ -329,7 +329,7 @@ static int prepare_and_exec(int memory, int touch, int small_folios, int chunked
     volatile unsigned char *whole = plb_aligned_shared_mapping(inherited, bytes, 0);
     if (whole == MAP_FAILED)
         return 93;
-    int all_thp = verify_after_pin(whole, bytes) && observe_backing((const void *)whole, bytes);
+    int all_thp = verify_after_pin(whole, bytes) && observe_resident_backing(whole, bytes);
     int unmapped = !munmap((void *)whole, bytes);
     if (!all_thp || !unmapped)
         return 93;

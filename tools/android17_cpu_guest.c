@@ -56,10 +56,24 @@ int main(void) {
         }
         free((void *)data);
     }
+    int sysfs_ready = !result && !mount("sysfs", "/sys", "sysfs", 0, NULL);
+#ifdef PLB_CPU_NULL_AUDIO
+    int sound_card = 0;
+    for (int attempt = 0; sysfs_ready && attempt < 40; attempt++) {
+        if (access("/sys/class/sound/card0/id", R_OK) == 0) {
+            sound_card = 1;
+            break;
+        }
+        usleep(50000);
+    }
+    printf("PLB_CPU_NULL_AUDIO nonce=%s card_present=%d host_playback=0 host_capture=0\n",
+           PLB_CPU_NONCE, sound_card);
+    if (!sound_card)
+        result = 1;
+#endif
     printf("PLB_CPU_GUEST nonce=%s result=%d arch=%s release=%s bytes=%zu\n", PLB_CPU_NONCE, result,
            guest.machine, guest.release, bytes);
-    if (!result && !mount("sysfs", "/sys", "sysfs", 0, NULL) &&
-        access("/sys/block/vda/dev", R_OK) == 0) {
+    if (!result && sysfs_ready && access("/sys/block/vda/dev", R_OK) == 0) {
         FILE *device = fopen("/sys/block/vda/dev", "r");
         unsigned major_number = 0, minor_number = 0;
         result = !device || fscanf(device, "%u:%u", &major_number, &minor_number) != 2;

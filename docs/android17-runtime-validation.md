@@ -329,3 +329,46 @@ codes separate. Completed postflight retained the host boundary, six never
 values and original source disks. No extra compaction was performed. Product
 Android readiness remains false; asynchronous acquire/release ordering and
 product runtime/input/network integration are still open.
+
+## Further headless compaction comparisons
+
+The user explicitly requested further tests without GUI. Two additional,
+separately receipted compact_memory writes were bounded to45s each. The existing
+spent receipt was retained. No persistent/proactive/extra-THP/cache-drop setting
+was changed. The prior operation already covered all zones; this comparison
+changes preparation/observation, not the set of host zones.
+
+| Comparison | Write duration | Ordinary Movable free KiB in >=64 KiB blocks | VM outcome |
+| --- | ---: | ---: | --- |
+| A: compaction without owned pressure | 69 ms | 0 before/after | 1024 MiB backing only20024/262144 THP pages; stopped at448 MiB write, attempt-22; supervisor88 |
+| B: owned pressure fully released, then compaction |1190 ms |30848→1044224| 1024 MiB/768 MiB full nonce-bound readback passed, all262144 pages THP, controller0 |
+| B follow-up, no additional compaction | — | not a simultaneous free-list snapshot |1536 MiB/1280 MiB full readback passed;305560/393216 THP pages;controller0 |
+| B larger follow-up, no additional compaction | — | not a simultaneous free-list snapshot |2048 MiB/1792 MiB stopped after1280 MiB write;287448/524288 THP pages;attempt-22;controller90 correctly rejected missing readback despite raw entry exit0 |
+
+Owned pressure released4286 MiB with zero sampled pattern errors before B;
+its allocation and the VM did not overlap. At B's immediate snapshots, total
+ordinary candidate free KiB in >=64 KiB blocks rose45568→1078912, while CMA was
+reported separately. Concurrent Android activity still prevents attributing
+all changes to the single write. The observed larger-block recovery and full
+VM readbacks establish a useful bounded improvement, not guaranteed4GiB Android
+or long-term memory stability. The current verified CPU comparison is1536 MiB
+configured RAM with1280 MiB of fully checked workload; not every configured byte.
+
+Both round-level16MiB handoffs retained all contents and all4096 observed PFNs,
+with useful THP and both restorers. The B-specific handoff was collected after
+the first B VM, before the1280MiB follow-up: an offline collector initially
+rejected clipped low-order pagetypeinfo counts, while its shell continued into
+the already prepared first B probe. That dependency bug was corrected with
+checked sequential orchestration. The earlier A handoff had passed before the
+round's VMs. Do not claim the later B handoff preceded its first VM.
+
+For B's saved metadata, only low-order counts were clipped as `>100000`.
+Their exact values remain unknown. The >=64KiB counts quoted above use only
+independently exact higher-order columns; no clipped count is treated as exact.
+Original raw snapshots and failed collectors remain private. No further
+compaction write is authorized by these consumed round receipts.
+
+All completed postflights retained host boot/core/trusted-VM identities,
+taint4608, Enforcing and all six never policies. A later headless Android17
+session also retained all three original source-disk hashes. Detailed peripheral
+work and its limits are [recorded separately](android17-peripherals.md).

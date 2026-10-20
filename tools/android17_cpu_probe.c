@@ -99,8 +99,12 @@ int main(int argc, char **argv) {
         execl(PLB_CPU_EXECUTABLE, "crosvm", "--log-level", "info", "run", "--name",
               "plb17-cpu-probe", "--disable-sandbox", "--no-balloon", "--hypervisor", "gunyah",
               "--protected-vm-without-firmware", "--swiotlb", "32", "--mem", PLB_CPU_RAM_ARGUMENT,
-              "--cpus", "num-cores=1", "--serial",
-              "type=file,path=" PLB_CPU_BASE "/console.log,console=true,earlycon=true", "--params",
+              "--cpus", "num-cores=1",
+#ifdef PLB_CPU_NULL_AUDIO
+              "--virtio-snd", "backend=null,capture=false,num_input_devices=0,num_input_streams=0",
+#endif
+              "--serial", "type=file,path=" PLB_CPU_BASE "/console.log,console=true,earlycon=true",
+              "--params",
               "console=ttyS0 earlycon 8250.nr_uarts=1 rdinit=/init panic=0 "
               "plb.cpu_probe=" PLB_CPU_NONCE,
 #ifdef PLB_CPU_DEBIAN_READONLY

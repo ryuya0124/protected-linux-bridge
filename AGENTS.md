@@ -599,3 +599,36 @@ HOME request when an O_EXCL evidence PNG already existed. Its mixed-content
 HOME/capture once per session; this fix is compiled but not yet device-qualified.
 Retain the longer session's guest shutdown/VMM0, controller52 teardown race and
 clean postflight separately. No additional compaction was used or approved.
+
+## Renewed headless compaction comparisons, user 2026-10-21 JST
+
+The user requests further operation checks without GUI and permits broader
+compaction experimentation. For this round, use at most two separately receipted
+writes to compact_memory: one without owned pressure, one after ordinary owned
+pressure has fully exited. Keep each 45-second supervisor, exact healthy boot,
+owner leases, 1536 MiB floor and no concurrent owned VM/pressure. Preserve the
+previous spent receipt. This does not authorize persistent/proactive tuning,
+cache-drop, extra THP nodes, host kernel/modules/partitions/protections or reboot.
+Read-only delayed snapshots and diskless nonce-bound CPU VM checks may follow a
+positive 16 MiB handoff. No Activity, screen/input, SystemUI or launcher operation
+is allowed in this round. Preserve all actual guest disks. Keep the 6 GiB cap.
+
+Both renewed compaction attempts are consumed: A69ms, B1190ms after4286MiB owned
+pressure was fully released. B's Movable free blocks >=64KiB grew30848→1044224KiB
+in immediate snapshots. CPU1024/768 and1536/1280 full readbacks passed;2048/1792
+failed attempt-22 after1280MiB write. A had only7.64% THP and failed. Keep raw
+entry exit0 versus controller90 distinct on the larger failure. No further
+compact_memory write is authorized by these two spent receipts.
+
+The user explicitly asks to update GitHub first, then continue HAL connection.
+Non-GUI scope remains active. Host accelerometer sampling/close and camera
+consent-denial checks passed without physical media capture. A separate audio
+feature VMM with null backend enumerated virtio-snd in a512MiB diskless guest;
+no physical playback/capture. Headless1GiB Android17 boot/GLES/HAL inventory and
+VMM0/controller0 shutdown passed with no host Activity/Surface/input. The first
+full-backing admission had stopped pre-exec on missing resident observations;
+one bounded PTE refresh now qualifies the final scan without weakening all-THP.
+Audio/camera AIDL services exist; virtual advertised ports are not actual host
+forwarding. Sensors default to empty. Source-to-controller IPC, Android audio
+HAL transport and guest camera injection remain to connect. Keep production
+readiness false, old Vulkan/crash runners disabled and all host boundaries.

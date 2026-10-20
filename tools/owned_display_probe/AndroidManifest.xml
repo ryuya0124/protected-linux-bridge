@@ -4,4 +4,8 @@
   <application android:label="Owned display qualification" android:allowBackup="false" />
   <instrumentation android:name="net.ryuya_dev.protectedlinux.DisplayProbeInstrumentation"
       android:targetPackage="net.ryuya_dev.protectedlinux" />
+  <instrumentation android:name="net.ryuya_dev.protectedlinux.PeripheralProbeInstrumentation"
+      android:targetPackage="net.ryuya_dev.protectedlinux" />
+  <instrumentation android:name="net.ryuya_dev.protectedlinux.HeadlessGuestInstrumentation"
+      android:targetPackage="net.ryuya_dev.protectedlinux" />
 </manifest>

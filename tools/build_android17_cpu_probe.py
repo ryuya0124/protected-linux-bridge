@@ -14,8 +14,16 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def build(sdk, output, debian_readonly=False, workload_mib=16, guest_kernel=None):
-    configurations = {16: 512, 256: 512, 384: 512, 768: 1024, 1280: 1536}
+def build(sdk, output, debian_readonly=False, workload_mib=16, guest_kernel=None, null_audio=False):
+    configurations = {
+        16: 512,
+        256: 512,
+        384: 512,
+        768: 1024,
+        1280: 1536,
+        1792: 2048,
+        3840: 4096,
+    }
     if workload_mib not in configurations:
         raise ValueError("Unsupported bounded CPU workload")
     ram_mib = configurations[workload_mib]
@@ -36,6 +44,9 @@ def build(sdk, output, debian_readonly=False, workload_mib=16, guest_kernel=None
     if debian_readonly:
         with header.open("a") as stream:
             stream.write("#define PLB_CPU_DEBIAN_READONLY 1\n")
+    if null_audio:
+        with header.open("a") as stream:
+            stream.write("#define PLB_CPU_NULL_AUDIO 1\n")
     kernel_digest = None
     if guest_kernel is not None:
         guest_kernel = guest_kernel.resolve(strict=True)
@@ -124,6 +135,7 @@ def build(sdk, output, debian_readonly=False, workload_mib=16, guest_kernel=None
         "cpus": 1,
         "timeout_seconds": 30,
         "gpu": False,
+        "null_audio": null_audio,
         "disks": ["fixed Terminal root_part, read-only"] if debian_readonly else [],
         "host_policy_writes": False,
         "custom_guest_kernel_sha256": kernel_digest,
@@ -139,7 +151,17 @@ if __name__ == "__main__":
     parser.add_argument("--sdk", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--debian-readonly", action="store_true")
-    parser.add_argument("--workload-mib", type=int, choices=(16, 256, 384, 768, 1280), default=16)
+    parser.add_argument(
+        "--workload-mib", type=int, choices=(16, 256, 384, 768, 1280, 1792, 3840), default=16
+    )
     parser.add_argument("--guest-kernel", type=Path)
+    parser.add_argument("--null-audio", action="store_true")
     args = parser.parse_args()
-    build(args.sdk, args.output, args.debian_readonly, args.workload_mib, args.guest_kernel)
+    build(
+        args.sdk,
+        args.output,
+        args.debian_readonly,
+        args.workload_mib,
+        args.guest_kernel,
+        args.null_audio,
+    )

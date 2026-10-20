@@ -33,9 +33,14 @@
     "768_mib_sparse": "failed",
     "768_mib_advised": "failed, 13.16% THP",
     "768_mib_pressure_then_advised": "one full write/readback passed, 59.99% THP",
-    "1280_mib_pressure_then_advised": "failed, 58.27% THP; write progress is not readback"
+    "1280_mib_pressure_then_advised": "failed, 58.27% THP; write progress is not readback",
+    "headless_compaction_round": {
+      "1024_ram_768_workload_mib": "full nonce-bound readback passed; all 262144 backing pages THP",
+      "1536_ram_1280_workload_mib": "full nonce-bound readback passed; 305560/393216 THP",
+      "2048_ram_1792_workload_mib": "failed attempt -22 after 1280 MiB write; raw entry 0, controller 90; not readback"
+    }
   },
-  "host_python_native_tests": 227,
+  "host_python_native_tests": 228,
   "host_boundary": "same boot/core/trusted VM, taint 4608, Enforcing, all six policies restored never in completed postflights",
   "record": "docs/android17-runtime-validation.md",
   "host_compaction": {
@@ -46,7 +51,17 @@
     "ordinary_free_blocks_at_least_64kib": "no observed improvement",
     "post_compaction_16mib_handoff": "full content passed; 4096/4096 THP; causality unproven",
     "host_kernel_files_or_partitions_modified": false,
-    "repeat_authorized": false
+    "repeat_authorized": false,
+    "additional_headless_round": {
+      "approved_attempts": 2,
+      "consumed_attempts": 2,
+      "alone_elapsed_ms": 69,
+      "after_released_owned_pressure_elapsed_ms": 1190,
+      "released_owned_pressure_mib": 4286,
+      "movable_free_at_least_64kib_before_kib": 30848,
+      "movable_free_at_least_64kib_after_kib": 1044224,
+      "repeat_authorized": false
+    }
   },
   "android_guest_negative_comparisons": [
     {
@@ -67,7 +82,17 @@
     "short_actual_presented_fps": 118.60464688750692,
     "short_history_overlap_verified": true,
     "sustained_120fps": "unverified; longer benchmark invalidated by observer HOME interference",
-    "observer_fix": "compiled, longer device retest pending",
+    "observer_fix": "headless device session passed one HOME attempt; longer motion measurement pending",
     "production_async_fences": "unverified"
+  },
+  "peripherals": {
+    "record": "docs/android17-peripherals.md",
+    "host_accelerometer": "116 forwarded events in three seconds; no events after close",
+    "host_camera": "permission and session opt-in denial passed; not opened",
+    "diskless_virtio_snd": "card detected with null backend, capture disabled; 16 MiB full readback passed",
+    "headless_android_guest": "BOOT=1, Adreno GLES, metadata, VMM0/controller0; no host Activity or Surface",
+    "android_audio": "AIDL present; normal profile has no ALSA card; physical forwarding pending",
+    "android_camera": "emulated AIDL provider; host camera injection pending",
+    "android_sensors": "AIDL present; default empty mask; authenticated source connection pending"
   }
 }

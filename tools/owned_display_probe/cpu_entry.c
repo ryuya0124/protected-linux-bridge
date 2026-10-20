@@ -117,7 +117,8 @@ int main(int argc, char **argv) {
      * No prefault, advice, hole punching, CMA ioctl or allocation fallback. */
     const size_t bytes = PLB_CPU_RAM_BYTES;
     if (bytes != 512ULL * 1024 * 1024 && bytes != 1024ULL * 1024 * 1024 &&
-        bytes != 1536ULL * 1024 * 1024)
+        bytes != 1536ULL * 1024 * 1024 && bytes != 2048ULL * 1024 * 1024 &&
+        bytes != 4096ULL * 1024 * 1024)
         return 42;
     int fd = memfd_create("plb17-cpu-comparison", MFD_ALLOW_SEALING | MFD_CLOEXEC);
     struct stat metadata;
