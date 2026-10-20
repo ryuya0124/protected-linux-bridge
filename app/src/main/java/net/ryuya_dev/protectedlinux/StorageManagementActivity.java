@@ -113,7 +113,10 @@ public final class StorageManagementActivity extends AppCompatActivity {
       "vm",
       "vm-mainline",
       "android-guests",
-      "kernel-probes"
+      "kernel-probes",
+      "debian-images",
+      "backup-recovery",
+      "backup-jobs"
     };
     int[] titles = {
       R.string.asset_runtime,
@@ -123,7 +126,10 @@ public final class StorageManagementActivity extends AppCompatActivity {
       R.string.asset_debian,
       R.string.asset_mainline,
       R.string.asset_android,
-      R.string.asset_diagnostics
+      R.string.asset_diagnostics,
+      R.string.backup_debian_image,
+      R.string.backup_previous,
+      R.string.backup_staging
     };
     for (int index = 0; index < ids.length; index++) {
       JSONObject entry = entries.getJSONObject(index);

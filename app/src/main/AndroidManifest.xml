@@ -19,6 +19,9 @@
     <activity android:name=".DesktopActivity" android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden" android:exported="false" android:theme="@style/Theme.ProtectedLinux" android:windowSoftInputMode="adjustResize" />
     <activity android:name=".AndroidGuestActivity" android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout" android:exported="false" android:theme="@style/Theme.ProtectedLinux" />
     <activity android:name=".StorageManagementActivity" android:exported="false" />
+    <activity android:name=".DebianSetupActivity" android:exported="false" />
+    <activity android:name=".StandaloneTerminalActivity" android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden" android:exported="false" android:windowSoftInputMode="adjustResize" />
+    <activity android:name=".BackupActivity" android:exported="false" />
     <provider android:name=".AndroidGuestSurfaceProvider" android:authorities="net.ryuya_dev.protectedlinux.gpu-surface" android:exported="false" />
     <service android:name=".MicrophoneService" android:exported="false" android:foregroundServiceType="microphone" />
   </application>

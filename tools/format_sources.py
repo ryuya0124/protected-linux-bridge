@@ -35,7 +35,7 @@ def main():
         p
         for folder in ("native", "tools", "tests", "kernels")
         for p in (ROOT / folder).rglob("*")
-        if p.suffix in (".c", ".h")
+        if p.suffix in (".c", ".h", ".cpp")
     ]
     java = [
         p
@@ -43,8 +43,11 @@ def main():
             "app/src",
             "guest-gpu-probe/src",
             "native/clipboard",
+            "native/owned_display/root",
             "tools/surface_probe",
             "tools/android_guest_network",
+            "tools/terminal_probe",
+            "tools/debian_image_probe",
         )
         for p in (ROOT / folder).rglob("*.java")
     ]

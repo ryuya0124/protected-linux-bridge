@@ -54,7 +54,7 @@ class AssetInventoryTest(unittest.TestCase):
 
     def test_empty_and_absent_are_not_read_errors(self):
         report = self.report()
-        self.assertEqual(len(report["items"]), 8)
+        self.assertEqual(len(report["items"]), 11)
         self.assertEqual(report["busy"], -1)
         self.assertTrue(
             all(not item["present"] and not item["partial"] for item in report["items"])

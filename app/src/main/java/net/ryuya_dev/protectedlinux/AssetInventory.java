@@ -23,7 +23,7 @@ final class AssetInventory {
           || !process.waitFor(2, TimeUnit.SECONDS)
           || process.exitValue() != 0) throw new java.io.IOException("inventory unavailable");
       JSONObject result = new JSONObject(new String(output, StandardCharsets.UTF_8).trim());
-      if (result.getInt("schema") != 1 || result.getJSONArray("items").length() != 8)
+      if (result.getInt("schema") != 1 || result.getJSONArray("items").length() != 11)
         throw new java.io.IOException("inventory contract");
       return result;
     } finally {

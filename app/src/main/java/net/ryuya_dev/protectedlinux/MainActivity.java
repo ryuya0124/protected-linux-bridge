@@ -150,6 +150,12 @@ public final class MainActivity extends AppCompatActivity {
     button(R.string.asset_title, pages[3])
         .setOnClickListener(v -> startActivity(new Intent(this, StorageManagementActivity.class)));
     storageCard(pages[3]);
+    button(R.string.backup_title, pages[3])
+        .setOnClickListener(v -> startActivity(new Intent(this, BackupActivity.class)));
+    button(R.string.debian_setup, page)
+        .setOnClickListener(v -> startActivity(new Intent(this, DebianSetupActivity.class)));
+    button(R.string.debian_terminal, page)
+        .setOnClickListener(v -> startActivity(new Intent(this, StandaloneTerminalActivity.class)));
     button(R.string.enable_terminal, page).setOnClickListener(v -> setupTerminal(false));
     button(R.string.install_linux, page).setOnClickListener(v -> setupTerminal(true));
     button(R.string.open_fullscreen, page).setOnClickListener(v -> openDesktop());
@@ -301,15 +307,7 @@ public final class MainActivity extends AppCompatActivity {
                 prepare.setEnabled(true);
                 runtime.show(
                     "ready".equals(result) ? 2 : "disabled".equals(result) ? 1 : 0,
-                    "ready".equals(result)
-                        ? R.string.runtime_ready
-                        : "disabled".equals(result)
-                            ? R.string.runtime_disabled
-                            : "unsupported_architecture".equals(result)
-                                ? R.string.unsupported_architecture
-                                : "unsupported_version".equals(result)
-                                    ? R.string.unsupported_version
-                                    : R.string.runtime_unavailable);
+                    RuntimeSetup.message(result));
                 refreshFramework();
                 if ("ready".equals(result)) {
                   loadGraphics();

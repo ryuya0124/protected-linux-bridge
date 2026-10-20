@@ -6,9 +6,8 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.os.Binder;
 import android.os.Bundle;
-import android.view.Surface;
 
-/** Root-only Binder transfer of the explicitly selected viewer's GPU Surface. */
+/** Root-only publication of one viewer's private display Binder. */
 public final class AndroidGuestSurfaceProvider extends ContentProvider {
   @Override
   public boolean onCreate() {
@@ -17,11 +16,24 @@ public final class AndroidGuestSurfaceProvider extends ContentProvider {
 
   @Override
   public Bundle call(String method, String argument, Bundle extras) {
-    if (Binder.getCallingUid() != 0 || !"surface".equals(method))
-      throw new SecurityException("Root renderer only");
+    int uid = Binder.getCallingUid(), pid = Binder.getCallingPid();
+    if (uid != 0 || extras == null) throw new SecurityException("Owned root renderer only");
+    OwnedDisplayConnection connection = OwnedDisplayConnection.current();
+    if (connection == null) throw new IllegalStateException("No owned display viewer");
+    String token = extras.getString("session");
+    if (token == null || !token.matches("[0-9a-f]{64}"))
+      throw new SecurityException("Display session");
+    if ("display.claim".equals(method)) return connection.claim(uid, pid, token);
+    try {
+      if ("display.publish".equals(method))
+        connection.publish(uid, pid, token, extras.getBinder("display"));
+      else if ("display.clear".equals(method)) connection.revoke(uid, pid, token);
+      else throw new SecurityException("Display method");
+    } catch (android.os.RemoteException failure) {
+      throw new IllegalStateException("Display handshake failed", failure);
+    }
     Bundle result = new Bundle();
-    Surface surface = AndroidGuestGpuSurface.current();
-    if (surface != null && surface.isValid()) result.putParcelable("surface", surface);
+    result.putBoolean("accepted", true);
     return result;
   }
 

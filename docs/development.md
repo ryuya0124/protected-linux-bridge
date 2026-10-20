@@ -21,15 +21,15 @@ The tested stock app throws `UnsupportedOperationException` when it requests a n
 
 Verified callers are deoptimized as needed. Native tab controls are retained. Native disk settings are disabled because they do not control this private disk. The display button opens the GLES or compatibility noVNC viewer. A separate unexported DesktopActivity provides fullscreen viewing without closing Terminal PTYs. No system_server/SystemUI/Zygote hooks are installed.
 
-Configuration uses libxposed 102 remote preferences. Framework status means the module is loaded, not that the VM has booted. Unknown configuration shows a setup error rather than entering the known failing native startup; explicit OFF restores stock behavior.
+Optional stock-Terminal integration uses libxposed 102 remote preferences. The in-app terminal and desktop use local preferences without Vector. Framework status means the module is loaded, not that the VM has booted. Unknown configuration shows a setup error rather than entering the known failing native startup; explicit OFF restores stock behavior.
 
 ## Root boundary
 
 The app requests `su -M` to start a bounded native manager. `-M` selects the existing global mount namespace for that child: Android app-data isolation otherwise hides the real installed image. It does not remount or change global policy. Primary-user UIDs come from PackageManager.
 
-The abstract Unix socket `net.ryuya_dev.protectedlinux.console` authenticates peers using `SO_PEERCRED`. Only the installed Terminal UID can request a PTY (`R`). Terminal and module UIDs can request a GUI (`V`); the module needs no additional Xposed scope. Module UID/root may query or stop the manager; Terminal cannot request its global stop. Java and native clients verify the server UID is root. No shell command strings are accepted by the host service. Console bytes go only to the guest.
+The abstract Unix socket `net.ryuya_dev.protectedlinux.console` authenticates peers using `SO_PEERCRED`. The installed Terminal UID and the Bridge module UID can request a guest PTY (`R`). Terminal and module UIDs can request a GUI (`V`); the module needs no additional Xposed scope. Module UID/root may query or stop the manager; Terminal cannot request its global stop. Java and native clients verify the server UID is root. No shell command strings are accepted by the host service. Console bytes go only to the guest.
 
-Private files live under `/data/user/0/net.ryuya_dev.protectedlinux/files/vm`, with root-owned mode 0700 storage. The stock Terminal's `files/linux/root_part` is read only during initial sparse copying. Owned qcow2 data uses that private immutable copy as backing. Cached base identity is validated; mismatches stop instead of rebuilding over user data.
+Private files live under `/data/user/0/net.ryuya_dev.protectedlinux/files/vm`, with root-owned mode 0700 storage. A validated Bridge image in `files/debian-images/root_part` is preferred; the stock Terminal's `files/linux/root_part` remains a read-only fallback during initial sparse copying. Owned qcow2 data uses that private immutable copy as backing. Cached base identity is validated; mismatches stop instead of rebuilding over user data.
 
 Existing crosvm uses Gunyah `--protected-vm-without-firmware`, configurable memory/CPU (defaults512 MiB/one vCPU), no balloon, private qcow2 and the owned raw initramfs. This omits pvmfw verified boot and attestation. The guest agent (PID1 or a systemd service) exposes only host-CID vsock PTY/GUI/shutdown operations. `/dev`, `/run` and `/tmp` are guest tmpfs.
 
@@ -223,3 +223,6 @@ a hardware-rendered guest frame are not established.
 and [sanitized measurements](data/android4g-gpu-2026-10-20.json) preserve the
 five comparisons. This does not enable the six-key policy or 4 GiB GPU mode in
 the APK.
+
+
+The current app-only [Debian setup](debian-setup.md) and [selected compressed backup/restore](backup-and-restore.md) have separate user and implementation records. The portable installation codec can be exercised on the official archive without a VM via `tools/debian_image_probe/InstallProbe.java`; it removes only the newly created temporary image.

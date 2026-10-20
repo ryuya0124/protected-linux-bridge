@@ -37,31 +37,27 @@ public final class HookEntry extends XposedModule {
               Class<?> fragment =
                   Class.forName(
                       RuntimeSetup.HOST + ".TerminalTabFragment", false, p.getClassLoader());
-              Method start = main.getDeclaredMethod("startVm"),
-                  connect = main.getDeclaredMethod("connectToTerminalService", fragment),
-                  destroy = main.getDeclaredMethod("onDestroy");
-              // Verify the whole UI contract before changing the VM launch path.
-              for (String field :
-                  new String[] {
-                    "terminalView", "bootProgressView", "ttydStatus", "ttydTimeoutRunnable"
-                  }) fragment.getDeclaredField(field);
-              main.getDeclaredField("tabAddButton");
-              main.getDeclaredField("displayMenu");
-              Method tabDestroy = fragment.getDeclaredMethod("onDestroy");
-              ModernHook.deoptimize(tabDestroy);
-              // APK's onCreate and synthetic access bridge call startVm; onViewCreated calls
-              // connect.
-              for (Method caller : main.getDeclaredMethods())
-                if (caller.getName().equals("onCreate")
-                    || caller.getName().contains("access$startVm")
-                    || caller.getName().equals("onAccessibilityStateChanged"))
-                  if (!ModernHook.deoptimize(caller))
-                    throw new IllegalStateException("Caller unavailable");
-              for (Method caller : fragment.getDeclaredMethods())
-                if (caller.getName().equals("onViewCreated"))
-                  if (!ModernHook.deoptimize(caller))
-                    throw new IllegalStateException("Fragment caller unavailable");
-              for (Method m : new Method[] {start, connect, destroy})
+              TerminalContract.Methods contract =
+                  TerminalContract.inspect(
+                      main,
+                      fragment,
+                      android.view.View.class,
+                      android.webkit.WebView.class,
+                      Bundle.class,
+                      Activity.class);
+              Method start = contract.start(),
+                  connect = contract.connect(),
+                  destroy = contract.destroy(),
+                  tabDestroy = contract.tabDestroy(),
+                  viewCreated = contract.viewCreated(),
+                  getActivity = contract.getActivity();
+              for (Method caller : contract.callers())
+                if (!ModernHook.deoptimize(caller))
+                  throw new IllegalStateException("Caller unavailable");
+              for (Method m :
+                  new Method[] {
+                    start, connect, destroy, tabDestroy, viewCreated, contract.viewDestroyed()
+                  })
                 if (!ModernHook.deoptimize(m))
                   throw new IllegalStateException("Deoptimization unavailable");
               installed.add(
@@ -96,10 +92,6 @@ public final class HookEntry extends XposedModule {
                           Controller.close((Activity) x.thisObject);
                         }
                       }));
-              Method viewCreated =
-                  fragment.getDeclaredMethod(
-                      "onViewCreated", android.view.View.class, Bundle.class);
-              Method getActivity = fragment.getMethod("getActivity");
               installed.add(
                   ModernHook.hookMethod(
                       viewCreated,
@@ -117,6 +109,17 @@ public final class HookEntry extends XposedModule {
                       new ModernHook.Callback() {
                         protected void beforeHookedMethod(ModernHook.Param x) {
                           Controller.closeFragment(x.thisObject);
+                        }
+                      }));
+              installed.add(
+                  ModernHook.hookMethod(
+                      contract.viewDestroyed(),
+                      new ModernHook.Callback() {
+                        protected void beforeHookedMethod(ModernHook.Param x) {
+                          // This inherited method belongs to AndroidX Fragment. Restrict
+                          // cleanup to the confirmed Terminal fragment, not every fragment.
+                          if (fragment.isInstance(x.thisObject))
+                            Controller.closeFragment(x.thisObject);
                         }
                       }));
               status(c, "ready");

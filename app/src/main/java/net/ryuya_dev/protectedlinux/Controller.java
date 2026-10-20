@@ -16,7 +16,7 @@ final class Controller {
   private static final Map<Activity, Map<Object, Controller>> active = new WeakHashMap<>();
   private final Semaphore outputSlots = new Semaphore(8);
   private final String apk;
-  private VmChannel channel;
+  private volatile VmChannel channel;
   private volatile boolean closed;
   private WebView web;
   private Object fragment;
@@ -31,12 +31,21 @@ final class Controller {
 
   static void bind(Activity activity, Object fragment, Context ignored, String path) {
     Map<Object, Controller> pages = active.computeIfAbsent(activity, key -> new HashMap<>());
-    Controller controller = pages.computeIfAbsent(fragment, key -> new Controller(path));
+    Controller controller = pages.get(fragment);
     try {
+      // Fragment lifetime can exceed its view lifetime (tab/navigation recreation).
+      // Never keep sending console output to the previous, detached WebView.
+      WebView candidate = (WebView) field(fragment, "terminalView").get(fragment);
+      if (controller == null || controller.closed || controller.web != candidate) {
+        if (controller != null) controller.shutdown();
+        controller = new Controller(path);
+        pages.put(fragment, controller);
+      }
       controller.attach(activity, fragment);
     } catch (Exception error) {
       android.util.Log.e("ProtectedLinux", "VIEW_FAILED " + error.getClass().getSimpleName());
-      controller.shutdown();
+      if (controller != null) controller.shutdown();
+      pages.remove(fragment);
     }
   }
 
@@ -131,31 +140,33 @@ final class Controller {
 
   public final class ConsoleApi {
     @JavascriptInterface
-    public synchronized void ready() {
-      if (closed || channel != null) return;
-      channel =
-          new VmChannel(
-              new VmChannel.Listener() {
-                public void bytes(byte[] data) throws InterruptedException {
-                  emit(data);
-                }
-
-                public void ended(String error) {
-                  try {
-                    emit(
-                        ("\r\n[" + (error == null ? "シェルが終了しました。タブを閉じて開き直せます。" : error) + "]\r\n")
-                            .getBytes(StandardCharsets.UTF_8));
-                  } catch (InterruptedException interrupted) {
-                    Thread.currentThread().interrupt();
+    public void ready() {
+      synchronized (Controller.this) {
+        if (closed || channel != null) return;
+        channel =
+            new VmChannel(
+                new VmChannel.Listener() {
+                  public void bytes(byte[] data) throws InterruptedException {
+                    emit(data);
                   }
-                }
-              });
-      try {
-        emit("保護VMを準備しています。初回は専用ディスクのコピーに時間がかかります…\r\n".getBytes(StandardCharsets.UTF_8));
-      } catch (InterruptedException interrupted) {
-        Thread.currentThread().interrupt();
+
+                  public void ended(String error) {
+                    try {
+                      emit(
+                          ("\r\n[" + (error == null ? "シェルが終了しました。タブを閉じて開き直せます。" : error) + "]\r\n")
+                              .getBytes(StandardCharsets.UTF_8));
+                    } catch (InterruptedException interrupted) {
+                      Thread.currentThread().interrupt();
+                    }
+                  }
+                });
+        try {
+          emit("保護VMを準備しています。初回は専用ディスクのコピーに時間がかかります…\r\n".getBytes(StandardCharsets.UTF_8));
+        } catch (InterruptedException interrupted) {
+          Thread.currentThread().interrupt();
+        }
+        channel.open('R');
       }
-      channel.open('R');
     }
 
     @JavascriptInterface
@@ -175,19 +186,24 @@ final class Controller {
       return;
     }
     String script = "acceptBytes('" + Base64.encodeToString(data, Base64.NO_WRAP) + "')";
-    current.post(
-        () -> {
-          if (!closed) current.evaluateJavascript(script, result -> outputSlots.release());
-          else outputSlots.release();
-        });
+    boolean posted =
+        current.post(
+            () -> {
+              if (!closed) current.evaluateJavascript(script, result -> outputSlots.release());
+              else outputSlots.release();
+            });
+    if (!posted) outputSlots.release();
   }
 
-  private void shutdown() {
+  private synchronized void shutdown() {
+    if (closed) return;
     closed = true;
     VmChannel current = channel;
     if (current != null) current.close();
     web = null;
     fragment = null;
+    // A destroyed WebView may never invoke its outstanding JS callbacks.
+    outputSlots.release(8);
     android.util.Log.i("ProtectedLinux", "CONSOLE_CLOSING");
   }
 }

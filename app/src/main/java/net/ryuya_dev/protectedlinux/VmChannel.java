@@ -33,7 +33,7 @@ final class VmChannel {
           LocalSocket current = new LocalSocket();
           try {
             if (!RuntimePreferences.configReady())
-              throw new IOException("Vectorとの設定通信が未準備です。Protected Linux Bridgeを開いてください。");
+              throw new IOException("VMへの接続が無効です。Bridgeの接続設定を確認してください。");
             current.connect(
                 new LocalSocketAddress(
                     "net.ryuya_dev.protectedlinux.console", LocalSocketAddress.Namespace.ABSTRACT));
@@ -50,7 +50,7 @@ final class VmChannel {
                     case 2 -> "GUIが未導入です。ターミナルで plb-install-gui を実行してください。";
                     case 4 -> "開けるセッション数の上限です。";
                     case 6 -> "標準Linuxイメージが更新されました。既存データを保護するため停止しました。";
-                    case 7 -> "標準Linuxイメージがありません。アプリから標準インストーラーを開いてください。";
+                    case 7 -> "Linuxイメージがありません。Bridgeの「Debianを準備」から導入してください。";
                     case 8 -> "利用可能メモリが不足しています。";
                     case 11 -> "ディスクの移行または検証に失敗しました。元のディスクを保護して停止しました。容量設定と移行ログを確認してください。";
                     case 12 -> "ディスクを移行中です。完了後に開き直してください。";

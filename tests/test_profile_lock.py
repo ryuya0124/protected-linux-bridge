@@ -13,6 +13,21 @@ class ProfileLock(unittest.TestCase):
         p = Path(cls.build.name)
         src = p / "probe.c"
         src.write_text((ROOT / "tests/fixtures/profile_lock.c").read_text())
+        cls.maintenance = p / "maintenance"
+        subprocess.run(
+            [
+                "cc",
+                "-Wall",
+                "-Wextra",
+                "-Werror",
+                "-I",
+                str(ROOT / "native"),
+                str(ROOT / "tests/fixtures/maintenance_lock.c"),
+                "-o",
+                str(cls.maintenance),
+            ],
+            check=True,
+        )
         cls.exe = p / "probe"
         subprocess.run(
             [
@@ -46,6 +61,31 @@ class ProfileLock(unittest.TestCase):
             [str(self.exe)], env=self.env, capture_output=True, timeout=3
         ).returncode
 
+    def test_maintenance_worker_excludes_short_settings_mutations(self):
+        p = subprocess.Popen(
+            [str(self.maintenance), "exclusive", "hold"],
+            env=self.env,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+        )
+        try:
+            self.assertEqual(p.stdout.readline(), b"LOCKED\n")
+            self.assertEqual(subprocess.run([str(self.maintenance)], env=self.env).returncode, 1)
+        finally:
+            p.communicate(b"x", timeout=3)
+        self.assertEqual(subprocess.run([str(self.maintenance)], env=self.env).returncode, 0)
+
+    def test_pending_restore_also_refuses_short_cli_leases(self):
+        marker = Path(str(self.path) + ".restore-pending")
+        marker.write_text("pending")
+        self.assertEqual(
+            subprocess.run([str(self.maintenance), "shared-only"], env=self.env).returncode, 1
+        )
+        marker.unlink()
+        self.assertEqual(
+            subprocess.run([str(self.maintenance), "shared-only"], env=self.env).returncode, 0
+        )
+
     def test_private_file_created(self):
         self.assertEqual(self.acquire(), 0)
         self.assertEqual(self.path.stat().st_mode & 0o777, 0o600)
@@ -59,6 +99,13 @@ class ProfileLock(unittest.TestCase):
             self.assertEqual(self.acquire(), 1)
         finally:
             p.communicate(b"x", timeout=3)
+        self.assertEqual(self.acquire(), 0)
+
+    def test_restore_marker_blocks_new_vm_until_recovery(self):
+        marker = Path(str(self.path) + ".restore-pending")
+        marker.write_text("pending restore")
+        self.assertEqual(self.acquire(), 1)
+        marker.unlink()
         self.assertEqual(self.acquire(), 0)
 
     def test_symlink_rejected(self):

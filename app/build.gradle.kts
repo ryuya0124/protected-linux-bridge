@@ -16,8 +16,8 @@ android {
     applicationId = "net.ryuya_dev.protectedlinux"
     minSdk = 37
     targetSdk = 37
-    versionCode = 20
-    versionName = "0.5.0-alpha.1"
+    versionCode = 21
+    versionName = "0.5.0-alpha.2"
   }
   signingConfigs {
     if (!signing.isEmpty)
@@ -39,6 +39,13 @@ android {
     sourceCompatibility = JavaVersion.VERSION_17
     targetCompatibility = JavaVersion.VERSION_17
   }
+  buildFeatures { aidl = true }
+  sourceSets.getByName("main").aidl.srcDir(rootProject.file("native/owned_display/aidl"))
+  sourceSets
+    .getByName("main")
+    .java
+    .directories
+    .add(layout.buildDirectory.dir("generated/backupSources").get().asFile.absolutePath)
   lint { abortOnError = true }
 }
 
@@ -57,9 +64,17 @@ android.sourceSets.getByName("main").assets.directories.add(nativeAssets.get().a
 val buildNative =
   tasks.register("buildNativeAssets") {
     inputs.file(rootProject.file("third_party/hev/sources.json"))
+    inputs.dir(rootProject.file("third_party/android-binder"))
+    inputs.file(rootProject.file("compatibility/android17-s948q-bzi9.json"))
+    inputs.file(
+      rootProject.file(
+        "app/src/main/java/net/ryuya_dev/protectedlinux/display/DisplayCapability.java"
+      )
+    )
     inputs.dir(rootProject.file("native"))
     inputs.dir(rootProject.file("tools"))
     outputs.dir(nativeAssets)
+    outputs.dir(layout.buildDirectory.dir("generated/backupSources"))
     doLast {
       val local =
         Properties().apply {
@@ -165,6 +180,12 @@ val dependencyLicenses =
             rootProject.file("third_party/musl-COPYRIGHT.txt").readText() +
             "\nCompiler runtime (Apache-2.0 WITH LLVM-exception)\n" +
             rootProject.file("third_party/compiler-rt-LICENSE.txt").readText() +
+            "\nPrivate display backend: NDK libc++ runtime (Apache-2.0 WITH LLVM-exception)\n" +
+            rootProject.file("third_party/ndk-cxx/libcxx-LICENSE.txt").readText() +
+            rootProject.file("third_party/ndk-cxx/libcxxabi-LICENSE.txt").readText() +
+            rootProject.file("third_party/ndk-cxx/libunwind-LICENSE.txt").readText() +
+            "\nAOSP Binder C++ helper headers (Apache-2.0)\n" +
+            rootProject.file("third_party/android-binder/NOTICE.txt").readText() +
             "\nMusl component notices\n" +
             rootProject.file("third_party/musl-source-notices.txt").readText() +
             "\nnoVNC 1.6.0 (unmodified MPL-2.0 source modules)\n" +

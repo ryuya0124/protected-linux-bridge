@@ -19,7 +19,22 @@ final class RuntimeSetup {
                 : "debian-bridge"));
   }
 
+  static int message(String result) {
+    return switch (result) {
+      case "ready" -> R.string.runtime_ready;
+      case "disabled" -> R.string.runtime_disabled;
+      case "unsupported_architecture" -> R.string.unsupported_architecture;
+      case "unsupported_version" -> R.string.unsupported_version;
+      case "restore_pending" -> R.string.backup_pending;
+      case "backup_in_progress" -> R.string.backup_busy;
+      default -> R.string.runtime_unavailable;
+    };
+  }
+
   static synchronized String start(Context context) {
+    if (BackupClient.busy()) return "backup_in_progress";
+    if (new File(context.getFilesDir(), "vm-owner.lock.restore-pending").exists())
+      return "restore_pending";
     if (!context.getSharedPreferences("config", 0).getBoolean("enabled", true)) return "disabled";
     if (process != null && process.isAlive() && ready) return "ready";
     try {

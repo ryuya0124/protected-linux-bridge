@@ -400,3 +400,63 @@ Do not retry another VM/startup/allocation trial under either spent approval.
   flush bypass. Do not re-enable the old GPU bundle, Vulkan or VM/allocation
   tests on the strength of offline analysis. Device display, fence ordering,
   source/ABI equivalence and memory stability remain unverified.
+
+
+## Android 17 owned display transport and USB checks
+
+The per-session display backend/provider/publisher is built as dormant transport
+components. Full VMM/launcher/renderer integration, device Binder exchange and
+GPU synchronization remain unverified; keep ANDROID_GUEST_READY false and the
+old runtime/Vulkan disabled. Do not register/replace/clear the system global
+display slot. The source overlay is for a separate private userspace VMM build,
+never installing a host APEX or system image.
+
+The user explicitly permits USB real-device tests requiring neither soft reboot
+nor GUI operations. Select only the Galaxy; discovery currently showed no Mac
+device and only Pixel on Windows. Read-only host/APK checks and the dedicated
+Terminal contract reflection probe need no additional permission. This is not
+a permission to reboot or remove the retained VM/GPU crash execution guards.
+
+The user then chose wireless ADB. The selected Galaxy matched the Android 17
+ROM/VMM/guest-kernel pins. A shell-only Terminal contract probe passed; a separate
+owned backend dlopen/dlsym probe passed without calling display/GPU/Binder-pool
+operations. Both removed their temporary files. Boot/core process identities,
+taint 4608, Enforcing and six never values were retained. These are read-only
+admission/reflection/linkage results, not Vector interception or VM/GPU startup.
+
+## Android 17 CPU probes and current device pause
+
+After explicit permission for non-GUI VM tests, two bounded 512 MiB / one-vCPU
+protected CPU probes completed. One was diskless; the second attached only the
+stock Terminal root_part read-only and mounted it read-only/noload inside the
+guest. Both completed nonce-bound 16 MiB write/readback and clean owned exits;
+the second returned arm64 from guest dpkg. Full source-disk SHA256 was unchanged.
+Host boot/core identities/trusted VM, taint 4608, Enforcing and all six never
+values were retained. Guest kernel release was 6.6.118, distinct from host 6.12.69.
+These are not full Debian services/GUI/writeable-session or Android guest tests.
+Preserve the watchdog -19 and closed-channel shutdown warnings as negative context.
+
+The user subsequently soft-rebooted Android themselves and explicitly said to
+wait. Do not reconnect, install, query or manipulate the device until they say
+ready. Offline development, host tests and Windows/WSL image analysis continue.
+No additional restart is authorized.
+
+## Individual compressed backups and self-contained Debian setup
+
+The user requests bundled compression, individual backup/restore choices and
+Debian use inside Bridge. Use selected fixed app-private roots only; root runs
+signed-APK maintenance code, not archive commands. VM/maintenance locks must
+exclude active VMs, copies and short configuration mutations. Interrupted
+promotion leaves a durable startup refusal and rolls back from retained copies.
+Never restore host files, permissions/policy, runtime executables or arbitrary
+preference keys. Disable restored VM connections, microphone and automatic
+clipboard capture until explicitly enabled. Keep source disks and restore copies.
+
+The pinned Google ARM64 Debian image is installed separately from existing VM
+disks. Verify both compressed archive and root_part hashes; ignore its guest
+vmlinuz/initrd instead of touching any host kernel. No automatic overwrite or
+unknown-version fallback. New Bridge terminal PTYs authenticate the module UID;
+console bytes never become host shell commands. Vector stays optional and scoped
+to stock Terminal alone. Android guest readiness stays false. New setup/backup
+UI and writable-session device validation remain pending while the user pauses
+access. Passing host archive tests is not a device installation claim.

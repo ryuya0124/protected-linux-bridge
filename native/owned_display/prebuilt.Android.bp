@@ -1,0 +1,19 @@
+// MIT. Build input in a PRIVATE AOSP source tree only. Never install an APEX.
+cc_prebuilt_library_shared {
+    name: "libplb_owned_display_backend",
+    srcs: ["libplb_owned_display_backend.so"],
+    compile_multilib: "64",
+    installable: false,
+    stl: "none",
+    strip: { none: true },
+    shared_libs: [
+        "libbinder_ndk",
+        "libnativewindow",
+        "libandroid",
+        "libdl",
+        "liblog",
+        "libm",
+        "libc",
+    ],
+    apex_available: ["//apex_available:platform", "com.android.virt"],
+}

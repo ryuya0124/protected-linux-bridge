@@ -1,0 +1,43 @@
+{
+  "url": "https://dl.google.com/android/ferrochrome/5100000/aarch64/images.tar.gz",
+  "compressed_bytes": 607391791,
+  "archive_sha256": "443400a1d190df478592c5822ee9f02ff5f9684b6453c55ec6fff47156c8aab5",
+  "files": [
+    {
+      "name": "build_id",
+      "bytes": 62,
+      "sha256": "2c7f2c3644cb078fa36efadafe36660d3695914cbf07d7fbd4297ca4d082e2cb"
+    },
+    {
+      "name": "root_part",
+      "bytes": 3085959168,
+      "sha256": "1db9be276e3e433c4da31a885ac3f67af4747098850dfad8ca9e43023283cc67"
+    },
+    {
+      "name": "vm_config.json",
+      "bytes": 1102,
+      "sha256": "562d28e101470c7233b908c1f2dc939adf9250cc76fe2f9a0f60d88f549fdd9e"
+    },
+    {
+      "name": "vmlinuz",
+      "bytes": 44681728,
+      "sha256": "1ba67545206723d88114138f7916b21d0b2796284dbb31e8cc65dda3561d5804"
+    },
+    {
+      "name": "initrd.img",
+      "bytes": 36839810,
+      "sha256": "ec395598085eb940b84fd2debe6eb0533aa1716ba1b03545cd25fcf8d7323ac0"
+    }
+  ],
+  "observed_utc": "2026-10-20",
+  "distribution": "Debian 13.7 (trixie)",
+  "architecture": "arm64",
+  "elf_machine": 183,
+  "architecture_check": "read-only debugfs extraction of /usr/bin/dpkg, ELF64 e_machine=183",
+  "os_release_path": "/usr/lib/os-release",
+  "installed_entry": "root_part",
+  "other_archive_entries_installed": false,
+  "host_java_full_archive_install_test": "passed; image verified and temporary Mac copy removed",
+  "device_in_app_install_test": "pending-user-device-pause",
+  "source_contract": "inspected Terminal versionCode 37 ImageArchive, build tag 5100000"
+}

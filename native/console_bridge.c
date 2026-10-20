@@ -35,6 +35,7 @@
 #define PROFILE_TAG " stock"
 #endif
 #define ROOT "/data/user/0/com.android.virtualization.terminal/files/linux/root_part"
+#define OWN_ROOT "/data/user/0/net.ryuya_dev.protectedlinux/files/debian-images/root_part"
 #define BACKING BASE "/base-root.ext4"
 #define OVERLAY BASE "/debian-v2.qcow2"
 #define ABSTRACT "net.ryuya_dev.protectedlinux.console"
@@ -125,11 +126,16 @@ static int cache_base(uid_t terminal_uid) {
         return S_ISREG(cached.st_mode) && cached.st_uid == 0 && cached.st_size >= 128 * 1024 * 1024
                    ? 0
                    : 6;
-    int original = open(ROOT, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+    uid_t source_uid = 0;
+    int original = open(OWN_ROOT, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+    if (original < 0 && errno == ENOENT) {
+        source_uid = terminal_uid;
+        original = open(ROOT, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+    }
     if (original < 0)
         return 7;
     struct stat before, after;
-    if (fstat(original, &before) || !S_ISREG(before.st_mode) || before.st_uid != terminal_uid ||
+    if (fstat(original, &before) || !S_ISREG(before.st_mode) || before.st_uid != source_uid ||
         before.st_size < 128 * 1024 * 1024 || before.st_size > 8LL * 1024 * 1024 * 1024) {
         close(original);
         return 7;
@@ -387,6 +393,9 @@ static int network_live(void) {
 int main(int argc, char **argv) {
     if (getuid() != 0)
         return 20;
+    /* Keep this lease through every early-return CLI mutation and manager lifetime. */
+    if (profile_maintenance_lock(LOCK_SH) < 0)
+        return 28;
     if (argc == 2 && !strcmp(argv[1], "--storage-cancel"))
         return storage_cancel();
     if (argc == 2 && !strcmp(argv[1], "--storage-state"))
@@ -636,7 +645,7 @@ int main(int argc, char **argv) {
             send_status(client, error ? 3 : 0);
         } else if (received == 1 && request == 'X' && (uid == module_uid || uid == 0))
             stopped = 1;
-        else if (received == 1 && ((request == 'R' && uid == terminal_uid) ||
+        else if (received == 1 && ((request == 'R' && (uid == terminal_uid || uid == module_uid)) ||
                                    ((request == 'V' || request == 'C' || request == 'W') &&
                                     (uid == terminal_uid || uid == module_uid)) ||
                                    ((request == 'C' || request == 'W') && clip_peer) ||

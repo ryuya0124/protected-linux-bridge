@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "status": "offline-inspection-only",
-  "device_available": false,
+  "status": "device-read-only-admission-verified",
+  "device_available": true,
   "host": {
     "model": "SM-S948Q",
     "build": "S948QOPU1BZI9",
@@ -63,13 +63,24 @@
     "CONFIG_CMA_SIZE_MBYTES": "16"
   },
   "validation": {
-    "terminal_hook_contract": "static-verified",
+    "terminal_hook_contract": "device-reflection-verified-not-interception",
     "terminal_root_part_layout": "static-verified",
-    "debian_boot": "not-tested",
+    "debian_boot": "512-MiB-CPU-readonly-dpkg-arm64-only; writable-services-untested",
     "android_guest_boot": "not-tested-disabled",
     "gpu": "not-tested",
     "memory_stability": "not-tested",
-    "vulkan": "disabled-host-panic-history"
+    "vulkan": "disabled-host-panic-history",
+    "host_identity": "device-verified",
+    "apex_vmm_kernel_hashes": "device-verified",
+    "owned_display_linkage": "device-load-and-symbol-lookup-verified",
+    "owned_display_presentation": "not-tested-disabled",
+    "cpu_diskless_boot": "device-verified-512-MiB-1-vCPU-nonce-bound-16-MiB-readback",
+    "cpu_readonly_debian": "device-verified-512-MiB-1-vCPU-noload-full-source-hash-unchanged",
+    "guest_kernel_release": "6.6.118-android15-8-gde6599b44559-ab14720466",
+    "in_app_debian_setup": "host-archive-codec-tested-device-pending",
+    "in_app_terminal": "device-pending",
+    "compressed_backup_restore": "host-tests-only-device-pending",
+    "current_device_access": "paused-at-user-request-after-user-soft-reboot"
   },
   "android16": {
     "commit": "d38015f",

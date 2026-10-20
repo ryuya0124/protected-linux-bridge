@@ -193,3 +193,12 @@ check compiled with `-fsyntax-only`; no resulting ARM code was executed.
 This update changes research tooling, metadata and documentation. It does not
 change `HostContract.ANDROID_GUEST_READY`, remove runtime guards, replace the
 published APK, or turn on any GPU/VM experiment.
+
+
+## Owned connection implementation follow-up
+
+The per-session replacement is now implemented and compiled separately; see
+[the implementation and validation limits](android17-owned-display.md). It is
+packaged as dormant transport components with the Terminal lifecycle fixes,
+without enabling the Android guest gate. The preceding verification result
+describes the earlier inspector-only commit, not this later implementation.

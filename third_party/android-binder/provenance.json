@@ -1,0 +1,43 @@
+{
+  "repository": "https://android.googlesource.com/platform/frameworks/native",
+  "revision": "ae266dcb706d083868578cfedce381ef44488a07",
+  "license": "Apache-2.0",
+  "files": [
+    {
+      "path": "libs/binder/ndk/include_cpp/android/binder_auto_utils.h",
+      "sha256": "91a7587d9010e2bac7c6d347d78463fa15a193c025eae260c91b17e76ef9631d"
+    },
+    {
+      "path": "libs/binder/ndk/include_cpp/android/binder_interface_utils.h",
+      "sha256": "6a3437abc3edd1dbec4cc78d3e3360ee457b4bcca26776f13b0e33ad6c9ad666"
+    },
+    {
+      "path": "libs/binder/ndk/include_cpp/android/binder_parcel_utils.h",
+      "sha256": "159b2f59a84fcf988bd4dc3ced2b58b55de9f8e49681ab96722045ae61f8ec3c"
+    },
+    {
+      "path": "libs/binder/ndk/include_cpp/android/binder_to_string.h",
+      "sha256": "23eb9663863013f862ebe8cee5d1ee9ba48e89998b8795a36f0772c1f0d91048"
+    },
+    {
+      "path": "libs/binder/ndk/include_cpp/android/binder_enums.h",
+      "sha256": "a4f3b34f5478d5ad820e93eabfa0d5fe82e53a71727ad6f48b5932a043060189"
+    },
+    {
+      "path": "libs/binder/ndk/include_cpp/android/binder_api_level_utils.h",
+      "sha256": "a6e8c5357e08e06ccbaff882d7f9c324868322a653ac4af2be7c9feed3101f73"
+    },
+    {
+      "path": "libs/binder/ndk/include_cpp/android/binder_internal_logging.h",
+      "sha256": "b3dc27d60e3c75629f231f94ab24779af9faeede2c4d605401179265d6d5eea8"
+    },
+    {
+      "path": "libs/binder/ndk/include_cpp/android/binder_parcelable_utils.h",
+      "sha256": "9c330de3ef09843d69d54116616efb52e7f442fb3bca28dc7d22f26c8f0fb869"
+    },
+    {
+      "path": "libs/binder/ndk/include_cpp/android/persistable_bundle_aidl.h",
+      "sha256": "a2e82896f45436e31e7425781fd68d40df301f925285a69adf0840fb66768573"
+    }
+  ]
+}

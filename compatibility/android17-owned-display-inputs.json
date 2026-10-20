@@ -1,0 +1,10 @@
+{
+  "repository": "https://android.googlesource.com/platform/external/crosvm",
+  "revision": "c7dd8d6950912fa5e6fde7ec2d1616e0ddc090f8",
+  "files": {
+    "Android.bp": "e6a7db97c6e72093a27a99e067b6a3878881503d32f55cd0bcc8c18c50bffd49",
+    "src/main.rs": "24c4130a60b63f9f4f3753e95ff8e3c46f4c7f3ba762576fb476259d9173923f",
+    "gpu_display/Android.bp": "366bde32ee6c10cbbe6c958b643c835eae6b2a8ed40f1aee016b35321372b6fe",
+    "gpu_display/src/gpu_display_android.rs": "8e962a26953bf402ca8725080f88c279372b3258990403b0533d38cecbaa3c0d"
+  }
+}

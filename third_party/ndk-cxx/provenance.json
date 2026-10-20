@@ -1,0 +1,24 @@
+{
+  "ndk": "28.2.13676358",
+  "source": "clang19.0.1 r530567e revision from installed NDK",
+  "licenses": [
+    {
+      "component": "libcxx",
+      "url": "https://android.googlesource.com/toolchain/llvm-project/+/97a699bf4812a18fb657c2779f5296a4ab2694d2/libcxx/LICENSE.TXT?format=TEXT",
+      "revision": "97a699bf4812a18fb657c2779f5296a4ab2694d2",
+      "sha256": "539dd7aed86e8a4f12cbdd0e6c50c189c7d74847e4fecc64ce2c6ee3a01da38b"
+    },
+    {
+      "component": "libcxxabi",
+      "url": "https://android.googlesource.com/toolchain/llvm-project/+/97a699bf4812a18fb657c2779f5296a4ab2694d2/libcxxabi/LICENSE.TXT?format=TEXT",
+      "revision": "97a699bf4812a18fb657c2779f5296a4ab2694d2",
+      "sha256": "e2b35be49f7284a45b7baca8fc7b3ab7440e7902392b2528a457816b5bb2a15c"
+    },
+    {
+      "component": "libunwind",
+      "url": "https://android.googlesource.com/toolchain/llvm-project/+/97a699bf4812a18fb657c2779f5296a4ab2694d2/libunwind/LICENSE.TXT?format=TEXT",
+      "revision": "97a699bf4812a18fb657c2779f5296a4ab2694d2",
+      "sha256": "b5efebcaca80879234098e52d1725e6d9eb8fb96a19fce625d39184b705f7b6d"
+    }
+  ]
+}

@@ -1,56 +1,59 @@
 # Protected Linux Bridge
 
-Android標準の「ターミナル」から、Snapdragon / Gunyahの保護VM上でDebianを使う実験用アプリ・Vectorモジュールです。独立したゲストカーネルで動作し、一時rootを利用します。
+Snapdragon / Gunyahを搭載した対応Galaxyで、**独立カーネルのDebian VM**を使う実験用アプリです。Bridge内のターミナル・全画面デスクトップと、任意のAndroid標準ターミナル連携を備えます。一時rootが必要です。
 
-**このブランチはAndroid 17への移植版です。ROMの静的解析とビルドを進めていますが、Android 17の実機動作は未検証です。**
+**このブランチはAndroid 17専用の移植版です。** 実機で小規模な保護VM起動とDebianイメージの読み取りを確認しました。新しい導入画面・個別バックアップ／復元・通常セッション・GUIは実機未検証です。Androidゲストの起動とVulkanはまだ無効です。
 
-Android 16の最終版は、[v0.4.0-preview.9](https://github.com/ryuya0124/protected-linux-bridge/releases/tag/v0.4.0-preview.9)と固定ブランチ[android16-frozen](https://github.com/ryuya0124/protected-linux-bridge/tree/android16-frozen)に残しています。Android 17の変更は入りません。
+Android 16の最終版は[v0.4.0-preview.9](https://github.com/ryuya0124/protected-linux-bridge/releases/tag/v0.4.0-preview.9)と固定ブランチ[android16-frozen](https://github.com/ryuya0124/protected-linux-bridge/tree/android16-frozen)に残しています。17版の変更は入りません。
 
-## Android 17版の内容
+## できること
 
-- Galaxy S26 Ultra **SM-S948Q / S948QOPU1BZI9 / Terminal 37**専用の互換性チェック
-- 標準ターミナルへの接続、Debianの複数タブ・専用ディスクを引き継ぐ移植コード
-- Material 3の「ホーム」「画面」「連携」「設定」
-- 設定から開ける**VMファイルのストレージ画面**：VMMなどのランタイム、ゲストカーネル、Debian／Androidディスク、実験ファイルの使用量を分類して表示
-- ファイルサイズと、実際のディスク上の割り当て量を別々に表示
-- 既存のディスク拡張・縮小、圧縮、復元機能への入口を維持
-
-ストレージ一覧はrootを要求しますが、Vectorの有効化やVM起動は必要ありません。読み取り不可の項目は「一部未取得」と表示します。稼働中のVMを止めたり、既存ディスク・カーネル・バックアップを自動削除したりしません。
-
-## 移植中の機能
-
-DebianのGUI、GPU、通信、音声などのコードは残していますが、このホストOSでは実機未検証です。Android 16での検証結果を17版の保証として扱わないでください。
-
-**Androidゲストの起動は現在停止しています。** Android 17のVMM／描画構成が変わっており、16版用GPUランタイムは同梱していません。既存のAndroidゲストディスクは削除・変換しません。Vulkanの実験経路も無効のままです。[移植状況と確認事項](docs/android17-port.md)、[GPU表示の解析記録](docs/android17-gpu-display.md)を参照してください。
+- **Debianをアプリ内で準備**：Google配布のARM64イメージをダウンロード・検証して導入。同一の標準ターミナル用イメージの取り込みも可能。
+- **複数タブのターミナル**：Bridgeだけでゲストのシェルへ接続。標準ターミナルとの連携に限りVectorを利用。
+- **デスクトップの全画面表示**：Linux側でGUIを導入後、ターミナルとは別の画面で開く。
+- **圧縮バックアップと個別復元**：Debian・Android VM・ゲストカーネル・アプリ設定を選択。復元時も対象を選べる。
+- **VMファイルのストレージ一覧**：実行用ランタイム、カーネル、ディスク、復旧用コピー、一時領域の使用量を分類。ファイルサイズと実際の割り当て量を別々に表示。
+- **VM設定**：RAM・CPU・寿命・keep-alive、ディスクの拡張／縮小・コンパクト化・復旧コピーを扱う既存機能を維持。
+- **任意の連携**：解像度・更新頻度・画面の向き、音声・マイク・クリップボードなど。Android 17での各機能の実機検証は進行中。
 
 ## 必要な環境
 
-- 上記ビルドのGalaxy S26 Ultra、日本向けSM-S948Q
-- `su -M`を使えるroot環境、Gunyahデバイス、標準のVirtualization APEX
-- Vector / libxposed API 102（標準ターミナルとの接続に使用）
-- Terminal versionCode 37と、そのインストーラーが用意したLinuxイメージ
-- 主ユーザー（user 0）
+- **Galaxy S26 Ultra SM-S948Q / S948QOPU1BZI9 / Android 17**の対応ROM。
+- `su -M`を使えるroot環境、Gunyah、標準のVirtualization APEXとTerminal 37。
+- Androidの主ユーザー（user 0）。初回のDebian導入・専用ディスク用に7 GiB以上の空き容量を推奨。
+- 初回ダウンロード用のインターネット。イメージは約580 MiB。
+- 標準ターミナルから接続する場合のみVector / libxposed API 102。
 
-未知のROM・Terminal・カーネル・VMMでは起動を拒否します。対応表への一致は実機での起動成功や安定性を保証しません。
+通常の端末すべてで動く汎用エミュレーターではありません。未知のROM・カーネル・VMMでは起動を拒否します。対応する識別情報への一致だけで、安定性を保証するものでもありません。
 
-## 導入と確認
+## 使い始める
 
-1. Android 17版の署名済みrelease APKを使用します。Android 16にはインストールできません。
-2. Bridgeでrootを許可します。「標準ターミナルを有効化」「Linuxインストール画面を開く」で準備します。
-3. Vectorの適用先は**ターミナル (`com.android.virtualization.terminal`) だけ**にします。
-4. ターミナルを開いて接続を確認します。起動不能時は繰り返し起動せず、`ProtectedLinux`ログと互換性情報を確認してください。
-5. 容量の確認は、Bridgeの「設定」→「VMファイルのストレージ」から行えます。
+1. Android 17版の署名済みrelease APKをインストールし、Bridgeのroot要求を許可します。Android 16にはインストールできません。
+2. **「Debianを準備」**を開き、VMと起動支援を停止してからダウンロードまたは取り込みを実行します。既存ディスクは保持します。
+3. VM接続を有効にして**「Debianターミナル」**を開きます。新しいタブも追加できます。
+4. GUIが必要なら、そのターミナル内で`plb-install-gui`を実行し、Bridgeから「全画面で開く」を選びます。
+5. 保存は**「設定」→「バックアップと復元」**、容量確認は**「VMファイルのストレージ」**から行います。
 
-端末は再起動しません。復旧時はBridgeの接続スイッチとVectorモジュールを無効化し、ターミナルを閉じます。データを保持する場合はアプリをアンインストールしたり、ストレージを消去したりしないでください。
+[Debian導入の詳細](docs/debian-setup.md)と[バックアップ・個別復元の使い方](docs/backup-and-restore.md)を参照してください。バックアップは暗号化されず、復元前のコピーは自動削除しません。実行中のVMをコピーする処理は拒否します。
 
-## ホストの保護
+標準ターミナルとの連携も使いたい場合は、Bridgeの有効化ボタンで準備し、Vectorの適用先を**ターミナル (`com.android.virtualization.terminal`) だけ**にしてください。
+
+## Androidゲスト・GPUについて
+
+**現在の17版APKだけではAndroidゲストを起動できません。** 新しいVMM／描画基盤への移植中です。16版用のGPU実行基盤をそのまま使うことはせず、既存Androidゲストのディスクも削除・変換しません。バックアップへの保存は可能です。
+
+専用の表示接続ライブラリは実装・ビルド済みですが、完全なVMMへの組み込みと実機の描画・同期検証は残っています。DebianのGUI・GPU・通信・音声のコードも、16版での検証結果を17版の保証として扱わないでください。[Android 17移植状況](docs/android17-port.md)を公開しています。
+
+## ホストの保護と復旧
 
 **BLU、ホストカーネル・起動／システム領域の書き換え、ホストモジュール追加、SELinux変更、AVB／Gunyah保護の変更、Android再起動は行いません。** 追加カーネルはアプリ専用領域に置くゲスト用です。[禁止操作と境界](docs/host-boundary.md)を参照してください。
 
-保護VMの起動でホストやハイパーバイザーの不具合が発生する可能性はあります。また、この経路はpvmfwによる検証済み起動・アテステーションを提供しません。
+保護VMでもホストやハイパーバイザーの不具合が起きる可能性があります。この経路はpvmfwによる検証済み起動・アテステーションを提供しません。
+
+接続を止める場合はBridgeの「VMと起動支援を停止」を使います。標準ターミナルへのフックは接続スイッチとVectorで無効化できます。復元の中断が報告された場合は、バックアップ画面から回復してください。データが必要な間は、アプリのアンインストールやストレージ消去をしないでください。
 
 ## 開発・ライセンス
 
-[開発・ビルド手順](docs/development.md)、[Android 17の解析記録](docs/android17-port.md)、[ソースの整形方針](docs/code-style.md)。16版の詳細な実機記録は固定ブランチで参照できます。
+[開発・ビルド手順](docs/development.md)、[Android 17の解析記録](docs/android17-port.md)、[表示接続の実装](docs/android17-owned-display.md)、[整形方針](docs/code-style.md)。16版の実機記録は固定ブランチで参照できます。
 
 アプリは[MIT License](LICENSE)です。依存ライブラリのライセンスはアプリの「ライセンス」と`third_party/`に掲載しています。ROM、OSイメージ、署名鍵、私的な実機ログは公開しません。

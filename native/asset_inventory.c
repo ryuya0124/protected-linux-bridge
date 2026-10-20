@@ -104,7 +104,10 @@ int main(int argc, char **argv) {
                            "vm",
                            "vm-mainline",
                            "android-guests",
-                           "kernel-probes"};
+                           "kernel-probes",
+                           "debian-images",
+                           "backup-recovery",
+                           "backup-jobs"};
     for (size_t index = 0; index < sizeof(names) / sizeof(names[0]); index++) {
         struct totals total = {0};
         int present = 0;

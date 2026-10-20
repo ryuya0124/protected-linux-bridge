@@ -6,6 +6,9 @@ from fetch_gpu_runtime import fetch as fetch_gpu
 from build_clipboard_worker import build as build_clipboard
 from build_tun import build as build_tun
 from fetch_storage_runtime import fetch as fetch_storage
+from build_owned_display import build as build_owned_display
+from build_backup_runtime import build as build_backup_runtime
+import shutil
 
 p = argparse.ArgumentParser()
 p.add_argument("--sdk", required=True)
@@ -16,6 +19,7 @@ host = "darwin-x86_64" if platform.system() == "Darwin" else "linux-x86_64"
 clang = pre / host / "bin/aarch64-linux-android31-clang"
 out = root / "app/build/generated/nativeAssets/runtime"
 out.mkdir(parents=True, exist_ok=True)
+build_backup_runtime(root, Path(a.sdk), out)
 temp = root / "app/build/native"
 temp.mkdir(parents=True, exist_ok=True)
 identity_files = (
@@ -85,6 +89,11 @@ for pattern in (
 ):
     for obsolete in out.glob(pattern):
         obsolete.unlink()
+# Transport components only. There is deliberately no matching VMM or launch
+# registration yet; packaging these does not enable Android guest startup.
+display_backend, display_publisher = build_owned_display(Path(a.sdk), temp / "owned-display")
+for component in (display_backend, display_publisher):
+    shutil.copyfile(component, out / component.name)
 tunnel = build_tun(root, Path(a.sdk))
 
 fetch_gpu(root, out)

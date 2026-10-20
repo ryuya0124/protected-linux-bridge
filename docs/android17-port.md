@@ -1,9 +1,12 @@
 # Android 17 host port
 
-Status: offline inspection and implementation, **no Android 17 device validation**.
-The owner upgraded the only Android 16 test device; a device is unavailable now.
+Status: Android 17 source port; host identity and Terminal reflection are now
+verified over authorized wireless ADB. Two small protected CPU probes completed,
+including readonly Debian dpkg. **Full writeable Debian sessions, Android guests
+and new GPU display remain unverified.** The owner upgraded the only Android 16 test device.
 Host Android version and Android guest version are separate concepts throughout
-this record. No VM, host configuration change, reboot or flash was performed.
+this record. No GUI operation, host configuration change, reboot or flash command
+was performed by the agent. Later CPU probes are described separately below.
 
 ## Frozen Android 16 line
 
@@ -16,7 +19,8 @@ of deterministic byte-for-byte rebuilds. No Android 16 hardware remains for
 new tests; do not backport this branch's changes.
 
 `codex/android17-host` targets Android 17 only, min/target SDK 37. Version
-`0.5.0-alpha.1` / code 20 is a separate, experimental port. The same package and
+`0.5.0-alpha.1` / code 20 began the separate experimental port;
+`0.5.0-alpha.2` / code 21 adds app-only Debian setup and selected backup/restore. The same package and
 signer retain private guest data on an ordinary update. Downgrading or uninstalling
 is not a data migration procedure; preserve private disks before such operations.
 
@@ -27,7 +31,8 @@ Source: official Ultra ROM archive
 `AP_S948QOPU1BZI9_S948QOPU1BZI9_MQB114766720_REV00_user_low_ship_MULTI_CERT_meta_OS17.tar.md5`.
 The archive was read on Windows/WSL; the full ROM was not copied to the Mac.
 This identifies the inspected ROM, not the firmware actually running on the
-currently unavailable phone. Hashes, sizes and results are recorded in
+phone at the time of the offline inspection. Later device checks confirmed the
+matching ROM/VMM/kernel/APK identities. Hashes, sizes and results are recorded in
 [`compatibility/android17-s948q-bzi9.json`](../compatibility/android17-s948q-bzi9.json).
 
 | Component | Android 16 record | Inspected Android 17 ROM |
@@ -149,3 +154,43 @@ Gradle output path is reused for the Android 17 build.
   its private WSL work directory (44,749,665,097 logical bytes). Original ROM,
   original analysis files, selected APEX/VMM/kernel/APK and other chats' data
   were retained. Sparse logical bytes are not a physical free-space claim.
+
+
+## Owned display / Terminal follow-up, alpha.2
+
+[Implementation, device checks and remaining limits](android17-owned-display.md).
+The dedicated shell reflection probe resolved the complete Terminal contract
+on the inspected Galaxy, including inherited AndroidX view teardown. The owned
+ARM64 backend loaded and its nine display ABI entries, Binder-pool entry and
+AHB import entry resolved. Neither probe starts a VM/GPU/display or installs
+a hook. Host boot/core process identities, taint 4608, Enforcing and all six
+shmem `never` values stayed unchanged. Temporary probe files were removed.
+
+The source changes repair Terminal view recreation and provide dormant private
+display transport components. New VMM/renderer/launcher integration and actual
+Vector interception are still pending. See
+[`compatibility/android17-owned-display-build.json`](../compatibility/android17-owned-display-build.json)
+for the signed release artifact and build/test counts.
+
+## CPU/readonly Debian progress and app-only setup
+
+Subsequent explicitly authorized non-GUI tests completed two 512 MiB / one-vCPU
+protected VMs with the pinned stock VMM/Microdroid guest kernel. One was diskless;
+the other mounted only the Terminal root_part read-only/noload and returned
+`arm64` from guest dpkg. Both checked a nonce-bound 16 MiB payload. The source
+disk's complete hash and the host/policy boundary stayed unchanged. Watchdog
+and shutdown-channel warnings remain recorded; these are not full Debian GUI,
+writeable-session, GPU or Android guest validation. The guest kernel reports
+6.6.118 while the host is 6.12.69.
+
+The app now includes compressed selected-root backup/restore, retained-copy
+recovery, shared/exclusive maintenance serialization, fixed-image Debian setup
+and an in-app multi-tab terminal. [Backup behavior](backup-and-restore.md) and
+[Debian setup](debian-setup.md) describe user steps and limits. The storage
+inventory additionally counts `debian-images`, `backup-recovery` and `backup-jobs`.
+
+The exact Google ARM64 Debian archive was verified end to end with the same Java
+installation codec on the development host. Image extraction/checksum success
+is not an Android installation test. New setup/backup UI and the complete
+writeable VM session await device access. The user manually soft-rebooted and
+requested a pause; no later device query or operation was performed.
