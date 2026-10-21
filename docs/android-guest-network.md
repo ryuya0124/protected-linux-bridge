@@ -1,9 +1,13 @@
 # Android guest internet
 
-The separate Android 17 / 4096 MiB GPU profile can optionally use an ordinary
-Android network inside the guest. Legacy profiles remain unchanged. The launch
-dialog exposes the option; disabling it starts the VM offline. The viewer reports
-configuration failure separately, so a failed relay does not hide the guest UI.
+The Android 17 host branch uses the separate1024MiB GLES app profile. Its launch
+dialog offers guest Internet; disabling it starts the VM offline. The viewer
+reports network errors separately and can reconnect only the owned network.
+There is no elapsed-time limit on the VM or network session. See the current
+[app launch and validation record](android17-app-launch.md).
+
+The older4096MiB evidence below belongs to the earlier runtime and is retained
+as history; it does not qualify the new Android17 host/app path.
 
 ## Data path and boundaries
 
@@ -39,7 +43,7 @@ during cleanup after a manager exit. Guest cleanup checks the guest boot ID and
 recorded process birth times before signaling its children. Closing the viewer stops the
 owned network controller and guest; Debian and unrelated VMs are not involved.
 
-## Evidence and lifecycle checks
+## Earlier runtime evidence and lifecycle checks
 
 A running app-owned 4 GiB Android guest established this path without changing
 host networking. ConnectivityService selected it as the active default network

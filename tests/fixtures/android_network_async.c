@@ -60,6 +60,20 @@ static void run(int reply) {
     assert(android_network_status() == (reply == 0 ? 0 : 1));
     assert(android_network_result_fd == -1);
     assert(fcntl(channel[0], F_GETFD) < 0 && errno == EBADF);
+    if (reply == 0) {
+        // A once-ready relay can die later. The UI must report failure without
+        // reaping it early (cleanup still owns its unreusable child PID).
+        assert(!kill(child, SIGTERM));
+        int result = 0;
+        for (int i = 0; i < 100 && result == 0; i++) {
+            usleep(1000);
+            result = android_network_status();
+        }
+        assert(result == 1);
+        siginfo_t information = {0};
+        assert(!waitid(P_PID, child, &information, WEXITED | WNOHANG | WNOWAIT));
+        assert(information.si_pid == child);
+    }
     android_network_stop();
     assert(android_network_child == -1);
     close(release[1]);

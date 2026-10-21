@@ -358,8 +358,8 @@ plb-udp-forward 5353 1.1.1.1 53 forwards guest localhost:5353 to the specified U
   <string name="microphone_direction_rejected">This device does not accept the selected microphone direction.</string>
   <string name="microphone_active_sources">Sharing mono microphone · active OS descriptors: %1$d</string>
   <string name="microphone_array_detail">Choose an input port when more than one is exposed. Android may combine physical microphones into one processed mono stream; descriptor counts do not prove the number of physical microphones. Direction is a HAL preference, not independent capsule selection. These controls apply to Debian; Android guest microphone forwarding is not connected yet.</string>
-  <string name="android17_app_summary">Experimental Android 17 · 1 GiB RAM · GLES direct display. Uses the separately prepared Android 17 disk profile. Sessions are limited to 3 minutes while integration is validated.</string>
-  <string name="android17_app_conditions">Start the experimental 1 GiB Android 17 guest? The separate h17mfix disk profile must already be prepared; this APK does not include an Android OS image. Six approved host-wide shmem THP settings are temporarily changed for RAM preparation and restored by an independent guardian within 40 seconds. Fragmented or unhealthy memory refuses startup without retry. Maximum session: 3 minutes. Vulkan, Internet and physical camera/microphone forwarding are not enabled. Close other Bridge VMs first. Host crashes remain possible; the Android host kernel and partitions are not changed.</string>
+  <string name="android17_app_summary">Experimental Android 17 · 1 GiB RAM · GLES direct display. Uses the separately prepared Android 17 disk profile. No session time limit. Optional Internet is configured inside the guest.</string>
+  <string name="android17_app_conditions">Start the 1 GiB Android 17 guest? The dedicated h17mfix disk must already be prepared; this APK contains no Android OS image. Six approved host-wide shmem THP settings are temporarily changed for RAM preparation and restored within 40 seconds by an independent guardian. Unhealthy or fragmented memory refuses startup without retry. There is no session duration limit: closing the viewer, guest shutdown, crashes or monitored host failures stop the owned VM. Internet uses a guest-only virtual interface and an unprivileged host relay; host VPN, routes and DNS are unchanged. Vulkan and physical camera/microphone forwarding remain disabled. Close other Bridge VMs first. Host crashes remain possible.</string>
   <string name="android17_app_bundle_missing">This APK does not contain the compatible Android 17 runtime. Install the signed experimental build with the pinned runtime.</string>
   <string-array name="microphone_directions">
     <item>System default</item>
@@ -372,4 +372,5 @@ plb-udp-forward 5353 1.1.1.1 53 forwards guest localhost:5353 to the specified U
   <string name="vm_torch_camera">LED source</string>
   <string name="vm_torch_choice">Camera %1$s · %2$d brightness levels</string>
   <string name="vm_torch_unavailable">No accessible LED capability. Camera service or device policy may restrict it.</string>
+  <string name="android_guest_network_retry">Reconnect guest network</string>
 </resources>

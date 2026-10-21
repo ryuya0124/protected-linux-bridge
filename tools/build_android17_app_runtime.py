@@ -320,6 +320,49 @@ shutil.copyfile(
 )
 for name, (path, _) in expected_libraries.items():
     shutil.copyfile(path, out / name)
+# Build fixed guest networking payloads; no host TUN/routes/VPN configuration.
+import sys
+
+for script in ("build_android_network_agent.py", "build_android_network_trial.py"):
+    run([sys.executable, root / "tools" / script, "--sdk", sdk])
+network = root / "artifacts/android4g-gpu/network-agent"
+run(
+    [
+        cc,
+        "-O2",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-I",
+        network,
+        "-DPLB_ANDROID17_NETWORK_APP=1",
+        "-DPLB_ANDROID_ADB_TRACE=1",
+        "-DPLB_ANDROID_ADB_TIMEOUT_SECONDS=20",
+        "-DPLB_CID=39821",
+        "-DPLB_PROXY_PORT=50442",
+        '-DPLB_PROXY_LOG="/data/user/0/net.ryuya_dev.protectedlinux/files/android-network-proxy.log"',
+        root / "native/android_network_controller.c",
+        root / "native/network_proxy.c",
+        "-o",
+        out / "network-controller",
+    ]
+)
+run(
+    [
+        cc,
+        "-O2",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-I",
+        network,
+        "-I",
+        root / "native",
+        root / "tools/owned_display_probe/network_check_guest.c",
+        "-o",
+        out / "network-check",
+    ]
+)
 files = {
     dest + "/" + p.name: digest(p)
     for p in out.iterdir()
@@ -332,6 +375,8 @@ files = {
         "owned-vmm.jar",
         "allocation-probe",
         "pressure-check",
+        "network-controller",
+        "network-check",
     ]
 }
 files[profile + "/android-lowram.cpio"] = digest(ramdisk)
@@ -390,6 +435,8 @@ names = [
     "libplb-vmm-entry.so",
     "owned-vmm.jar",
     "vm-controller",
+    "network-controller",
+    "network-check",
     "libplb_vmm_android17.so",
     "libgfxstream_backend.so",
     "libplb_owned_display_backend.so",

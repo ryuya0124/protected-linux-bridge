@@ -394,6 +394,7 @@ int main(int argc, char **argv) {
         !gate && !pthread_create(&console_thread, NULL, gpu_console_worker, &context);
 #ifdef PLB_ANDROID17_APP_SESSION
     (void)observer;
+    android_network_owner_fd = owner;
     android_touch_vmm = child;
     app_thread_started = !pthread_create(&app_thread, NULL, app_session_worker, NULL);
     if (!app_thread_started)
@@ -401,8 +402,13 @@ int main(int argc, char **argv) {
 #else
     int observer_started = !gate && !pthread_create(&observer, NULL, android_memory_observer, NULL);
 #endif
+#ifdef PLB_ANDROID17_APP_SESSION
+    /* User-selected sessions live until disconnect, guest exit or a monitored failure. */
+    long long deadline = 0;
+#else
     long long deadline = plb_shmem_millis() + (gate ? 12000 : 180000);
-    while (!stopping && plb_shmem_millis() < deadline) {
+#endif
+    while (!stopping && (!deadline || plb_shmem_millis() < deadline)) {
         if (!plb_host_memory_healthy() || plb_diagnostic_kernel_bad_with_traces(monitor, 1)) {
             result = 48;
             break;

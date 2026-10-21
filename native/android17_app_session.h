@@ -10,6 +10,7 @@
 #include "android_guest_input.h"
 #include "android_virtio_touch.h"
 #include "android_guest_setup.generated.h"
+#include "android_network_session.h"
 static int app_listener = -1;
 static _Atomic int app_client = -1;
 static int app_identity_ready;
@@ -138,7 +139,10 @@ static void *app_session_worker(void *unused) {
         if (android_io(client, &command, 1, 0) || command == 'X')
             break;
         unsigned char reply = 0;
-        if (command == 'P') {
+        if (command == 'N' || command == 'n') {
+            reply =
+                command == 'N' ? android_network_start(PLB_VIEWER_UID) : android_network_status();
+        } else if (command == 'P') {
             reply = 'P';
         } else if (command == 'V') {
             uint32_t points, values[PLB_TOUCH_MAX_POINTS * 4];
@@ -157,7 +161,7 @@ static void *app_session_worker(void *unused) {
             reply = android_adb(service, output, &length) ||
                     !memmem(output, length, ANDROID_INPUT_OK, sizeof(ANDROID_INPUT_OK) - 1);
         } else {
-            break; /* No arbitrary ADB service, capture or unqualified network command. */
+            break; /* No arbitrary ADB service, capture or caller-selected network payload. */
         }
         if (android_io(client, &reply, 1, 1))
             break;
@@ -179,6 +183,7 @@ static void app_session_shutdown(int child_alive) {
         shutdown(client, SHUT_RDWR);
     if (app_thread_started)
         pthread_join(app_thread, NULL);
+    android_network_stop();
     if (app_identity_ready && child_alive) {
         unsigned char *output = malloc(ANDROID_ADB_LIMIT + 1);
         if (output) {

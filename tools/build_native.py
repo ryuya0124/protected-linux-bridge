@@ -94,6 +94,8 @@ for pattern in (
 display_backend, display_publisher = build_owned_display(Path(a.sdk), temp / "owned-display")
 for component in (display_backend, display_publisher):
     shutil.copyfile(component, out / component.name)
+tunnel = build_tun(root, Path(a.sdk))
+
 # Keep a normal source build usable without private guest OS/kernel inputs.
 # Never retain stale optional assets when the pinned source runtime is absent.
 for obsolete in out.glob("android17-app-*"):
@@ -114,7 +116,6 @@ if android17_vmm.is_file():
         ],
         check=True,
     )
-tunnel = build_tun(root, Path(a.sdk))
 
 fetch_gpu(root, out)
 build_clipboard(root, Path(a.sdk), out)

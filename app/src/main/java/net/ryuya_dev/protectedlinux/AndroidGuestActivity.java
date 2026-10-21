@@ -41,6 +41,8 @@ public final class AndroidGuestActivity extends AppCompatActivity {
   private volatile LocalSocket connection;
   private volatile Process manager;
   private TextView status, networkStatus;
+  private MaterialButton networkRetry;
+  private volatile boolean networkRestartRequested;
   private ImageView display;
   private AndroidGuestGpuSurface gpuSurface;
   private Bitmap currentFrame;
@@ -65,10 +67,23 @@ public final class AndroidGuestActivity extends AppCompatActivity {
     networkStatus = new TextView(this);
     networkStatus.setText(R.string.android_guest_network_preparing);
     networkStatus.setVisibility(
-        memoryMib == 4096 && getIntent().getBooleanExtra(EXTRA_INTERNET, false)
+        memoryMib == 1024 && getIntent().getBooleanExtra(EXTRA_INTERNET, false)
             ? View.VISIBLE
             : View.GONE);
     page.addView(networkStatus);
+    networkRetry =
+        new MaterialButton(
+            this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle);
+    networkRetry.setText(R.string.android_guest_network_retry);
+    networkRetry.setVisibility(networkStatus.getVisibility());
+    networkRetry.setEnabled(false);
+    networkRetry.setOnClickListener(
+        view -> {
+          networkRestartRequested = true;
+          networkRetry.setEnabled(false);
+          networkStatus.setText(R.string.android_guest_network_preparing);
+        });
+    page.addView(networkRetry);
     display = new ImageView(this);
     display.setScaleType(ImageView.ScaleType.FIT_CENTER);
     display.setBackgroundColor(android.graphics.Color.BLACK);
@@ -275,12 +290,12 @@ public final class AndroidGuestActivity extends AppCompatActivity {
       inputReady = true;
       boolean networkPending = false;
       long networkCheckDue = 0;
-      if (memoryMib == 4096 && getIntent().getBooleanExtra(EXTRA_INTERNET, false)) {
+      if (memoryMib == 1024 && getIntent().getBooleanExtra(EXTRA_INTERNET, false)) {
         output.write('N');
         int result = input.read();
         if (result < 0) throw new EOFException();
         networkPending = result == 2;
-        if (!networkPending) networkResult(result);
+        networkResult(result);
       }
       if (gpuSurface != null)
         runOnUiThread(
@@ -309,7 +324,16 @@ public final class AndroidGuestActivity extends AppCompatActivity {
           command = count < 11 ? commands.poll() : null;
         }
         long networkNow = android.os.SystemClock.elapsedRealtime();
-        if (networkPending && networkNow >= networkCheckDue) {
+        if (networkRestartRequested) {
+          networkRestartRequested = false;
+          output.write('N');
+          int result = input.read();
+          if (result < 0) throw new EOFException();
+          networkPending = result == 2;
+          networkResult(result);
+          networkCheckDue = 0;
+        }
+        if (getIntent().getBooleanExtra(EXTRA_INTERNET, false) && networkNow >= networkCheckDue) {
           output.write('n');
           int result = input.read();
           if (result < 0) throw new EOFException();
@@ -317,7 +341,7 @@ public final class AndroidGuestActivity extends AppCompatActivity {
             networkPending = false;
             networkResult(result);
           }
-          networkCheckDue = networkNow + 1000;
+          networkCheckDue = networkNow + (networkPending ? 1000 : 10000);
         }
         if (!resumed || gpuSurface != null) {
           output.write('P');
@@ -433,8 +457,10 @@ public final class AndroidGuestActivity extends AppCompatActivity {
           () -> {
             if (!closed) {
               status.setText(getString(R.string.android_guest_error, detail));
-              if (networkStatus.getVisibility() == View.VISIBLE)
+              if (networkStatus.getVisibility() == View.VISIBLE) {
                 networkStatus.setText(R.string.android_guest_network_stopped);
+                networkRetry.setEnabled(false);
+              }
             }
           });
     } finally {
@@ -445,11 +471,16 @@ public final class AndroidGuestActivity extends AppCompatActivity {
 
   private void networkResult(int result) {
     runOnUiThread(
-        () ->
-            networkStatus.setText(
-                result == 0
-                    ? R.string.android_guest_network_ready
-                    : R.string.android_guest_network_failed));
+        () -> {
+          if (closed) return;
+          networkStatus.setText(
+              result == 0
+                  ? R.string.android_guest_network_ready
+                  : result == 2
+                      ? R.string.android_guest_network_preparing
+                      : R.string.android_guest_network_failed);
+          networkRetry.setEnabled(result != 2);
+        });
   }
 
   private void disconnect() {

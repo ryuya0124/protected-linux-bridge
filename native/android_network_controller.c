@@ -19,8 +19,16 @@
 #define PLB_OWNER_LOCK_FILE FILES "/vm-owner.lock"
 #include "../tools/diagnostic_owner_lock.h"
 static volatile sig_atomic_t stopping;
+#ifdef PLB_ANDROID17_NETWORK_APP
+static volatile sig_atomic_t preserve_guest;
+#endif
 static void stop(int value) {
+#ifdef PLB_ANDROID17_NETWORK_APP
+    if (value == SIGUSR1)
+        preserve_guest = 1;
+#else
     (void)value;
+#endif
     stopping = 1;
 }
 #include "android_guest_adb.h"
@@ -28,9 +36,15 @@ static void stop(int value) {
 extern pid_t plb_start_proxy(uid_t uid, int listener, int client, int lifetime);
 
 static int guest_command(const char *command, unsigned char *reply) {
-    size_t size;
-    return android_adb(command, reply, &size) ||
-           !memmem(reply, size, "PLB_NETWORK_INSPECT_STEP_OK", 27);
+    size_t size = 0;
+    int failed = android_adb(command, reply, &size) ||
+                 !memmem(reply, size, "PLB_NETWORK_INSPECT_STEP_OK", 27);
+    if (failed) {
+        fprintf(stderr, "PLB_ANDROID_NETWORK_COMMAND_FAILED bytes=%zu errno=%d\n", size, errno);
+        if (size)
+            fwrite(reply, 1, size < 512 ? size : 512, stderr);
+    }
+    return failed;
 }
 int main(int argc, char **argv) {
     (void)plb_relay;
@@ -59,18 +73,40 @@ int main(int argc, char **argv) {
     pid_t owner = getppid();
     signal(SIGTERM, stop);
     signal(SIGINT, stop);
+#ifdef PLB_ANDROID17_NETWORK_APP
+    signal(SIGUSR1, stop);
+#endif
     signal(SIGPIPE, SIG_IGN);
     if (owner <= 1 || prctl(PR_SET_PDEATHSIG, SIGTERM) || getppid() != owner)
         return 22;
     unsigned char *reply = malloc(ANDROID_ADB_LIMIT);
     if (!reply)
         return 23;
-    pid_t proxy = plb_start_proxy(directory.st_uid, -1, -1, 1800);
+#ifdef PLB_ANDROID17_NETWORK_APP
+    const int lifetime = 0;
+#else
+    const int lifetime = 1800;
+#endif
+    pid_t proxy = plb_start_proxy(directory.st_uid, -1, -1, lifetime);
     unsigned char result = proxy > 0 ? 0 : 1;
     int attempted = 0;
-    for (size_t i = 0; !result && !stopping &&
-                       i < sizeof(network_inspect_commands) / sizeof(*network_inspect_commands);
-         i++) {
+    size_t first_step = 0;
+    size_t steps = sizeof(network_inspect_commands) / sizeof(*network_inspect_commands);
+#ifdef PLB_ANDROID17_NETWORK_APP
+    if (!result && !stopping && !guest_command(network_trial_reuse, reply)) {
+        if (!guest_command(network_trial_health, reply)) {
+            // The prior owned controller relinquished only its host relay.
+            // Keep Android's existing network ID, routes and default selection.
+            first_step = steps;
+            attempted = 1;
+            fprintf(stderr, "PLB_ANDROID_NETWORK_REUSED_GUEST\n");
+        } else {
+            first_step = steps - 1;
+            fprintf(stderr, "PLB_ANDROID_NETWORK_VERIFIED_CACHE\n");
+        }
+    }
+#endif
+    for (size_t i = first_step; !result && !stopping && i < steps; i++) {
         attempted = 1;
         if (guest_command(network_inspect_commands[i], reply)) {
             fprintf(stderr, "PLB_ANDROID_NETWORK_SETUP_FAILED step=%zu\n", i);
@@ -84,16 +120,36 @@ int main(int argc, char **argv) {
         result = 1;
     close(STDOUT_FILENO);
     fprintf(stderr, "PLB_ANDROID_NETWORK_SETUP result=%u\n", result);
-    double deadline = plb_now() + 1800;
-    while (!result && !stopping && plb_now() < deadline) {
+    double deadline = lifetime ? plb_now() + lifetime : 0;
+#ifdef PLB_ANDROID17_NETWORK_APP
+    double health_due = plb_now() + 15;
+#endif
+    while (!result && !stopping && (!deadline || plb_now() < deadline)) {
         // Do not reap the owned child here: retaining it prevents PID reuse
         // before the cleanup signal, including an unexpected early exit.
         siginfo_t information = {0};
-        if (waitid(P_PID, proxy, &information, WEXITED | WNOHANG | WNOWAIT) || information.si_pid)
+        if (waitid(P_PID, proxy, &information, WEXITED | WNOHANG | WNOWAIT) || information.si_pid) {
+            result = 1;
+            fprintf(stderr, "PLB_ANDROID_NETWORK_PROXY_EXITED\n");
             break;
+        }
+#ifdef PLB_ANDROID17_NETWORK_APP
+        if (plb_now() >= health_due) {
+            if (guest_command(network_trial_health, reply)) {
+                result = 1;
+                fprintf(stderr, "PLB_ANDROID_NETWORK_HEALTH_FAILED\n");
+                break;
+            }
+            health_due = plb_now() + 15;
+        }
+#endif
         usleep(100000);
     }
-    if (attempted) {
+    if (attempted
+#ifdef PLB_ANDROID17_NETWORK_APP
+        && !preserve_guest
+#endif
+    ) {
         android_shutdown_io = 1;
         int cleanup = guest_command(network_trial_stop, reply);
         fprintf(stderr, "PLB_ANDROID_NETWORK_GUEST_STOP result=%d\n", cleanup);

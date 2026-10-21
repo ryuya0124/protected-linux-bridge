@@ -16,8 +16,8 @@ android {
     applicationId = "net.ryuya_dev.protectedlinux"
     minSdk = 37
     targetSdk = 37
-    versionCode = 24
-    versionName = "0.5.0-alpha.5"
+    versionCode = 25
+    versionName = "0.5.0-alpha.6"
   }
   signingConfigs {
     if (!signing.isEmpty)

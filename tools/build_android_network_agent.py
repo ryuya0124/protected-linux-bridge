@@ -49,6 +49,7 @@ def main():
             "-d",
             str(classes),
             str(source / "GuestNetworkAgent.java"),
+            str(source / "GuestConnectivityProbe.java"),
         ],
         check=True,
     )
@@ -57,7 +58,7 @@ def main():
         raise RuntimeError("Only first-party guest classes may be packaged")
     subprocess.run(
         [
-            str(args.sdk / "build-tools/36.0.0/d8"),
+            str(args.sdk / "build-tools/36.1.0/d8"),
             "--release",
             "--min-api",
             "36",

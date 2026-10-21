@@ -286,6 +286,8 @@ static void http_proxy(int client) {
     close(remote);
 }
 pid_t plb_start_proxy(uid_t network_uid, int manager_listener, int startup_client, int lifetime) {
+    if (lifetime < 0)
+        return -1;
     plb_network_lifetime = lifetime;
     int listener = socket(AF_VSOCK, SOCK_STREAM | SOCK_CLOEXEC, 0);
     if (listener < 0)
@@ -343,8 +345,8 @@ pid_t plb_start_proxy(uid_t network_uid, int manager_listener, int startup_clien
     if (prctl(PR_SET_PDEATHSIG, SIGKILL) || getppid() != parent)
         _exit(73);
     int active = 0;
-    double deadline = plb_now() + lifetime;
-    while (plb_now() < deadline) {
+    double deadline = lifetime ? plb_now() + lifetime : 0;
+    while (!deadline || plb_now() < deadline) {
         while (waitpid(-1, NULL, WNOHANG) > 0)
             if (active > 0)
                 active--;

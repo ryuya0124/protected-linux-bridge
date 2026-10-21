@@ -1,0 +1,99 @@
+{
+  "schema": 1,
+  "release": "0.5.0-alpha.6",
+  "version_code": 25,
+  "branch": "codex/android17-host",
+  "production_qualification_complete": false,
+  "profile": {
+    "memory_mib": 1024,
+    "vcpus": 1,
+    "session_limit_seconds": 0,
+    "network_session_limit_seconds": 0,
+    "zero_means": "no elapsed-time limit",
+    "vulkan": false,
+    "internet_optional": true,
+    "internet_default": true
+  },
+  "transport": "Tail ADB",
+  "physical_gui_operated": false,
+  "passing_app_sessions": [
+    {
+      "case": "new payloads",
+      "post_boot_hold_seconds": 10,
+      "https_checks_before_after_hold_and_relay_reconnect": [
+        3,
+        3,
+        3
+      ],
+      "default_guest_tun_validated_each_time": true,
+      "vmm_exit": 0,
+      "controller_exit": 0
+    },
+    {
+      "case": "cached payloads after previous guest shutdown",
+      "post_boot_hold_seconds": 190,
+      "https_checks_before_after_hold_and_relay_reconnect": [
+        3,
+        3,
+        3
+      ],
+      "default_guest_tun_validated_each_time": true,
+      "vmm_exit": 0,
+      "controller_exit": 0
+    }
+  ],
+  "https_targets": [
+    "https://example.com/",
+    "https://www.google.com/generate_204",
+    "https://auroraoss.com/"
+  ],
+  "network": {
+    "guest_tun": "plb0",
+    "host_relay_unprivileged": true,
+    "peer_cid_filtered": true,
+    "reconnect_preserves_healthy_guest_network": true,
+    "validated_capability_forged": false,
+    "host_vpn_routes_dns_firewall_changed": false
+  },
+  "negative_cases": [
+    "three pre-exec all-THP refusals at backing offsets320/624/832MiB; controller88; no VMM executed; both restorers succeeded",
+    "initial HTTPS passed but full guest-network restart failed during upload or startup; owned sessions shut down normally",
+    "two earlier190-second holds passed HTTPS but subsequent guest-network recreation failed; preserved as distinct lifetime evidence",
+    "stale readiness from a previous powered-off guest caused cached startup failure; cold launch now requires fresh receipts",
+    "NetworkAgent registration preceded default selection; premature setup receipt allowed DNS failure; readiness now observes the exact active default"
+  ],
+  "postflight": {
+    "host_boot_core_and_trusted_vm_retained": true,
+    "kernel_taint": 4608,
+    "selinux": "Enforcing",
+    "six_shmem_policies": "never",
+    "all_original_source_disk_hashes_unchanged": true,
+    "owned_vm_and_network_children_remaining": false,
+    "diagnostic_apk_removed": true,
+    "raw_logs_preserved_app_private": true
+  },
+  "shutdown_observations": [
+    "vCPU closed-channel warning retained despite VMM0/controller0",
+    "network cleanup query returned ENODEV after the test had already powered off its guest; all owned host controller/relay children exited"
+  ],
+  "checks": {
+    "jvm_tests": 81,
+    "lint_errors": 0,
+    "lint_warnings": 45,
+    "host_python_cases": 234,
+    "executed_on_mac": 231,
+    "linux_only_skipped_on_mac": 3
+  },
+  "limits": [
+    "prepared private Android17 disk still required",
+    "no30-minute/endurance qualification",
+    "physical viewer/multitouch not operated in these headless checks",
+    "Android physical audio/camera/flash HAL forwarding remains disabled",
+    "IPv4 outbound userspace TCP/UDP path; not full Ethernet/IPv6/inbound/raw-ICMP support"
+  ],
+  "apk": {
+    "bytes": 130847603,
+    "sha256": "d7609c9643e14a4ca7430b4c37907acd066a036982682a4b563d7c9af1452610",
+    "debuggable": false
+  }
+}

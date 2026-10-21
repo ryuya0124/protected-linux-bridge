@@ -35,10 +35,12 @@ class SocksBrokerTest(unittest.TestCase):
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
-    def broker(self, greeting=True):
+    def broker(self, greeting=True, lifetime=10):
         a, b = socket.socketpair()
         a.settimeout(3)
-        p = subprocess.Popen([str(self.binary), str(b.fileno())], pass_fds=(b.fileno(),))
+        p = subprocess.Popen(
+            [str(self.binary), str(b.fileno()), str(lifetime)], pass_fds=(b.fileno(),)
+        )
         b.close()
         self.addCleanup(lambda: (p.kill(), p.wait()) if p.poll() is None else None)
         self.addCleanup(a.close)
@@ -54,6 +56,17 @@ class SocksBrokerTest(unittest.TestCase):
 
     def datagram(self, a, address, data):
         a.sendall(struct.pack("!HB", len(data), 3 + len(address)) + address + data)
+
+    def test_unlimited_socks_session_does_not_exit_immediately(self):
+        peer, process = self.broker(lifetime=0)
+        reply = self.request(peer, 5)
+        self.assertEqual(reply[1], 0)
+        import time
+
+        time.sleep(0.1)
+        self.assertIsNone(process.poll())
+        peer.close()
+        self.assertEqual(process.wait(timeout=3), 0)
 
     def test_authentication_and_unsupported_command(self):
         a, p = self.broker(False)

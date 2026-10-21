@@ -17,6 +17,8 @@ public final class HeadlessGuestInstrumentation extends Instrumentation {
       "/data/user/0/net.ryuya_dev.protectedlinux/files/android17-owned-runtime";
 
   private boolean appRuntime;
+  private boolean network;
+  private int holdSeconds;
   private boolean relaySensors;
   private boolean nullAudio;
   private boolean syntheticCamera;
@@ -24,6 +26,11 @@ public final class HeadlessGuestInstrumentation extends Instrumentation {
   @Override
   public void onCreate(Bundle arguments) {
     super.onCreate(arguments);
+    network = arguments != null && "true".equals(arguments.getString("network"));
+    holdSeconds =
+        arguments == null ? 0 : Integer.parseInt(arguments.getString("hold_seconds", "0"));
+    if (holdSeconds < 0 || holdSeconds > 300)
+      throw new IllegalArgumentException("Probe hold bound");
     appRuntime = arguments != null && "true".equals(arguments.getString("app_runtime"));
     relaySensors = arguments != null && "true".equals(arguments.getString("relay_sensors"));
     nullAudio = arguments != null && "true".equals(arguments.getString("null_audio"));
@@ -32,18 +39,29 @@ public final class HeadlessGuestInstrumentation extends Instrumentation {
   }
 
   private String fixedHelper(String name) throws Exception {
-    if (!name.equals("guest-inspect")
+    if (!name.equals("network-check")
+        && !name.equals("guest-inspect")
         && !name.equals("guest-sensor-check")
         && !name.equals("guest-audio-check")
         && !name.equals("guest-camera-check")
         && !name.equals("shutdown-guest"))
       throw new IllegalArgumentException("Fixed guest helper only");
     Process helper =
-        new ProcessBuilder("su", "-M", "-c", BASE + "/" + name).redirectErrorStream(true).start();
+        new ProcessBuilder(
+                "su",
+                "-M",
+                "-c",
+                (name.equals("network-check")
+                        ? "/data/user/0/net.ryuya_dev.protectedlinux/files/android17-app-runtime"
+                        : BASE)
+                    + "/"
+                    + name)
+            .redirectErrorStream(true)
+            .start();
     var reader = Executors.newSingleThreadExecutor();
     try {
       var bytes = reader.submit(() -> helper.getInputStream().readNBytes(2097153));
-      if (!helper.waitFor(20, TimeUnit.SECONDS)) {
+      if (!helper.waitFor(name.equals("network-check") ? 90 : 20, TimeUnit.SECONDS)) {
         helper.destroy();
         throw new IOException("Guest metadata helper deadline");
       }
@@ -190,6 +208,56 @@ public final class HeadlessGuestInstrumentation extends Instrumentation {
         if (!cameraCheck.contains("PLB_GUEST_CAMERA_HAL_PASS")
             || !cameraCheck.contains("PLB_GUEST_CAMERA_REVOKED=0"))
           throw new IOException("Guest synthetic camera HAL verification failed");
+      }
+      if (network) {
+        if (!appRuntime || appControl == null)
+          throw new IOException("Network app session required");
+        appControl.getOutputStream().write('N');
+        int netStatus = appControl.getInputStream().read();
+        long netDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(90);
+        while (netStatus == 2 && System.nanoTime() < netDeadline) {
+          Thread.sleep(500);
+          appControl.getOutputStream().write('n');
+          netStatus = appControl.getInputStream().read();
+        }
+        if (netStatus != 0) throw new IOException("Guest network setup failed: " + netStatus);
+        String internet = fixedHelper("network-check");
+        result.putString("network_before_hold", internet);
+        if (!internet.contains("PLB_GUEST_HTTPS_COMPLETE passed=3 total=3"))
+          throw new IOException("Guest HTTPS verification failed");
+      }
+      long holdDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(holdSeconds);
+      while (System.nanoTime() < holdDeadline) {
+        if (!producer.isAlive()) throw new IOException("Guest exited during lifetime check");
+        if (appControl != null) {
+          appControl.getOutputStream().write('P');
+          if (appControl.getInputStream().read() != 'P') throw new IOException("App lifetime ping");
+        }
+        Thread.sleep(1000);
+      }
+      result.putInt("hold_seconds_completed", holdSeconds);
+      if (network && holdSeconds > 0) {
+        String internet = fixedHelper("network-check");
+        result.putString("network_after_hold", internet);
+        if (!internet.contains("PLB_GUEST_HTTPS_COMPLETE passed=3 total=3"))
+          throw new IOException("Guest HTTPS after hold failed");
+      }
+      if (network) {
+        // Reconnect the host relay, preserving the VM and healthy guest network.
+        appControl.getOutputStream().write('N');
+        int restartStatus = appControl.getInputStream().read();
+        long restartDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(90);
+        while (restartStatus == 2 && System.nanoTime() < restartDeadline) {
+          Thread.sleep(500);
+          appControl.getOutputStream().write('n');
+          restartStatus = appControl.getInputStream().read();
+        }
+        if (restartStatus != 0)
+          throw new IOException("Guest network restart failed: " + restartStatus);
+        String restarted = fixedHelper("network-check");
+        result.putString("network_after_restart", restarted);
+        if (!restarted.contains("PLB_GUEST_HTTPS_COMPLETE passed=3 total=3"))
+          throw new IOException("Guest HTTPS after restart failed");
       }
       result.putString("guest_shutdown", fixedHelper("shutdown-guest"));
       shutdownRequested = true;

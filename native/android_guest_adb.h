@@ -13,6 +13,10 @@
 
 static _Thread_local int android_shutdown_io;
 
+#ifndef PLB_ANDROID_ADB_TIMEOUT_SECONDS
+#define PLB_ANDROID_ADB_TIMEOUT_SECONDS 8
+#endif
+
 #define ANDROID_ADB_LIMIT (2U * 1024U * 1024U)
 #define ADB_CNXN 0x4e584e43U
 #define ADB_OPEN 0x4e45504fU
@@ -62,7 +66,7 @@ static int android_adb(const char *service, unsigned char *output, size_t *lengt
     int fd = socket(AF_VSOCK, SOCK_STREAM | SOCK_CLOEXEC, 0);
     if (fd < 0)
         return -1;
-    struct timeval timeout = {.tv_sec = 8};
+    struct timeval timeout = {.tv_sec = PLB_ANDROID_ADB_TIMEOUT_SECONDS};
     setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
     setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
     struct sockaddr_vm address = {.svm_family = AF_VSOCK, .svm_cid = 39821, .svm_port = 5555};

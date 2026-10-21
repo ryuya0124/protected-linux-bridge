@@ -113,6 +113,27 @@ class RelayTest(unittest.TestCase):
         self.assertEqual(received, final)
         self.assertEqual(p.wait(timeout=3), 0)
 
+    def test_zero_lifetime_stays_alive_and_ends_on_disconnect(self):
+        a, b, process = self.pair(seconds=0)
+        time.sleep(1.1)
+        self.assertIsNone(process.poll())
+        payload = bytes(range(256))
+        a.sendall(payload)
+        b.settimeout(2)
+        self.assertEqual(b.recv(len(payload)), payload)
+        a.shutdown(socket.SHUT_WR)
+        b.shutdown(socket.SHUT_WR)
+        self.assertEqual(process.wait(timeout=3), 0)
+
+    def test_unlimited_terminal_keeps_bounded_final_flush(self):
+        a, b, process = self.pair(seconds=0, terminal=1)
+        b.sendall(b"final")
+        b.shutdown(socket.SHUT_WR)
+        a.settimeout(3)
+        self.assertEqual(a.recv(5), b"final")
+        self.assertEqual(a.recv(1), b"")
+        self.assertEqual(process.wait(timeout=3), 0)
+
     def test_idle_deadline(self):
         a, b, p = self.pair(seconds=1)
         start = time.monotonic()

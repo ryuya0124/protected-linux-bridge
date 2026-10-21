@@ -358,8 +358,8 @@ plb-udp-forward 5353 1.1.1.1 53 でゲストのlocalhost:5353を指定したUDP�
   <string name="microphone_direction_rejected">この機器は選択したマイクの指向性に対応していません。</string>
   <string name="microphone_active_sources">マイク共有中（1ch・使用中のOSマイク情報：%1$d）</string>
   <string name="microphone_array_detail">複数の入力ポートが公開される場合は選択してください。Androidが複数の物理マイクを処理済みの1ch入力にまとめる場合があり、情報の件数は物理マイク数とは限りません。指向性はHALへの希望で、各マイクの独立指定ではありません。Debian用の設定で、Androidゲストへのマイク転送は未接続です。</string>
-  <string name="android17_app_summary">実験用Android 17・RAM 1 GiB・GLES直接表示。準備済みのAndroid 17専用ディスクを使用します。統合検証中のため1回のセッションは最大3分です。</string>
-  <string name="android17_app_conditions">実験用の1 GiB Android 17ゲストを起動しますか？ 専用のh17mfixディスクの準備が必要です。このAPKにAndroid OSイメージは含まれません。RAM準備中だけホスト全体の承認済みshmem THP設定6項目を一時変更し、独立した監視処理で40秒以内に復元します。メモリ断片化やホスト異常時は再試行せず停止します。最大3分のセッションです。Vulkan・インターネット・実カメラ／マイク転送は無効です。他のBridge VMを終了してから起動してください。ホスト障害の可能性は残りますが、Androidのホストカーネルやパーティションは変更しません。</string>
+  <string name="android17_app_summary">実験用Android 17・RAM 1 GiB・GLES直接表示。準備済みのAndroid 17専用ディスクを使用します。利用時間の制限はありません。インターネットはゲスト内で構成します。</string>
+  <string name="android17_app_conditions">1 GiB Android 17ゲストを起動しますか？ 専用のh17mfixディスクの準備が必要です。このAPKにAndroid OSイメージは含まれません。RAM準備中だけホスト全体の承認済みshmem THP設定6項目を一時変更し、独立した監視処理で40秒以内に復元します。メモリ断片化やホスト異常時は再試行せず停止します。利用時間に上限はなく、画面を閉じる・ゲストの終了・クラッシュ・監視対象のホスト異常で、このVMを停止します。インターネットはゲスト内の仮想インターフェースと非特権の通信中継を使用し、ホストのVPN・ルート・DNSは変更しません。Vulkan・実カメラ／マイク転送は無効です。他のBridge VMを終了してから起動してください。ホスト障害の可能性は残ります。</string>
   <string name="android17_app_bundle_missing">このAPKには互換性のあるAndroid 17ランタイムが含まれていません。対応ランタイムを含む署名済み実験版をインストールしてください。</string>
   <string-array name="microphone_directions">
     <item>システム標準</item>
@@ -372,4 +372,5 @@ plb-udp-forward 5353 1.1.1.1 53 でゲストのlocalhost:5353を指定したUDP�
   <string name="vm_torch_camera">使用するLED</string>
   <string name="vm_torch_choice">カメラ %1$s・明るさ %2$d段階</string>
   <string name="vm_torch_unavailable">操作可能なLED情報を取得できません。カメラサービスや端末のポリシーに制限されている場合があります。</string>
+  <string name="android_guest_network_retry">ゲストのネット接続をやり直す</string>
 </resources>

@@ -96,17 +96,52 @@ def main():
             )
         )
     launch = command(
+        # A prior guest power-off can leave readiness files on its disk. Only
+        # a healthy live session is adopted; cold launch requires fresh receipts.
+        "! ip link show plb0 >/dev/null 2>&1; "
+        "rm -f " + directory + "/ready " + directory + "/agent.log; "
         "setsid nohup sh "
         + directory
         + "/start.sh </dev/null >"
         + directory
-        + "/supervisor.log 2>&1 & supervisor=$!; sleep 2; "
-        "kill -0 $supervisor; test -s " + directory + "/ready; "
+        + "/supervisor.log 2>&1 & "
+        "i=0; until grep -q PLB_GUEST_NETWORK_DEFAULT_READY "
+        + directory
+        + "/agent.log 2>/dev/null "
+        "&& test -s " + directory + "/ready; do "
+        "i=$((i + 1)); if test $i -ge 150; then "
+        "for name in supervisor loopback tunnel agent; do "
+        "cat " + directory + "/$name.log 2>/dev/null || true; done; exit 41; fi; sleep .1; done; "
+        # setsid may fork. $! is the launcher, not necessarily the supervisor.
+        "read supervisor born guest_boot <" + directory + "/supervisor.pid; "
+        'test "$guest_boot" = "$(cat /proc/sys/kernel/random/boot_id)"; '
+        "case $supervisor:$born in *[!0-9:]*|:*) exit 40;; esac; "
+        'test "$(awk \'{print $22}\' /proc/$supervisor/stat)" = "$born"; '
+        "test -s " + directory + "/ready; "
         "test -s " + directory + "/agent.log; "
-        "grep -q PLB_GUEST_NETWORK_REGISTERED " + directory + "/agent.log; "
+        "grep -q PLB_GUEST_NETWORK_DEFAULT_READY " + directory + "/agent.log; "
         "echo PLB_GUEST_NETWORK_SUPERVISOR:$supervisor"
     )
     commands.append(launch)
+    # Reconnects reuse only a complete content-addressed installation. Verify
+    # every executable/config again instead of repeating 140+ ADB uploads.
+    reuse = command(
+        "test ! -L " + directory + "; test -d " + directory + "; "
+        'test "$(stat -c %u:%a '
+        + directory
+        + ')" = 0:700; '
+        + "; ".join(
+            "test ! -L " + directory + "/" + name + "; "
+            '[ "$(sha256sum '
+            + directory
+            + "/"
+            + name
+            + ' | cut -d" " -f1)" = '
+            + hashlib.sha256(data).hexdigest()
+            + " ]"
+            for name, data in payloads.items()
+        )
+    )
     (output / "android_network_inspect.generated.h").write_text(
         "/* Generated fixed source-built guest-only network trial. */\n"
         "static const char *const network_inspect_commands[] = {\n"
@@ -121,7 +156,35 @@ def main():
                 "case $supervisor:$born in *[!0-9:]*|:*) exit 40;; esac; "
                 "now=\"$(awk '{print $22}' /proc/$supervisor/stat 2>/dev/null || true)\"; "
                 'if test -n "$born" && test "$now" = "$born"; then kill -TERM $supervisor; fi; '
-                "fi"
+                "fi; "
+                "i=0; while test -e "
+                + directory
+                + "/supervisor.pid || ip link show plb0 >/dev/null 2>&1; do "
+                'i=$((i + 1)); test "$i" -lt 50; sleep .1; done'
+            )
+        )
+        + ";\n"
+        + "static const char network_trial_health[] = "
+        + json.dumps(
+            command(
+                "test -s " + directory + "/ready; "
+                "read supervisor born guest_boot <" + directory + "/supervisor.pid; "
+                'test "$guest_boot" = "$(cat /proc/sys/kernel/random/boot_id)"; '
+                "case $supervisor:$born in *[!0-9:]*|:*) exit 40;; esac; "
+                'test "$(awk \'{print $22}\' /proc/$supervisor/stat)" = "$born"; '
+                "ip link show plb0 >/dev/null; "
+                "for entry in $(cat " + directory + "/ready); do "
+                "child=${entry%:*}; expected=${entry#*:}; "
+                "case $child:$expected in *[!0-9:]*|:*) exit 40;; esac; "
+                'test "$(awk \'{print $22}\' /proc/$child/stat)" = "$expected"; done'
+            )
+        )
+        + ";\n"
+        + "static const char network_trial_connectivity[] = "
+        + json.dumps(
+            command(
+                "CLASSPATH=" + directory + "/agent.jar app_process -Xmx32m /system/bin "
+                "net.ryuya_dev.protectedlinux.guestnetwork.GuestConnectivityProbe"
             )
         )
         + ";\n"
@@ -136,6 +199,9 @@ def main():
         + ";\n"
         + "static const char network_trial_launch[] = "
         + json.dumps(launch)
+        + ";\n"
+        + "static const char network_trial_reuse[] = "
+        + json.dumps(reuse)
         + ";\n"
         + "static const char network_trial_state[] = "
         + json.dumps(

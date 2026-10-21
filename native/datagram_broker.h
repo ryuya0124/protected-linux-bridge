@@ -70,9 +70,10 @@ static void plb_datagram_broker(int client) {
     fprintf(stderr, "DGRAM_ACCEPTED mode=%c uid=%d\n", head[2], getuid());
     alarm(0);
     unsigned char data[PLB_DGRAM_MAX];
-    double deadline = plb_now() + PLB_NETWORK_LIFETIME, idle = plb_now() + 60, last_echo = 0;
+    double deadline = PLB_NETWORK_LIFETIME ? plb_now() + PLB_NETWORK_LIFETIME : 0;
+    double idle = plb_now() + 60, last_echo = 0;
     unsigned budget = 64;
-    while (plb_now() < deadline && plb_now() < idle) {
+    while ((!deadline || plb_now() < deadline) && plb_now() < idle) {
         struct pollfd p[2] = {{client, POLLIN, 0}, {remote, POLLIN, 0}};
         int result = poll(p, 2, 1000);
         if (result < 0) {

@@ -30,13 +30,16 @@ static void plb_relay(int first, int second, int seconds, int terminal) {
     int fd[2] = {first, second}, end[2] = {0}, half[2] = {0};
     unsigned char data[2][16384];
     size_t used[2] = {0};
-    double deadline = plb_now() + seconds;
+    if (seconds < 0)
+        return;
+    /* Zero means session-owned lifetime, ending on disconnect, never elapsed time. */
+    double deadline = seconds ? plb_now() + seconds : 0;
     for (int i = 0; i < 2; i++) {
         int flags = fcntl(fd[i], F_GETFL);
         if (flags < 0 || fcntl(fd[i], F_SETFL, flags | O_NONBLOCK) < 0)
             return;
     }
-    while (plb_now() < deadline) {
+    while (!deadline || plb_now() < deadline) {
         for (int i = 0; i < 2; i++)
             if (end[i] && !used[i] && !half[i]) {
                 shutdown(fd[1 - i], SHUT_WR);
@@ -68,7 +71,7 @@ static void plb_relay(int first, int second, int seconds, int terminal) {
                     if (terminal) {
                         end[0] = end[1] = 1;
                         double flush = plb_now() + 2;
-                        if (deadline > flush)
+                        if (!deadline || deadline > flush)
                             deadline = flush;
                     }
                 }

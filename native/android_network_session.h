@@ -9,14 +9,14 @@ static double android_network_clock(void) {
     return clock_gettime(CLOCK_MONOTONIC, &value) ? -1 : value.tv_sec + value.tv_nsec / 1e9;
 }
 
-static void android_network_stop(void) {
+static void android_network_stop_signal(int signal_number) {
     if (android_network_result_fd >= 0)
         close(android_network_result_fd);
     android_network_result_fd = -1;
     if (android_network_child <= 0)
         return;
     // The child is never reaped elsewhere, so this PID cannot have been reused.
-    kill(android_network_child, SIGTERM);
+    kill(android_network_child, signal_number);
     for (int i = 0; i < 120; i++) {
         if (waitpid(android_network_child, NULL, WNOHANG) == android_network_child) {
             android_network_child = -1;
@@ -30,9 +30,21 @@ static void android_network_stop(void) {
     android_network_child = -1;
 }
 
+static void android_network_stop(void) {
+    android_network_stop_signal(SIGTERM);
+}
+
 static int android_network_start(uid_t uid) {
-    if (android_network_child > 0 || android_network_owner_fd < 3)
+    if (android_network_owner_fd < 3 || android_network_result == 2)
         return 1;
+    if (android_network_child > 0) {
+#ifdef PLB_ANDROID17_APP_SESSION
+        // Keep a healthy guest TUN/NetworkAgent across host-relay reconnects.
+        android_network_stop_signal(SIGUSR1);
+#else
+        android_network_stop();
+#endif
+    }
     double now = android_network_clock();
     if (now < 0)
         return 1;
@@ -67,13 +79,24 @@ static int android_network_start(uid_t uid) {
     }
     android_network_result_fd = channel[0];
     android_network_result = 2; // Pending: input and presentation remain usable.
+#ifdef PLB_ANDROID17_APP_SESSION
+    android_network_deadline = now + 90;
+#else
     android_network_deadline = now + 30;
+#endif
     return android_network_result;
 }
 
 static int android_network_status(void) {
-    if (android_network_result_fd < 0)
+    if (android_network_result_fd < 0) {
+        if (android_network_result == 0 && android_network_child > 0) {
+            siginfo_t child = {0};
+            if (waitid(P_PID, android_network_child, &child, WEXITED | WNOHANG | WNOWAIT) ||
+                child.si_pid)
+                android_network_result = 1;
+        }
         return android_network_result;
+    }
     struct pollfd ready = {android_network_result_fd, POLLIN, 0};
     int available = poll(&ready, 1, 0);
     double now = android_network_clock();

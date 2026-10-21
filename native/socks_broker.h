@@ -65,8 +65,9 @@ static void socks_udp(int client) {
     for (int i = 0; i < PLB_SOCKS_FLOWS; i++)
         flows[i].fd = -1;
     unsigned char data[PLB_DGRAM_MAX], address[260];
-    double until = plb_now() + plb_network_lifetime, idle = plb_now() + 60;
-    while (plb_now() < until && plb_now() < idle) {
+    double until = plb_network_lifetime ? plb_now() + plb_network_lifetime : 0;
+    double idle = plb_now() + 60;
+    while ((!until || plb_now() < until) && plb_now() < idle) {
         struct pollfd p[PLB_SOCKS_FLOWS + 1];
         p[0] = (struct pollfd){client, POLLIN, 0};
         for (int i = 0; i < PLB_SOCKS_FLOWS; i++)

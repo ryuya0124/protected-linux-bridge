@@ -26,8 +26,10 @@ static int tcp_connect(const char *host, const char *port) {
 #endif
 #include "socks_broker.h"
 int main(int n, char **v) {
-    if (n != 2)
+    if (n != 2 && n != 3)
         return 2;
+    if (n == 3)
+        plb_network_lifetime = atoi(v[2]);
     signal(SIGPIPE, SIG_IGN);
     socks_broker(atoi(v[1]));
     return 0;

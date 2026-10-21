@@ -49,6 +49,29 @@ public final class GuestConnectivityProbe {
         if (connection != null) connection.disconnect();
       }
     }
+    try {
+      android.os.Looper.prepareMainLooper();
+      Class<?> activityThread = Class.forName("android.app.ActivityThread");
+      Object thread = activityThread.getMethod("systemMain").invoke(null);
+      android.content.Context context =
+          (android.content.Context) activityThread.getMethod("getSystemContext").invoke(thread);
+      var connectivity = context.getSystemService(android.net.ConnectivityManager.class);
+      var network = connectivity.getActiveNetwork();
+      var capabilities = network == null ? null : connectivity.getNetworkCapabilities(network);
+      var links = network == null ? null : connectivity.getLinkProperties(network);
+      boolean tun = links != null && "plb0".equals(links.getInterfaceName());
+      System.out.println(
+          "PLB_GUEST_DEFAULT_NETWORK tun="
+              + tun
+              + " validated="
+              + (capabilities != null
+                  && capabilities.hasCapability(
+                      android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED)));
+      if (!tun) passed = 0;
+    } catch (Exception failed) {
+      System.out.println("PLB_GUEST_DEFAULT_NETWORK_FAILED " + failed.getClass().getSimpleName());
+      passed = 0;
+    }
     System.out.println("PLB_GUEST_HTTPS_COMPLETE passed=" + passed + " total=3");
     System.exit(passed == 3 ? 0 : 21);
   }

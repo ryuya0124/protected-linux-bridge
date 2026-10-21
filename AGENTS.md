@@ -729,3 +729,38 @@ CameraManager has no exclusive ownership; document off failures and takeover
 limits rather than promising perfect isolation. Android guest flash HAL remains
 unconnected. No extra compaction, THP node, host kernel/partition/protection or
 reboot permission was added.
+
+## Remove Android session timers and connect Internet, user 2026-10-21
+
+The user explicitly removes the180s Android app-session duration limit. Keep
+sessions until explicit viewer disconnect/guest exit, crash or monitored failure;
+retain bounded preparation/boot/cleanup operations and the independent40s shmem
+restoration guardian. Do not remove health/RAM/owner/artifact guards or enable
+automatic VM retries. Diagnostic-only runners may retain their own time limits.
+The user also requests Android guest Internet. Integrate the guest-only TUN /
+NetworkAgent / CID-filtered non-root host relay; no host VPN/route/DNS/SELinux
+changes, no global forwarding/firewall/NAT changes, no Vulkan or host restart.
+Preserve original disks and use the prepared separate Android17 profile. Guest
+network lifetime should follow the VM, rather than expire at30min. TCP/UDP idle,
+connect and cleanup deadlines still bound individual operations. Perform actual
+DNS/HTTPS checks and a greater-than180s session check without physical GUI input.
+
+The alpha.6 final app-path checks passed with fresh and cached guest-network
+payloads, including a190-second post-boot hold, three-site certificate-checked
+HTTPS before/after the hold and after host-relay reconnect, genuine default
+plb0 validation and VMM0/controller0 shutdown. Reconnect retains only the
+hash/boot/PID-birth-verified healthy guest TUN/NetworkAgent; SIGUSR1 transfers
+that responsibility between owned controllers while the same VM manager retains
+the lease. Normal termination still requests full guest-network cleanup.
+Cold startup clears old readiness receipts and observes actual default selection,
+not merely registration or a launcher PID. Preserve the earlier safe all-THP
+refusals and six intermediate setup/reconnect failures as negative evidence.
+
+Final host/core/trusted VM, taint4608, Enforcing, six never values and original
+three disk hashes passed; no owned VM/network child remained. Raw logs were
+verified into app-private storage, shell temp folders and the diagnostic APK
+removed. The test powers off its guest before final controller cleanup, so an
+ENODEV network-stop query and the prior closed-channel warning remain separately
+recorded; no physical viewer-close/media test or30-minute endurance is claimed.
+No extra compaction, host protection/kernel/partition change or Android restart
+was performed. The Android16 frozen refs remain unchanged.

@@ -1194,19 +1194,34 @@ public final class MainActivity extends AppCompatActivity {
   }
 
   private void confirmAndroidGuest() {
+    LinearLayout options = column();
+    options.setPadding(dp(24), dp(8), dp(24), dp(8));
+    options.addView(text(getString(R.string.android17_app_conditions), 14));
+    MaterialSwitch internet = new MaterialSwitch(this);
+    internet.setText(R.string.android_guest_internet);
+    internet.setChecked(
+        getSharedPreferences("config", 0).getBoolean("android_guest_internet", true));
+    options.addView(internet);
+    ScrollView scroll = new ScrollView(this);
+    scroll.addView(options);
     new MaterialAlertDialogBuilder(this)
         .setTitle(R.string.android_guest_title)
-        .setMessage(R.string.android17_app_conditions)
+        .setView(scroll)
         .setNegativeButton(android.R.string.cancel, null)
         .setPositiveButton(
             R.string.android_guest_open,
-            (dialog, which) ->
-                startActivity(
-                    new Intent(this, AndroidGuestActivity.class)
-                        .putExtra(AndroidGuestActivity.EXTRA_MEMORY_MIB, 1024)
-                        .putExtra(AndroidGuestActivity.EXTRA_INTERNET, false)
-                        .putExtra(AndroidGuestActivity.EXTRA_GPU_SURFACE, true)
-                        .putExtra(AndroidGuestActivity.EXTRA_POLICY_ACKNOWLEDGED, true)))
+            (dialog, which) -> {
+              getSharedPreferences("config", 0)
+                  .edit()
+                  .putBoolean("android_guest_internet", internet.isChecked())
+                  .apply();
+              startActivity(
+                  new Intent(this, AndroidGuestActivity.class)
+                      .putExtra(AndroidGuestActivity.EXTRA_MEMORY_MIB, 1024)
+                      .putExtra(AndroidGuestActivity.EXTRA_INTERNET, internet.isChecked())
+                      .putExtra(AndroidGuestActivity.EXTRA_GPU_SURFACE, true)
+                      .putExtra(AndroidGuestActivity.EXTRA_POLICY_ACKNOWLEDGED, true));
+            })
         .show();
   }
 

@@ -19,8 +19,9 @@
   "experimental_app_profile": {
     "memory_mib": 1024,
     "vcpus": 1,
-    "session_limit_seconds": 180,
+    "session_limit_seconds": 0,
     "renderer": "GLES only",
-    "internet": false
+    "internet": true,
+    "session_end": "viewer disconnect, guest exit, crash or monitored failure"
   }
 }

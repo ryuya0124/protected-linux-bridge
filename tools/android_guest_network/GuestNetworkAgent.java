@@ -11,7 +11,6 @@ import android.net.NetworkCapabilities;
 import android.net.RouteInfo;
 import android.net.Uri;
 import android.os.Build;
-import android.os.Handler;
 import android.os.Looper;
 import android.os.Process;
 import java.net.InetAddress;
@@ -51,7 +50,8 @@ public final class GuestNetworkAgent extends NetworkAgent {
   public static void main(String[] args) {
     try {
       if (Process.myUid() != 0
-          || args.length != 0
+          || args.length > 1
+          || (args.length == 1 && !args[0].equals("--await-network-release"))
           || !Build.DEVICE.equals("vsoc_arm64_only")
           || !Build.HARDWARE.equals("cutf_cvm")
           || !Build.VERSION.INCREMENTAL.equals("16373615")) System.exit(20);
@@ -60,8 +60,21 @@ public final class GuestNetworkAgent extends NetworkAgent {
       Object thread = activityThread.getMethod("systemMain").invoke(null);
       Context context = (Context) activityThread.getMethod("getSystemContext").invoke(thread);
       ConnectivityManager connectivity = context.getSystemService(ConnectivityManager.class);
+      // Binder death removes the previous owned NetworkAgent asynchronously.
+      // Wait only for that guest TUN network; never replace another network.
+      long deadline = android.os.SystemClock.elapsedRealtime() + 5000;
+      while (connectivity.getActiveNetwork() != null
+          && android.os.SystemClock.elapsedRealtime() < deadline) {
+        LinkProperties old = connectivity.getLinkProperties(connectivity.getActiveNetwork());
+        if (old != null && !"plb0".equals(old.getInterfaceName())) break;
+        Thread.sleep(100);
+      }
       if (connectivity.getActiveNetwork() != null)
         throw new IllegalStateException("Existing network");
+      if (args.length == 1) {
+        System.out.println("PLB_GUEST_NETWORK_RELEASED");
+        System.exit(0);
+      }
       if (java.net.NetworkInterface.getByName("plb0") == null)
         throw new IllegalStateException("Guest TUN missing");
       NetworkCapabilities caps = new NetworkCapabilities();
@@ -93,15 +106,31 @@ public final class GuestNetworkAgent extends NetworkAgent {
       links.setDnsServers(
           java.util.List.of(InetAddress.getByName("1.1.1.1"), InetAddress.getByName("8.8.8.8")));
       GuestNetworkAgent agent = new GuestNetworkAgent(context, caps, links);
-      System.out.println("PLB_GUEST_NETWORK_REGISTERED " + agent.register());
+      android.net.Network registered = agent.register();
+      System.out.println("PLB_GUEST_NETWORK_REGISTERED " + registered);
       agent.markConnected();
-      new Handler(Looper.getMainLooper())
-          .postDelayed(
-              () -> {
+      android.os.Handler handler = new android.os.Handler(Looper.getMainLooper());
+      long readyDeadline = android.os.SystemClock.elapsedRealtime() + 5000;
+      handler.post(
+          new Runnable() {
+            @Override
+            public void run() {
+              LinkProperties actual = connectivity.getLinkProperties(registered);
+              if (registered.equals(connectivity.getActiveNetwork())
+                  && actual != null
+                  && "plb0".equals(actual.getInterfaceName())) {
+                // Default selection is observable; Internet validation is still
+                // supplied independently by Android's real connectivity probes.
+                System.out.println("PLB_GUEST_NETWORK_DEFAULT_READY");
+              } else if (android.os.SystemClock.elapsedRealtime() < readyDeadline) {
+                handler.postDelayed(this, 100);
+              } else {
+                System.out.println("PLB_GUEST_NETWORK_DEFAULT_TIMEOUT");
                 agent.unregister();
-                System.exit(0);
-              },
-              30 * 60 * 1000);
+                System.exit(22);
+              }
+            }
+          });
       Looper.loop();
     } catch (Throwable error) {
       error.printStackTrace(System.out);

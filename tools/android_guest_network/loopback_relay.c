@@ -26,16 +26,23 @@ int main(int argc, char **argv) {
     (void)plb_write_all;
     signal(SIGPIPE, SIG_IGN);
     int server = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    // A stopped session may leave TCP TIME_WAIT sockets. Rebind only loopback;
+    // this does not permit two active listeners or expose the proxy externally.
+    int reuse = 1;
+    if (server < 0 || setsockopt(server, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)))
+        return 21;
     struct sockaddr_in address = {
         .sin_family = AF_INET, .sin_port = htons(1080), .sin_addr.s_addr = htonl(INADDR_LOOPBACK)};
     if (server < 0 || bind(server, (struct sockaddr *)&address, sizeof(address)) ||
         listen(server, 16))
         return 21;
-    double deadline = plb_now() + 1800;
+    pid_t parent = getppid();
+    if (parent <= 1 || prctl(PR_SET_PDEATHSIG, SIGTERM) || getppid() != parent)
+        return 24;
     int active = 0;
     puts("PLB_GUEST_LOOPBACK_READY");
     fflush(stdout);
-    while (plb_now() < deadline) {
+    while (1) {
         while (waitpid(-1, NULL, WNOHANG) > 0)
             if (active > 0)
                 active--;
@@ -60,7 +67,7 @@ int main(int argc, char **argv) {
             if (remote < 0 || connect(remote, (struct sockaddr *)&peer, sizeof(peer)))
                 _exit(23);
             alarm(0);
-            plb_relay(client, remote, 1800, 0);
+            plb_relay(client, remote, 0, 0);
             _exit(0);
         }
         if (child > 0)
