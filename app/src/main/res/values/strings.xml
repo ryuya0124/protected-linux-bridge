@@ -191,7 +191,7 @@ plb-udp-forward 5353 1.1.1.1 53 forwards guest localhost:5353 to the specified U
   <string name="android_guest_policy_failed">The THP setting state or restoration could not be verified. Startup was stopped. Check ProtectedLinuxAndroid logs.</string>
   <string name="android_guest_large_unsupported">The larger RAM presets require the pinned SM-S948Q / S948QOPS1AZHL host environment. Select 512 MiB on this environment.</string>
   <string name="android_guest_preparation_failed">Memory preparation was interrupted or failed. Startup stopped before changing host THP settings.</string>
-  <string name="android_guest_fragmented">Suitable larger memory pages could not be verified, so the VM was not started. Close other apps and retry, or select 512 MiB.</string>
+  <string name="android_guest_fragmented">Suitable larger memory pages could not be verified, so the VM was not started. Wait and try again. This Android 17 profile supports 1 GiB only.</string>
   <string name="android_guest_policy_consent">Review the startup conditions and launch from the Android guest screen in this app.</string>
   <string name="android_guest_process_isolation_failed">Cannot isolate the VM controller from the cached-app freezer. The guarded VM was not started.</string>
   <string name="android_guest_session_ended">The Android guest session ended. Open it again to start a new session.</string>

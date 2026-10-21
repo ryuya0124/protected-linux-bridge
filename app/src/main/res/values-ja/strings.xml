@@ -191,7 +191,7 @@ plb-udp-forward 5353 1.1.1.1 53 でゲストのlocalhost:5353を指定したUDP�
   <string name="android_guest_policy_failed">THP設定の状態または復元を確認できないため、起動を停止しました。ProtectedLinuxAndroidのログを確認してください。</string>
   <string name="android_guest_large_unsupported">大容量メモリ構成はSM-S948Q／S948QOPS1AZHLの指定ホスト環境でのみ使用できます。現在の環境では512MiB構成を選んでください。</string>
   <string name="android_guest_preparation_failed">メモリ準備が中断または失敗しました。ホストのTHP設定を変更する前に停止しました。</string>
-  <string name="android_guest_fragmented">必要な大きさのメモリページを確認できないため、VMを起動しませんでした。ほかのアプリを閉じて再試行するか、512MiB構成を選んでください。</string>
+  <string name="android_guest_fragmented">必要な大きさのメモリページを確認できないため、VMを起動しませんでした。時間をおいて再試行してください。このAndroid 17構成は1 GiBのみ対応しています。</string>
   <string name="android_guest_policy_consent">起動条件を確認し、アプリ内のAndroidゲスト画面から開始してください。</string>
   <string name="android_guest_process_isolation_failed">VM起動処理をアプリのバックグラウンド凍結対象から分離できないため、起動を中止しました。</string>
   <string name="android_guest_session_ended">Androidゲストのセッションが終了しました。もう一度開くと、新しいセッションを開始します。</string>

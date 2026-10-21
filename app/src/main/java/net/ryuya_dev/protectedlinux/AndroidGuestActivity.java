@@ -42,6 +42,7 @@ public final class AndroidGuestActivity extends AppCompatActivity {
   private volatile Process manager;
   private TextView status, networkStatus;
   private MaterialButton networkRetry;
+  private final java.util.List<MaterialButton> inputControls = new java.util.ArrayList<>();
   private volatile boolean networkRestartRequested;
   private ImageView display;
   private AndroidGuestGpuSurface gpuSurface;
@@ -178,6 +179,10 @@ public final class AndroidGuestActivity extends AppCompatActivity {
   private void control(LinearLayout row, int label, Runnable action) {
     MaterialButton button = new MaterialButton(this);
     button.setText(label);
+    if (label != R.string.android_guest_close) {
+      button.setEnabled(false);
+      inputControls.add(button);
+    }
     row.addView(button, new LinearLayout.LayoutParams(0, -2, 1));
     button.setOnClickListener(view -> action.run());
   }
@@ -232,7 +237,9 @@ public final class AndroidGuestActivity extends AppCompatActivity {
                   String line;
                   while ((line = reader.readLine()) != null) {
                     android.util.Log.i("ProtectedLinuxAndroid", line);
-                    if (line.contains("ANDROID_BACKING_UNSUITABLE")) runtimeFailure = 89;
+                    if (line.contains("ANDROID_BACKING_UNSUITABLE")
+                        || line.contains("PLB_PREALLOCATED_THP_REFUSED vmm_started=0"))
+                      runtimeFailure = 89;
                     if (line.contains("PLB_GUNYAH_PAGE_FAULT")) runtimeFailure = 33;
                     if (line.contains("PLB_ANDROID_ADOPTED_HOST_FAILURE")) runtimeFailure = 42;
                     if (line.contains("PLB_ANDROID_ADOPTED_RESOURCE_LIMIT")) runtimeFailure = 23;
@@ -288,6 +295,10 @@ public final class AndroidGuestActivity extends AppCompatActivity {
         throw new IOException(getString(R.string.android_guest_start_failed));
       if (gpuSurface == null) throw new IOException("Android 17 requires owned GPU display");
       inputReady = true;
+      runOnUiThread(
+          () -> {
+            if (!closed) inputControls.forEach(button -> button.setEnabled(inputReady));
+          });
       boolean networkPending = false;
       long networkCheckDue = 0;
       if (memoryMib == 1024 && getIntent().getBooleanExtra(EXTRA_INTERNET, false)) {
@@ -456,6 +467,7 @@ public final class AndroidGuestActivity extends AppCompatActivity {
       runOnUiThread(
           () -> {
             if (!closed) {
+              inputControls.forEach(button -> button.setEnabled(false));
               status.setText(getString(R.string.android_guest_error, detail));
               if (networkStatus.getVisibility() == View.VISIBLE) {
                 networkStatus.setText(R.string.android_guest_network_stopped);

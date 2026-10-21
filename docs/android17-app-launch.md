@@ -7,7 +7,7 @@ frozen branch/release is unchanged.
 
 ## Use
 
-Install the signed `0.5.0-alpha.6` experimental APK and grant Bridge root. Open
+Install the signed `0.5.0-alpha.7` experimental APK and grant Bridge root. Open
 **VM → Android guest → Open Android guest** and read the per-launch conditions.
 The only enabled preset is 1024 MiB RAM, one vCPU, 480×800 direct GLES display,
 with a requested 120 Hz virtual display. Actual sustained 120 fps is unqualified.
@@ -15,7 +15,8 @@ The app session has no elapsed-time limit. It ends on viewer disconnect, guest
 exit, crash or a monitored failure. Boot, cleanup and host-policy restoration
 still have bounded deadlines. There is no automatic startup or retry. Closing the viewer disconnects its input
 channel and requests shutdown of this owned guest. Existing Debian sessions must
-be closed first; the launch code refuses to stop them implicitly.
+be closed first; the launch code refuses to stop them implicitly. An idle Debian
+startup helper is released automatically through its authenticated idle-only API.
 
 The app installs its bundled, compiled-and-hashed runtime in a **new** private
 `files/android17-app-runtime` directory. The earlier developer runtime remains
@@ -195,3 +196,15 @@ known vCPU closed-channel shutdown warning; these are retained with the normal
 owned process exit results. They are not a physical viewer-close test.
 
 Machine-readable results: [alpha.6 validation](../compatibility/android17-network-validation.json).
+
+## Alpha.7 actual viewer checks
+
+Idle Debian startup support no longer blocks Android installation/checks. Active
+Debian sessions are refused rather than terminated. Before guest readiness and
+after a failure, guest input buttons stay disabled; Close remains available.
+Actual pre-execution THP failures now show the memory preparation explanation.
+
+The [GUI validation record](android17-gui-validation.md) retains the failed
+backing checks, separately approved one-shot compaction and cache-release
+notification comparison. No actual guest frame or touch result was obtained in
+this round. No automatic compaction or host-wide cache-release feature was added.

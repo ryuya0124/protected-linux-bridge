@@ -9,6 +9,7 @@ final class RuntimeSetup {
   static final String HOST = "com.android.virtualization.terminal";
   private static Process process;
   private static boolean ready;
+  static volatile boolean releasedForAndroid;
 
   static File binary(Context c) {
     return new File(
@@ -80,7 +81,9 @@ final class RuntimeSetup {
           executable
               + " --check || { "
               + executable
-              + " --stop && umask 077 && mkdir -p "
+              // A mismatched/older manager must not silently terminate a live
+              // Debian session when opening Bridge after an APK update.
+              + " --stop-idle >/dev/null && umask 077 && mkdir -p "
               + base
               + " && chmod 700 "
               + base
@@ -111,6 +114,7 @@ final class RuntimeSetup {
             line != null
                 && (line.equals("BRIDGE_WAITING uid=" + uid)
                     || line.equals("BRIDGE_WAITING existing"));
+        if (ready) releasedForAndroid = false;
         if (!ready) android.util.Log.w("ProtectedLinux", "SETUP_REJECTED " + line);
       } finally {
         reader.shutdownNow();
@@ -501,10 +505,35 @@ final class RuntimeSetup {
       if (ok) {
         ready = false;
         process = null;
+        releasedForAndroid = false;
       }
       return ok;
     } catch (Exception failure) {
       return false;
+    }
+  }
+
+  static synchronized boolean releaseIdleForAndroid(Context context) {
+    Process control = null;
+    try {
+      File helper = AndroidGuestRuntime.install(context, "debian-bridge");
+      control =
+          new ProcessBuilder("su", "-M", "-c", helper.getPath() + " --stop-idle")
+              .redirectErrorStream(true)
+              .start();
+      if (!control.waitFor(45, TimeUnit.SECONDS) || control.exitValue() != 0) return false;
+      String reply =
+          new String(
+              control.getInputStream().readNBytes(4096), java.nio.charset.StandardCharsets.UTF_8);
+      if (!reply.strip().equals("DEBIAN_IDLE_RELEASED")) return false;
+      ready = false;
+      process = null;
+      releasedForAndroid = true;
+      return true;
+    } catch (Exception failed) {
+      return false;
+    } finally {
+      if (control != null && control.isAlive()) control.destroy();
     }
   }
 }

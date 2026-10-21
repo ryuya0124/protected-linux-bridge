@@ -61,7 +61,7 @@ Linux導入済みの場合、「Linuxインストール画面を開く」は導�
 
 対応ランタイムを含む署名済みAPKに加え、準備済みのAndroid 17専用ディスクが必要です。このプレビューはAndroid OSイメージの自動導入には未対応です。起動時にインターネット接続を選べます。ゲスト内の通常アプリにプロキシ設定は不要で、通信だけの再接続も可能です。実カメラ／マイク／スピーカー、Vulkanはこの起動経路では無効です。Debianの連携設定とは別です。
 
-[Androidゲストの起動条件と使い方](docs/android17-app-launch.md)と[Android 17の検証記録](docs/android17-runtime-validation.md)を参照してください。以前の開発版では実際のホーム表示・画面再接続を確認していますが、新しいアプリ経路の実機検証結果は別々に記録しています。
+[Androidゲストの起動条件と使い方](docs/android17-app-launch.md)と[Android 17の検証記録](docs/android17-runtime-validation.md)を参照してください。以前の開発版ではホーム表示・画面再接続、alpha.6の画面操作なし検証では起動・インターネットを確認しました。実際のアプリ画面からの起動は現在、メモリの安全検査で停止しており、操作までの検証は未完了です。[GUI検証の詳細](docs/android17-gui-validation.md)に記録しています。
 
 Debianでは複数マイク入力の選択と、明示的に許可した表示中セッションからのLED操作を追加しました。[対応範囲と制約](docs/microphones-and-led.md)を確認してください。
 

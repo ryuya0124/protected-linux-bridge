@@ -1,0 +1,71 @@
+{
+  "date": "2026-10-21",
+  "release": "0.5.0-alpha.7",
+  "host": "SM-S948Q / S948QOPU1BZI9",
+  "transport": "Tail ADB",
+  "idle_manager_release_observed": true,
+  "controls_disabled_before_ready_and_after_failure": true,
+  "close_returns_main": true,
+  "compaction": {
+    "new_single_use_approval_consumed": true,
+    "write_count": 1,
+    "bytes": 2,
+    "errno": 0,
+    "elapsed_ms": 566,
+    "guard_seconds": 45,
+    "sixteen_mib_handoff": {
+      "present_pages": 4096,
+      "thp_pages": 4096,
+      "contents_verified": true,
+      "same_returned_pfn_pages": 4096
+    },
+    "gui_attempt": {
+      "memory_mib": 1024,
+      "admitted_mib": 400,
+      "refused_batch_offset_mib": 400,
+      "initial_sampled": 2544,
+      "initial_thp": 2544,
+      "expected": 4096,
+      "refreshed_sampled": 3424,
+      "refreshed_thp": 3408,
+      "vmm_started": false
+    }
+  },
+  "gui_guest_frame_verified": false,
+  "gui_touch_verified": false,
+  "gui_reconnect_verified": false,
+  "running_vm_viewer_close_verified": false,
+  "both_policy_restorers_completed": true,
+  "postflight": {
+    "boot_core_trusted_vm_unchanged": true,
+    "taint": 4608,
+    "selinux": "Enforcing",
+    "six_policies": "never",
+    "original_source_disks_unchanged": true,
+    "owned_vm_remaining": false
+  },
+  "cache_release_comparison": {
+    "commands_accepted": 10,
+    "level": "BACKGROUND",
+    "only_freshly_checked_cached_user_apps": true,
+    "memavailable_before_kib": 5369568,
+    "memavailable_after_kib": 5815176,
+    "effect_causality_proven": false,
+    "subsequent_16mib_present_pages": 4096,
+    "subsequent_16mib_thp_pages": 3724,
+    "subsequent_16mib_contents_and_pfn_return": true,
+    "additional_vmm_started": false,
+    "extra_compaction": false,
+    "force_stop_or_kill": false
+  },
+  "build": {
+    "version_code": 26,
+    "jvm_tests": 81,
+    "host_cases": 235,
+    "host_skipped": 3,
+    "lint_errors": 0,
+    "lint_warnings": 45,
+    "apk_sha256": "7096475093599ef9ac1bcd0c21ead888e5a28704164c0b698f4c6f1a90cb50fb",
+    "installed_apk_hash_matches": true
+  }
+}

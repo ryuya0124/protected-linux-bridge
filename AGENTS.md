@@ -764,3 +764,51 @@ ENODEV network-stop query and the prior closed-channel warning remain separately
 recorded; no physical viewer-close/media test or30-minute endurance is claimed.
 No extra compaction, host protection/kernel/partition change or Android restart
 was performed. The Android16 frozen refs remain unchanged.
+
+## GUI debugging explicitly allowed, user 2026-10-21
+
+The user now permits GUI debugging. Test Bridge's actual Android guest viewer,
+touch input, Surface hiding/recreation, network status/reconnect and normal
+viewer close through Tail ADB. This supersedes the preceding non-GUI-only
+restriction for these checks. Keep all host/kernel/partition/protection/reboot
+prohibitions, exact pins, ownership, health/RAM/all-THP gates and six-key/40-second
+restoration guards. This does not grant new physical microphone/camera/LED-on
+capture permission, extra compaction or unrelated-app/VM operations. Preserve
+all original disks and Android16 frozen references; log actual GUI results
+separately from the earlier headless validation.
+
+## Fourth single compaction approval, GUI comparison 2026-10-21
+
+The user explicitly answered 「追加の1回だけ許可する」 to the concrete
+GUI compaction proposal. Permit exactly one additional write of `1\n` to
+`/proc/sys/vm/compact_memory`, with no owned VM or pressure allocation, a
+new durable O_EXCL spent receipt and the reviewed45-second owned-child
+monitor. Preserve all three earlier spent receipts, exact host/boot/health
+checks, owner/maintenance leases,1536MiB floor and all other prohibitions.
+Only after healthy postflight and a positive16MiB full-content THP handoff
+may one manual1GiB GUI VM attempt follow. No automatic repeat or wider tuning.
+This fourth approval is now consumed: the one two-byte write succeeded in566ms.
+The16MiB gate passed4096/4096 THP pages, full contents and identical returned
+PFNs. The single subsequent GUI attempt admitted batches through384MiB, then
+refused the400MiB batch before VMM execution (2544/4096 sampled initially;
+bounded refresh3424 present /3408 THP). Both shmem restorers completed. No GUI
+boot/touch/reconnect success is claimed. Preserve the new spent receipt; no
+additional compact_memory write is authorized. Original boot/core/trustedVM,
+taint4608, Enforcing, six never policies and original source-disk hashes passed.
+
+## Android cache-release notification request, user2026-10-21
+
+The user now asks Android OS to release memory. Use only the supported
+ActivityManager send-trim-memory BACKGROUND notification for freshly checked
+user-0 cached third-party app processes. Exclude core/system/foreground/service,
+Tail ADB/VPN/root/Vector/keyboard/VM/Bridge processes. No force-stop/kill-all,
+cache-data deletion, drop_caches, pressure allocation, policy change or extra
+compaction is authorized by this request. Measure outcomes; command acceptance
+does not prove app callback execution or reclaimed memory.
+
+Ten freshly verified cached user-app processes accepted BACKGROUND trim commands.
+MemAvailable rose435MiB across snapshots, without causal proof. The idle-only
+Debian stop returned its exact receipt. The later16MiB handoff preserved contents
+and PFNs but only3724/4096 pages were THP; no further VM was started. The user
+request does not authorize another compaction. Final release code26 retains
+all gates; no automatic host-wide trim feature was added.

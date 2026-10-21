@@ -1,3 +1,6 @@
+> Latest actual app GUI results: [alpha.7 GUI validation](android17-gui-validation.md).
+> The separate one-shot compaction did not achieve a GUI boot.
+
 > Update: [the experimental app launch](android17-app-launch.md) now exposes the
 > separate 1 GiB GLES runtime on explicit user request. The entries below retain
 > their original chronology; earlier gate=false statements are historical.

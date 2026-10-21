@@ -497,6 +497,7 @@ public final class MainActivity extends AppCompatActivity {
     refreshDevices();
     app().observer = this::refreshFramework;
     refreshFramework();
+    if (RuntimeSetup.releasedForAndroid) runtime.show(1, R.string.runtime_stopped);
     if (microphoneToggle != null)
       microphoneToggle.setChecked(
           getSharedPreferences("config", 0).getBoolean("microphone_enabled", false)

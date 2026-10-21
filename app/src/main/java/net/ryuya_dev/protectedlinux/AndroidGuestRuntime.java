@@ -49,7 +49,7 @@ final class AndroidGuestRuntime {
       case 35 -> R.string.android_guest_profile_copy_failed;
       case 38 -> R.string.android_guest_policy_failed;
       case 39 -> R.string.android_guest_large_unsupported;
-      case 40, 45, 46, 47, 48, 49, 50 -> R.string.android_guest_preparation_failed;
+      case 40, 45, 46, 47, 48, 49, 50, 52 -> R.string.android_guest_preparation_failed;
       case 41 -> R.string.android_guest_process_isolation_failed;
       case 42, 90 -> R.string.android_guest_host_memory_warning;
       case 59, 88, 89 -> R.string.android_guest_fragmented;
@@ -75,6 +75,10 @@ final class AndroidGuestRuntime {
     } catch (java.io.FileNotFoundException missing) {
       throw new java.io.IOException(context.getString(R.string.android17_app_bundle_missing));
     }
+    // The pinned installer also takes the VM owner lease. Release only a
+    // genuinely idle Debian manager before attempting either native check.
+    if (!RuntimeSetup.releaseIdleForAndroid(context))
+      throw new java.io.IOException(context.getString(R.string.android_guest_busy));
     String installer = new File(context.getFilesDir(), "runtime/android17-app-install").getPath();
     checkedCommand(context, installer, "ANDROID17_APP_RUNTIME_INSTALLED");
     String controller =

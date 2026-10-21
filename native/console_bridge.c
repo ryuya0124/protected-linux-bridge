@@ -17,6 +17,7 @@
 #include <string.h>
 #include <stddef.h>
 #include "stream_relay.h"
+#include "idle_handoff.h"
 #include <stdint.h>
 #include "host_android17.h"
 #include "../tools/host_memory_health.h"
@@ -61,8 +62,15 @@ static int local_socket(int listen_socket) {
     struct sockaddr_un a = {.sun_family = AF_UNIX};
     memcpy(a.sun_path + 1, ABSTRACT, sizeof(ABSTRACT) - 1);
     socklen_t length = offsetof(struct sockaddr_un, sun_path) + sizeof(ABSTRACT);
-    if (listen_socket ? (bind(fd, (struct sockaddr *)&a, length) || listen(fd, 16))
-                      : (connect(fd, (struct sockaddr *)&a, length) || peer_uid(fd) != 0)) {
+    int failed = listen_socket ? (bind(fd, (struct sockaddr *)&a, length) || listen(fd, 16))
+                               : connect(fd, (struct sockaddr *)&a, length);
+    if (!failed && !listen_socket && peer_uid(fd) != 0) {
+        // Authentication failure must never inherit a stale ECONNREFUSED and
+        // be mistaken for an absent idle manager.
+        errno = EPERM;
+        failed = 1;
+    }
+    if (failed) {
         int saved = errno;
         close(fd);
         errno = saved;
@@ -346,7 +354,9 @@ static void shutdown_vm(pid_t vm, pid_t proxy) {
 static int client_command(const char *command) {
     int fd = local_socket(0);
     if (fd < 0)
-        return *command == 'X' ? 0 : 1;
+        return *command == 'X' || (*command == 'I' && (errno == ECONNREFUSED || errno == ENOENT))
+                   ? 0
+                   : 1;
     struct timeval t = {3, 0};
     setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &t, sizeof(t));
     char line[64] = {0};
@@ -354,16 +364,20 @@ static int client_command(const char *command) {
     if (*command == '?')
         ok = ok && read(fd, line, sizeof(line) - 1) == (ssize_t)(sizeof(READY) - 1) &&
              !memcmp(line, READY, sizeof(READY) - 1);
+    if (*command == 'I') {
+        unsigned char reply = 255;
+        ok = ok && read(fd, &reply, 1) == 1 && reply == 0;
+    }
     close(fd);
     if (ok && *command == '?') {
         puts("BRIDGE_WAITING existing");
         fflush(stdout);
     }
-    if (ok && *command == 'X') {
+    if (ok && (*command == 'X' || *command == 'I')) {
         for (int i = 0; i < 400; i++) {
             fd = local_socket(0);
             if (fd < 0)
-                return 0;
+                return *command == 'X' || errno == ECONNREFUSED || errno == ENOENT ? 0 : 1;
             close(fd);
             usleep(100000);
         }
@@ -473,6 +487,12 @@ int main(int argc, char **argv) {
         return client_command("?");
     if (argc == 2 && !strcmp(argv[1], "--stop"))
         return client_command("X");
+    if (argc == 2 && !strcmp(argv[1], "--stop-idle")) {
+        int result = client_command("I");
+        if (!result)
+            puts("DEBIAN_IDLE_RELEASED");
+        return result;
+    }
 #ifdef PLB_PROFILE_MAINLINE
     if (kernel_ready())
         return 27;
@@ -643,6 +663,13 @@ int main(int argc, char **argv) {
             int error =
                 read(client, &mode, 1) != 1 || mode > 3 || clipboard_start((uid_t)module_uid, mode);
             send_status(client, error ? 3 : 0);
+        } else if (received == 1 && request == 'I') {
+            // Admission and state checks happen in this same serialized loop;
+            // a terminal cannot start a guest between an idle check and stop.
+            if (plb_idle_handoff(client, uid == module_uid || uid == 0, vm, proxy, sessions,
+                                 MAX_SESSIONS, gpu_renderer, gpu_server, gpu_workers,
+                                 PLB_GPU_CLIENTS))
+                stopped = 1;
         } else if (received == 1 && request == 'X' && (uid == module_uid || uid == 0))
             stopped = 1;
         else if (received == 1 &&
