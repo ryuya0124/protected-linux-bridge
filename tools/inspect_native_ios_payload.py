@@ -241,6 +241,67 @@ def extract_bounded_member(
     return {"sha256": digest.hexdigest(), "bytes": actual}
 
 
+def inspect_stored_dmg(stream, archive: zipfile.ZipFile, member: str) -> dict:
+    """Read ZIP-local header, UDIF footer and a bounded plist, never the OS body.
+
+    Layout cross-checked against Chromium's actual UDIFResourceFile parser:
+    chromium/src@41b7abbdb0a34bc77373673dd1400dfdf8c4d84c,
+    chrome/utility/safe_browsing/mac/udif.cc. This is a format inspection only;
+    the complete image's CRC/digest/signature remain unverified by these ranges.
+    """
+    entry = archive.getinfo(member)
+    if entry.compress_type != zipfile.ZIP_STORED or not 512 <= entry.file_size < 16 * 1024**3:
+        raise ValueError("OS layout inspection requires a bounded stored ZIP member")
+    stream.seek(entry.header_offset)
+    header = stream.read(30)
+    if len(header) != 30:
+        raise ValueError("Truncated local ZIP header")
+    signature, _, flags, method, _, _, _, _, _, name_size, extra_size = struct.unpack(
+        "<I5H3I2H", header
+    )
+    if (
+        signature != 0x04034B50
+        or flags & 1
+        or method != 0
+        or not 0 < name_size <= 1024
+        or extra_size > 4096
+    ):
+        raise ValueError("Invalid/encrypted local stored member")
+    if stream.read(name_size) != member.encode("utf-8"):
+        raise ValueError("Local ZIP member identity changed")
+    start = entry.header_offset + 30 + name_size + extra_size
+    if start + entry.file_size > archive.start_dir:
+        raise ValueError("Stored member overlaps the ZIP directory")
+    stream.seek(start + entry.file_size - 512)
+    footer = stream.read(512)
+    if len(footer) != 512 or struct.unpack_from(">4sII", footer) != (b"koly", 4, 512):
+        raise ValueError("Expected the original UDIF trailer")
+    plist_offset, plist_size = struct.unpack_from(">QQ", footer, 216)
+    sectors = struct.unpack_from(">Q", footer, 492)[0]
+    if not 0 < sectors <= 64 * 1024**3 // 512 or not 0 < plist_size <= 4 * 1024**2:
+        raise ValueError("Oversized UDIF metadata or expanded image")
+    if plist_offset > entry.file_size - 512 or plist_size > entry.file_size - 512 - plist_offset:
+        raise ValueError("UDIF plist exceeds its stored member")
+    stream.seek(start + plist_offset)
+    data = stream.read(plist_size)
+    if len(data) != plist_size:
+        raise ValueError("Truncated UDIF plist")
+    metadata = plistlib.loads(data)
+    entries = metadata.get("resource-fork", {}).get("blkx", [])
+    if not isinstance(entries, list) or len(entries) > 128:
+        raise ValueError("Oversized UDIF partition table")
+    return {
+        "member": member,
+        "stored_bytes": entry.file_size,
+        "expanded_bytes": sectors * 512,
+        "udif_plist_bytes": plist_size,
+        "partition_names": [e.get("Name", "") for e in entries],
+        "whole_image_fetched": False,
+        "whole_image_digest_verified": False,
+        "device_modified": False,
+    }
+
+
 def inspect(
     source: Path,
     output: Path,
@@ -249,6 +310,7 @@ def inspect(
     decode: bool = False,
     appos: bool = False,
     root_metadata: bool = False,
+    os_layout: bool = False,
 ) -> dict:
     source = source.resolve(strict=True)
     output = output.resolve()
@@ -306,6 +368,7 @@ def inspect(
         fetched_kernel = None
         fetched_appos = None
         fetched_root_metadata = {}
+        root_disk_layout = None
         if kernelcache or decode:
             info = archive.getinfo(components["KernelCache"]["member"])
             if info.file_size > 96 * 1024**2 or info.compress_size > 96 * 1024**2:
@@ -352,6 +415,8 @@ def inspect(
                         audit_root_hash(destination.read_bytes(), name, member, target_identities)
                     )
                 fetched_root_metadata[name] = record
+        if os_layout:
+            root_disk_layout = inspect_stored_dmg(stream, archive, components["OS"]["member"])
     result = {
         "product": config["product"],
         "version": config["version"],
@@ -363,6 +428,7 @@ def inspect(
         "kernelcache": fetched_kernel,
         "appos": fetched_appos,
         "root_metadata": fetched_root_metadata,
+        "main_os_layout": root_disk_layout,
         "root_authentication_qualified": False,
         "full_ipsw_downloaded": False,
         "os_rootfs_downloaded": False,
@@ -392,6 +458,11 @@ if __name__ == "__main__":
         action="store_true",
         help="Extract only six small root-hash/trust-cache members; no system image",
     )
+    parser.add_argument(
+        "--os-layout",
+        action="store_true",
+        help="Read only main OS ZIP/UDIF metadata for storage planning",
+    )
     args = parser.parse_args()
     report = inspect(
         args.source,
@@ -400,5 +471,6 @@ if __name__ == "__main__":
         decode=args.decode_kernelcache,
         appos=args.appos,
         root_metadata=args.root_metadata,
+        os_layout=args.os_layout,
     )
     print(json.dumps({k: v for k, v in report.items() if k != "components"}, indent=2))

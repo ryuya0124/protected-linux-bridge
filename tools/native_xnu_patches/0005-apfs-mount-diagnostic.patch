@@ -1,0 +1,27 @@
+--- a/bsd/kern/bsd_init.c
++++ b/bsd/kern/bsd_init.c
+@@ -1017,7 +1017,12 @@
+ 
+ 		bsd_init_kprintf("vfs_mountroot\n");
+ 		boot_progress_stage("vfs_mountroot enter");
+-		if (0 == (err = vfs_mountroot())) {
++		err = vfs_mountroot();
++#if defined(XNU_BRIDGE_APFS_MOUNT) && XNU_BRIDGE_APFS_MOUNT
++		extern void plb_bridge_apfs_mount_result(int);
++		plb_bridge_apfs_mount_result(err);
++#endif
++		if (err == 0) {
+ 			boot_progress_stage("vfs_mountroot mounted; authentication pending");
+ 			break;
+ 		}
+@@ -1072,6 +1077,10 @@
+ 		if (require_rootauth) {
+ 			/* enforce sealedness */
+ 			int autherr = VNOP_IOCTL(rootvnode, FSIOC_KERNEL_ROOTAUTH, NULL, 0, vfs_context_kernel());
++#if defined(XNU_BRIDGE_APFS_MOUNT) && XNU_BRIDGE_APFS_MOUNT
++			extern void plb_bridge_apfs_auth_result(int, mount_t);
++			plb_bridge_apfs_auth_result(autherr, vnode_mount(rootvnode));
++#endif
+ 			int owner_authorized = 0;
+ #if defined(XNU_OWNER_ROOT_AUDIT) && XNU_OWNER_ROOT_AUDIT
+ 			{

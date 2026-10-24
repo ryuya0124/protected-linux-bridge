@@ -115,6 +115,61 @@ class OriginalFamilyEvidenceTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             assess(self.console(rows), self.runner, contract, pattern)
 
+    def mount_rows(self, mount_error=0, auth_error=13):
+        rows = list(self.rows[:9])
+        rows[3] = ("MEDIA", "candidate", 16, 20480)
+        rows[7] = ("ORIGINAL", "bsd_read_pass", 10485760, 456)
+        rows += [
+            ("ORIGINAL", "root_selected", 1, 7),
+            ("ORIGINAL", "vfs_mount_result", mount_error, 0),
+        ]
+        if mount_error == 0:
+            rows += [
+                ("ORIGINAL", "vfs_apfs_readonly", 1, 1),
+                ("ORIGINAL", "apple_root_auth_result", auth_error, 0),
+            ]
+        rows += [
+            ("ORIGINAL", "device_reset", 0, 0),
+            ("ORIGINAL", "mount_probe_complete", 0, 0),
+            ("ORIGINAL", "guest_shutdown", 0, 0),
+        ]
+        rows.insert(7, ("ORIGINAL", "apfs_container_header", 10485760, 4096))
+        return rows
+
+    def test_real_mount_and_failed_authentication_are_distinct(self):
+        contract = dict(self.contract, fixture_kind="official_appos", mount_probe=True)
+        pattern = dict(self.pattern, disk_bytes=10485760, disk_sha256=APPOS_SHA256)
+        result = assess(self.console(self.mount_rows()), self.runner, contract, pattern)
+        self.assertTrue(result["filesystem_mount_verified"])
+        self.assertTrue(result["root_authentication_evaluated"])
+        self.assertEqual(result["root_authentication_errno"], 13)
+        self.assertFalse(result["root_authentication_verified"])
+        self.assertFalse(result["ios_boot_verified"])
+
+    def test_failed_mount_does_not_invent_an_authentication_result(self):
+        contract = dict(self.contract, fixture_kind="official_appos", mount_probe=True)
+        pattern = dict(self.pattern, disk_bytes=10485760, disk_sha256=APPOS_SHA256)
+        result = assess(
+            self.console(self.mount_rows(mount_error=22)), self.runner, contract, pattern
+        )
+        self.assertFalse(result["filesystem_mount_verified"])
+        self.assertFalse(result["root_authentication_evaluated"])
+        self.assertIsNone(result["root_authentication_errno"])
+
+    def test_missing_mount_or_auth_result_and_writable_mount_are_refused(self):
+        contract = dict(self.contract, fixture_kind="official_appos", mount_probe=True)
+        pattern = dict(self.pattern, disk_bytes=10485760, disk_sha256=APPOS_SHA256)
+        for bad in ("vfs_mount_result", "apple_root_auth_result"):
+            rows = [row for row in self.mount_rows() if row[1] != bad]
+            with self.assertRaises(ValueError):
+                assess(self.console(rows), self.runner, contract, pattern)
+        rows = [
+            (tag, phase, a, 0 if phase == "vfs_apfs_readonly" else b)
+            for tag, phase, a, b in self.mount_rows()
+        ]
+        with self.assertRaises(ValueError):
+            assess(self.console(rows), self.runner, contract, pattern)
+
 
 if __name__ == "__main__":
     unittest.main()

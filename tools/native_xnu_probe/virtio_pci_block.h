@@ -256,8 +256,9 @@ static bool plb_vpci_start(struct plb_vpci_queue *q) {
     return q->ready;
 }
 
-static bool plb_vpci_read_page(struct plb_vpci_queue *q, uint64_t sector) {
-    if (!q->ready || q->capacity_sectors < 8 || sector > q->capacity_sectors - 8) {
+static bool plb_vpci_read(struct plb_vpci_queue *q, uint64_t sector, uint32_t bytes) {
+    if (!q->ready || !bytes || bytes > 4096 || (bytes & 511) || q->capacity_sectors < bytes / 512 ||
+        sector > q->capacity_sectors - bytes / 512) {
         return false;
     }
     volatile uint8_t *p = q->dma;
@@ -267,7 +268,7 @@ static bool plb_vpci_read_page(struct plb_vpci_queue *q, uint64_t sector) {
     p[512] = 0xff;
     const uint64_t addresses[3] = {q->dma_physical + 544, q->dma_physical + 4096,
                                    q->dma_physical + 512};
-    const uint32_t lengths[3] = {16, 4096, 1};
+    const uint32_t lengths[3] = {16, bytes, 1};
     for (unsigned n = 0; n < 3; n++) {
         plb_put64(p + 16 * n, addresses[n]);
         plb_put32(p + 16 * n + 8, lengths[n]);
@@ -284,9 +285,9 @@ static bool plb_vpci_read_page(struct plb_vpci_queue *q, uint64_t sector) {
     for (unsigned polls = 0; polls < 1000000; polls++) {
         if (plb_volatile_le16(p + 258) == q->available) {
             q->io.barrier(q->io.context);
-            unsigned used = 260 + ((q->available - 1) % 8) * 8;
+            unsigned used = 260 + ((uint16_t)(q->available - 1) % 8) * 8;
             bool valid = plb_volatile_le32(p + used) == 0 &&
-                         plb_volatile_le32(p + used + 4) == 4097 && p[512] == 0;
+                         plb_volatile_le32(p + used + 4) == bytes + 1 && p[512] == 0;
             if (!valid) {
                 q->ready = false;
             }
@@ -298,5 +299,9 @@ static bool plb_vpci_read_page(struct plb_vpci_queue *q, uint64_t sector) {
     }
     q->ready = false;
     return false;
+}
+
+static bool plb_vpci_read_page(struct plb_vpci_queue *q, uint64_t sector) {
+    return plb_vpci_read(q, sector, 4096);
 }
 #endif

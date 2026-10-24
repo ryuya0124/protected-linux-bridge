@@ -120,19 +120,20 @@ static void fake_write(void *p, unsigned region, unsigned offset, unsigned width
         assert(plb_le32(f->dma + 544) == 0); /* Never sends a write operation. */
         assert(plb_le32(f->dma + 8) == 16 && plb_le16(f->dma + 12) == 1);
         assert(plb_le16(f->dma + 28) == 3 && plb_le16(f->dma + 44) == 2);
-        assert(plb_le32(f->dma + 24) == 4096 && plb_le32(f->dma + 40) == 1);
+        uint32_t bytes = plb_le32(f->dma + 24);
+        assert(bytes > 0 && bytes <= 4096 && !(bytes & 511) && plb_le32(f->dma + 40) == 1);
         assert(plb_le32(f->dma + 16) == 0x9fff1000);
         f->requests++;
         if (f->error == 1)
             return; /* no completion */
         uint32_t sector = plb_le32(f->dma + 552);
-        for (unsigned n = 0; n < 4096; n++)
+        for (unsigned n = 0; n < bytes; n++)
             f->dma[4096 + n] = (uint8_t)(sector * 512 + n);
         f->dma[512] = f->error == 2 ? 1 : 0;
         uint16_t available = plb_le16(f->dma + 130);
-        unsigned used = 260 + (unsigned)((available - 1) % 8) * 8;
+        unsigned used = 260 + ((uint16_t)(available - 1) % 8) * 8;
         plb_put32(f->dma + used, f->error == 3 ? 7 : 0);
-        plb_put32(f->dma + used + 4, f->error == 4 ? 2 : 4097);
+        plb_put32(f->dma + used + 4, f->error == 4 ? 2 : bytes + 1);
         plb_put16(f->dma + 258, available);
         return;
     }
@@ -208,6 +209,19 @@ int main(void) {
     assert(!plb_vpci_read_page(&q, 20473));
     assert(!plb_vpci_read_page(&q, UINT64_MAX));
     assert(requests == f.requests);
+    // A GPT disk may end partway through a4KiB page. Preserve its512-byte
+    // geometry instead of padding the image or issuing an out-of-range request.
+    f.capacity = 20483;
+    assert(plb_vpci_start(&q));
+    assert(plb_vpci_read(&q, 20480, 1536));
+    assert(!plb_vpci_read_page(&q, 20480));
+    assert(!plb_vpci_read(&q, 20481, 1536));
+    assert(!plb_vpci_read(&q, 0, 513));
+    assert(!plb_vpci_read(&q, 0, 0));
+    for (unsigned i = 0; i < 65540; i++) {
+        assert(plb_vpci_read(&q, 0, 512));
+    }
+    assert(q.available == 5); /* Includes the prior1536-byte read, then16-bit wrap. */
     assert(plb_vpci_reset(&q));
     const uint64_t invalid_capacities[] = {0, 7, UINT64_MAX / 512 + 1};
     for (unsigned i = 0; i < sizeof(invalid_capacities) / sizeof(invalid_capacities[0]); i++) {

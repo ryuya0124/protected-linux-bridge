@@ -424,3 +424,98 @@ BuildManifest, but **no personalized IM4M or Apple signature authentication has
 been established**. The tool explicitly records that distinction and does not
 fabricate a manifest, clear the missing-root-auth result or enable app launch.
 A unit test also rejects disagreement between the two restore identities.
+
+## AppCryptex is not the main system root
+
+The next isolated mount mode selects the pinned AppCryptex UUID through normal
+in-guest registry APIs. Patch `0005-apfs-mount-diagnostic.patch` observes the
+normal `vfs_mountroot()` return and, if reached, the actual
+`FSIOC_KERNEL_ROOTAUTH` result. Authentication results are never rewritten;
+the diagnostic powers off its guest after recording results rather than
+continuing into user-space. The first-party builder enables this only with
+`--apfs-fixture ... --mount-probe`.
+
+This is a late guest patch. Before using the pinned baseline build driver,
+reverse patch0005 if already applied so its upstream root patches can pass
+their idempotent checks; reapply0005 after `prepare-xnu-source.py`. Build with
+`XNU_BRIDGE_PCI_MEDIA=1` and `XNU_BRIDGE_APFS_MOUNT=1` in the guest's extra CFLAGS,
+original-prelinked crypto and the isolated original-family archive. The local
+reviewed build wrapper coordinates that order. An initial overlapping-patch
+check failed; the corrected build passed, and BSD disassembly contains both
+actual callback calls. This does not change Android or its Framework.
+
+The trial repeated full10MiB readback and found the real service path:
+IOBlockStorageDriver → IOMedia/disk0 → AppleAPFSContainerScheme →
+AppleAPFSMedia/disk1 → AppleAPFSContainer → AppleAPFSVolume/disk1s1.
+The final volume matched UUID `C0DCFAA8-4E81-49CD-807D-BED3B9B6AE54`.
+Normal root selection succeeded. Original RELEASE APFS then panicked because
+there was no root snapshot and rooting from a sealed live filesystem was not
+allowed. The VFS return/auth callbacks were not reached. The supervisor stopped
+only its VMM at45s/result124. **No successful mount, authentication, normal guest
+shutdown or iOS boot is claimed for this trial.** Host postflight matched.
+
+Read-only Mac inspection of the same image confirmed AppCryptex has no snapshots.
+Temporary attachments were ejected and the image SHA remained unchanged; one
+detach command timed out, but a subsequent image inventory confirmed no
+attachment remained. This is an auxiliary AppOS component, not the main root.
+No snapshot name was invented and no sealing/authentication check was disabled.
+
+The next main-system-image step now has a bounded storage-layout inspection:
+`inspect_native_ios_payload.py --os-layout` reads only ZIP-local header, UDIF
+footer and at most4MiB of plist. It consumed2,603,624range bytes. The stored
+OS DMG is5,157,406,069bytes and its footer declares6,077,580,800expanded bytes,
+with GPT/APFS entries. This is planning metadata, not a whole-image CRC/digest
+check or downloaded root disk. Format offsets were cross-checked against
+[Chromium's UDIF parser](https://chromium.googlesource.com/chromium/src/+/41b7abbdb0a34bc77373673dd1400dfdf8c4d84c/chrome/utility/safe_browsing/mac/udif.cc).
+The Mac's8GiB space floor remains in force.
+
+## Main OS source is now prepared, not yet booted
+
+The separate explicit `fetch_native_ios_rootdisk.py` downloaded only the main
+OS member (5,157,406,069bytes). ZIP CRC and full SHA-384 match both restore
+identities. Its source SHA-256 is
+`3f99b859c9728379110b66657c7b15285bcb1925ad8b5726542e2cdcf8b1028d`.
+The original metadata inspector retains its128MiB budget. The large downloader
+uses8MiB versioned exact206 ranges, refuses200 before reading a body, and caps
+network bytes below the complete IPSW. It reserves expansion space plus8GiB.
+This is a deliberate separate CLI operation; no app auto-download was enabled.
+
+`prepare_native_ios_rootdisk.py` converted that exact DMG into a new raw GPT
+image,6,077,580,800bytes, with SHA-256
+`e5634d04a8ac35f024845f583394e0a35deb26a04cb0c00286a8674e25a9a4f2`.
+The owned conversion has an8GiB space guard and output-size bound. Source and
+raw hashes were rechecked; Mac free space afterward was18GiB. Raw and compressed
+artifacts remain ignored/private. No firmware binary was published to GitHub.
+
+Read-only Mac inspection found `DawnUpdate21H461.J120J121J207J208OS`, UUID
+`04769D26-2CA0-4825-B443-E2E5F88300F2`, with no snapshots. Both temporary owned
+image attachments were ejected; a fresh raw-image digest still matched.
+**This main image has not been attached to the Galaxy.** The AppCryptex panic
+is not a main-OS boot result. A future step must investigate correct restore
+preparation/snapshot and root-hash handoff using a distinct disk copy/overlay,
+while preserving the source and its sealing. An invented snapshot name or
+manifest-digest equality does not establish authenticated boot.
+
+The disk's exact512-byte sector geometry ends in1536bytes beyond its last full
+4KiB page. The lower PCI protocol now accepts512..4096byte bounded reads and
+requires the exact completion length. Its16-bit queue-wrap indexing was fixed
+as well. ASan/UBSan controls test the partial tail, rejected out-of-range and
+bad sizes, and65,540requests through wrap. A subsequent fresh AppOS regression
+again passed the actual full10MiB BSD readback, reset/shutdown and VMM/supervisor0
+with matched host postflight and mount hooks absent. That proves the retained
+full-page runtime path; partial-tail/counter-wrap corner cases remain tested
+offline only. The diagnostic admission still allows only2MiB/10MiB fixtures;
+it does not silently admit the newly prepared multi-GiB root disk.
+
+The complete SystemOS image, a boot-ready deployed root, Apple signature
+qualification, iOS user-space and display/input support remain absent. The
+Android/Debian app runtime and frozen Android16 refs remain unchanged.
+
+Current validation:289 host tests,6 environment skips; actual main-OS download,
+whole-image checks and macOS conversion passed; original-storage AppOS regression
+passed on-device. The final class-macro readability-only edit recompiled with
+190 slots and byte-identical executable text to that tested object. Python3.11+
+is required (tested3.13.5); macOS/Xcode supply the guest compiler and image tool.
+The two last device trials' consumed firmware/disks/runners and exact shell
+stages were removed after receipt verification. Durable spent/log records and
+all original Android/Debian images remain. No owned native VMM remains active.

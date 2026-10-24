@@ -4,12 +4,16 @@
 The target remains execution on the Galaxy, with the host Android preserved.
 The Galaxy has now executed native protected UEFI and a source-built XNU
 kernel. This is **early kernel bring-up**, not an iOS home screen, a working
-iPadOS installation or an enabled app profile. The main OS/SystemOS root images
-remain unfetched; a separate small AppOS component was obtained for diagnostics.
+iPadOS installation or an enabled app profile. The main OS image has now been
+downloaded, verified and converted privately;
+SystemOS remains unfetched. A separate small AppOS component supplies the locally
+verified readback diagnostic. Neither is an enabled iOS app profile.
 
 The latest checkpoint is full **10 MiB real AppOS readback through original
 Apple storage/BSD**, with APFS checkpoint recognition and normal guest shutdown.
-Root-hash metadata has also been inspected separately. A manifest digest match
+The main restore volume and auxiliary AppOS both have no snapshots in separate
+read-only Mac inspection. AppOS root-mount failed; the main image has not been
+attached to the Galaxy. Root-hash metadata was inspected separately. A digest match
 does not establish Apple's signature authentication or a bootable system root.
 
 ## Execution model
@@ -182,7 +186,7 @@ build configuration without adding a fake graphics service.
 
 At the initial source-only checkpoint no Apple binaries had been fetched. Later
 bounded kernelcache, small AppOS and root-metadata fetches are detailed below;
-the main OS/SystemOS images and full IPSW remain unfetched.
+the main OS/SystemOS images and full IPSW were still unfetched at that checkpoint.
 Sources/build caches and proprietary artifacts are ignored and space-bound;
 Android 16 frozen refs and the shipped Android/Debian runtime remain unchanged.
 See the [reproduction and evidence notes](native-xnu-bringup.md) and the
@@ -227,3 +231,24 @@ was fixed after retaining the first failed trial. The second guest powered off
 normally and host postflight matched. Missing guest system-volume-auth metadata
 and the absent main OS/SystemOS images still block a real iOS system-root boot;
 container readback is not a mounted system volume or iOS user-space.
+
+A later normal root-selection trial reached the real AppCryptex volume, but
+original RELEASE APFS panicked when it found no root snapshot. Separate
+read-only Mac inspection confirms that this small auxiliary image has no
+snapshots. The owned diagnostic ended124 after45s and host postflight matched;
+it is not a successful mount or normal guest shutdown. Sealing was not disabled
+and no authentication result was substituted. A main-system-root profile is
+still needed. Bounded ZIP/UDIF metadata inspection now estimates the original
+OS DMG at5.16GB stored /6.08GB expanded; the actual main image remains unfetched.
+
+The main OS member was subsequently downloaded with whole ZIP CRC and SHA-384
+checks against both actual restore manifests, then converted to a separate
+6.08GB raw GPT image. This supersedes the earlier main-image-unfetched status;
+SystemOS/full IPSW are still not downloaded. Read-only Mac inspection found the
+main DawnUpdate restore volume with no snapshots. Its raw hash was rechecked
+and attachments removed. **No main-OS VM attempt occurred.** Correct deployment,
+snapshot/root-hash handoff and authentication still need qualification; the
+AppCryptex failure must not be relabeled as a tested main-root failure.
+A fresh normal10MiB AppOS regression passed after PCI partial-tail/wrap fixes.
+The corner cases are ASan/UBSan-tested offline, not hardware-qualified. The
+app and diagnostic fixture-admission limits remain unchanged.

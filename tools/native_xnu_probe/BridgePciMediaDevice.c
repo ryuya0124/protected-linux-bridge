@@ -139,16 +139,20 @@ fail:
 }
 
 bool plb_media_device_read(uint64_t offset, uint8_t destination[4096]) {
-    if (!device.online || !destination || (offset & 4095) || offset > PLB_PCI_DATA_BYTES - 4096) {
+    if (!device.online || !destination || (offset & 4095) || offset >= PLB_PCI_DATA_BYTES) {
         return false;
     }
+    uint64_t remaining = PLB_PCI_DATA_BYTES - offset;
+    uint32_t bytes = remaining < 4096 ? (uint32_t)remaining : 4096;
     device.requests++;
-    if (!plb_vpci_read_page(&device.queue, offset / 512) || device.mappings.invalid) {
+    bool read = bytes == 4096 ? plb_vpci_read_page(&device.queue, offset / 512)
+                              : plb_vpci_read(&device.queue, offset / 512, bytes);
+    if (!read || device.mappings.invalid) {
         device.online = false;
         return false;
     }
     for (unsigned i = 0; i < 4096; i++) {
-        destination[i] = device.queue.dma[4096 + i];
+        destination[i] = i < bytes ? device.queue.dma[4096 + i] : 0;
     }
     return true;
 }

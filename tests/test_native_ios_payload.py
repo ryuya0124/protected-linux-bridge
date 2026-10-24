@@ -6,6 +6,8 @@ import sys
 import unittest
 import tempfile
 import zipfile
+import plistlib
+import struct
 from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
@@ -14,6 +16,7 @@ from inspect_native_ios_payload import (
     im4p_kernel_payload,
     extract_bounded_member,
     audit_root_hash,
+    inspect_stored_dmg,
 )
 
 
@@ -128,3 +131,37 @@ class ApplePayloadRangeTest(unittest.TestCase):
         identities[1]["Manifest"]["SystemVolume"]["Digest"] = b"changed"
         with self.assertRaises(ValueError):
             audit_root_hash(data, "SystemVolume", "root_hash", identities)
+
+    def dmg_archive(self, *, bad=None, compression=zipfile.ZIP_STORED):
+        metadata = plistlib.dumps({"resource-fork": {"blkx": [{"Name": "APFS fixture"}]}})
+        footer = bytearray(512)
+        struct.pack_into(">4sII", footer, 0, b"koly", 4, 512)
+        struct.pack_into(">QQ", footer, 216, 0, len(metadata))
+        struct.pack_into(">Q", footer, 492, 32768)
+        if bad == "signature":
+            footer[0:4] = b"nope"
+        if bad == "plist_size":
+            struct.pack_into(">Q", footer, 224, 4 * 1024**2 + 1)
+        if bad == "plist_bounds":
+            struct.pack_into(">Q", footer, 216, len(metadata) + 1)
+        packed = io.BytesIO()
+        with zipfile.ZipFile(packed, "w", compression) as archive:
+            archive.writestr("root.dmg", metadata + footer)
+        return packed
+
+    def test_os_layout_inspection_does_not_claim_the_whole_image_was_verified(self):
+        packed = self.dmg_archive()
+        with zipfile.ZipFile(packed) as archive:
+            result = inspect_stored_dmg(packed, archive, "root.dmg")
+        self.assertEqual(result["expanded_bytes"], 16 * 1024**2)
+        self.assertEqual(result["partition_names"], ["APFS fixture"])
+        self.assertFalse(result["whole_image_digest_verified"])
+
+    def test_bad_udif_metadata_and_compressed_outer_members_are_refused(self):
+        for kind in ("signature", "plist_size", "plist_bounds"):
+            packed = self.dmg_archive(bad=kind)
+            with zipfile.ZipFile(packed) as archive, self.assertRaises(ValueError):
+                inspect_stored_dmg(packed, archive, "root.dmg")
+        packed = self.dmg_archive(compression=zipfile.ZIP_DEFLATED)
+        with zipfile.ZipFile(packed) as archive, self.assertRaises(ValueError):
+            inspect_stored_dmg(packed, archive, "root.dmg")

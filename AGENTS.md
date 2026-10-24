@@ -1021,3 +1021,87 @@ metadata inspection, not another VM attempt or main OS/SystemOS download.
 Both AppOS trials subsequently had only their four consumed inputs and exact
 shell staging directories removed after nonce/receipt verification. App-private
 spent receipts/logs and all four original Android/Debian files were retained.
+
+## AppCryptex root-mount investigation, later 2026-10-24
+
+Continuing after00e6897, a dedicated mount mode was implemented. It selects only
+the exact pinned AppCryptex UUID via normal guest registry APIs, then lets the
+real XNU setconf/vfs_mountroot path run. Guest-only patch0005 records the actual
+VFS return and the real FSIOC_KERNEL_ROOTAUTH return if reached; it never
+substitutes authentication success or enables user-space. Macro guards keep
+this separate from the prior readback modes and app/Android profiles.
+
+The public late patch overlaps upstream root patch context: reverse it before
+the baseline driver's upstream patch checks, then reapply after guest source
+preparation only for PLB_NATIVE_APFS_MOUNT=1. The reviewed private build driver
+now does that. The first build failed the overlapping patch check without
+building/running a VM; the second succeeded. BSD disassembly verifies both new
+callback calls, not merely linked symbol presence. No host Xposed hook involved.
+
+The new512MiB trial repeated the full10MiB readback and selected real disk1s1
+with AppCryptex UUID C0DCFAA8-4E81-49CD-807D-BED3B9B6AE54. Original APFS then
+panicked inside vfs_mountroot: it could not find a root snapshot and rejects
+rooting from a sealed live filesystem on its RELEASE build. The actual mount
+and root-auth callbacks were not reached. The owned supervisor stopped its VMM
+at45s/result124; normal guest shutdown, VFS mount and iOS boot are NOT verified.
+Postflight host boot/core/trustedVM births, taint4608, Enforcing, six never
+policies and all four original disk metadata identities matched.
+
+Separate read-only Mac inspection of this exact AppOS showed AppCryptex with
+no APFS snapshots (diskutil snapshot listing while read-only mounted). These
+were temporary Mac image attachments, not Android mounts. One detach command
+timed out; the following hdiutil info showed no attachment remained. The owned
+mountpoint was removed and the source image SHA stayed pinned. Do not fabricate
+a snapshot name or disable sealing based on this result. AppOS is an auxiliary
+component; the main system root image has not been prepared.
+
+A bounded OS-layout inspection fetched2603624 range bytes only. Its actual
+stored ZIP member is5157406069bytes; UDIF footer declares6077580800 expanded
+bytes, with GPT/APFS layout. The whole file's CRC/digest remains unverified;
+no main OS/SystemOS image was downloaded. The layout parser is checked against
+Chromium's actual UDIF resource structure, with size and member-bound tests.
+No new compaction, THP setting, host kernel/module/partition/SELinux or reboot.
+
+## Main OS source preparation and final readback regression, later2026-10-24
+
+The separate explicit large-download tool now obtained ONLY the main OS ZIP
+member (5157406069bytes). Whole-member CRC and SHA384 match both actual j120ap
+restore identities. Source SHA256 is3f99b859c9728379110b66657c7b15285bcb1925ad8b5726542e2cdcf8b1028d.
+Metadata-only inspection still has its original128MiB cap. The large downloader
+uses bounded8MiB exact206/ETag groups, a per-member budget below the full IPSW,
+and reserves future expansion plus8GiB. No200-body fallback or full IPSW fetch.
+SystemOS remains unfetched; no Apple signature authentication is claimed.
+
+The exact source was converted with macOS hdiutil to a NEW6077580800byte GPT/raw
+image. Its SHA256 is e5634d04a8ac35f024845f583394e0a35deb26a04cb0c00286a8674e25a9a4f2;
+first4096byte FNV64 is729933198653461872. Source hash was rechecked. Both files
+are ignored/private Mac artifacts, NOT installed into Android or attached to a
+VM. Mac free space was18GiB afterward; preserve the8GiB floor and avoid duplicate
+multi-GiB copies. No new iOS app launch, installer or APK release was enabled.
+
+Read-only Mac inspection found DawnUpdate21H461.J120J121J207J208OS, volume UUID
+04769D26-2CA0-4825-B443-E2E5F88300F2, with no snapshots. Both owned Mac image
+attachments were removed and a fresh whole-raw hash matched after inspection.
+The earlier guest panic concerns AppCryptex, not a tested main-OS boot. Do not
+claim the main root failed or that a fabricated snapshot name will fix it.
+Investigate normal restore deployment/snapshot and root-hash handoff on a
+separate guest-disk copy/overlay, preserving the verified source and sealing.
+The current diagnostic front end still admits ONLY2MiB/10MiB, not this6GiB disk.
+
+The main disk's sector geometry ends in a1536byte partial4KiB page. The protocol
+now supports bounded512..4096byte reads and strict exact completion sizes; no
+padding or image mutation. A16bit queue-counter wrap indexing error was also
+fixed. ASan/UBSan tests exercise partial tails, bad ranges/sizes, and65540 reads
+through the counter wrap. These corner cases are offline-tested, not measured
+on-device. A separate fresh normal AppOS trial with mount hooks absent verified
+all10MiB again, reset/shut down normally, supervisor/VMM0 and matched host
+postflight. This qualifies the unchanged full-page runtime path, not the new
+partial-tail/wrap corner cases. Keep that distinction in public records.
+
+The two last device trials subsequently had only their four consumed inputs and
+exact shell stages removed after confirming no owned native VMM remained and
+matching remote/local nonce receipts. Spent/log records remain. Both original
+Android16 refs were rechecked at d38015f89374976cdac8ed0d6ce1f30635a52df5.
+Final tests:289 run,6 skipped. A later class-macro readability-only edit compiled
+with190 slots, and the guest object's entire executable __text section exactly
+matched the device-tested regression object. It was not another VM attempt.

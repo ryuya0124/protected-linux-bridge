@@ -122,11 +122,14 @@ def compile_probe(
     candidate: Path,
     nonce: str,
     apfs_fixture: Path | None = None,
+    mount_probe: bool = False,
 ) -> dict:
     source = source.resolve(strict=True)
     audit_path = audit_path.resolve(strict=True)
     candidate = candidate.resolve(strict=True)
     private = (ROOT / "artifacts").resolve()
+    if mount_probe and apfs_fixture is None:
+        raise ValueError("Mount diagnostic requires the separately pinned AppOS fixture")
     if any(not path.is_relative_to(private) for path in (source, audit_path, candidate)):
         raise ValueError("Use private, reviewed source and audit artifacts")
     require_revision(source, BUILD_REVISION)
@@ -156,6 +159,8 @@ def compile_probe(
                 f"#define PLB_PCI_DATA_BYTES {len(data)}\n"
                 f"#define PLB_PCI_APFS_FIXTURE 1\n#define PLB_PCI_EXPECTED_FNV {fnv}ULL\n"
             )
+            if mount_probe:
+                header.write("#define PLB_PCI_APFS_MOUNT 1\n")
         pattern.update(
             disk_bytes=len(data),
             disk_sha256=APPOS_SHA256,
@@ -285,6 +290,7 @@ def compile_probe(
         "vm_started": False,
         "original_bsd_readback_verified": False,
         "ios_boot_verified": False,
+        "mount_probe": mount_probe,
     }
     (output / "original-probe.json").write_text(json.dumps(report, indent=2) + "\n")
     return report
@@ -298,11 +304,20 @@ if __name__ == "__main__":
     parser.add_argument("--candidate", required=True, type=Path)
     parser.add_argument("--nonce", required=True)
     parser.add_argument("--apfs-fixture", type=Path, help="Only the exact pinned small AppOS image")
+    parser.add_argument(
+        "--mount-probe", action="store_true", help="Guest-only root mount/authentication diagnostic"
+    )
     args = parser.parse_args()
     print(
         json.dumps(
             compile_probe(
-                args.source, args.output, args.audit, args.candidate, args.nonce, args.apfs_fixture
+                args.source,
+                args.output,
+                args.audit,
+                args.candidate,
+                args.nonce,
+                args.apfs_fixture,
+                args.mount_probe,
             ),
             indent=2,
         )

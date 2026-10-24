@@ -14,6 +14,9 @@ APPOS_SHA256 = "52e568e1eaaede5fde4684ad10afc60f8fb236bfb5a23e0869bb0ed8a1d275d7
 def assess(console: str, runner: str, contract: dict, pattern: dict) -> dict:
     nonce = contract["nonce"]
     appos = contract.get("fixture_kind") == "official_appos"
+    mount_probe = contract.get("mount_probe") is True
+    if mount_probe and not appos:
+        raise ValueError("Mount diagnostic requires the pinned AppOS mode")
     expected_bytes = 10485760 if appos else 2097152
     if pattern["nonce"] != nonce or pattern["disk_bytes"] != expected_bytes:
         raise ValueError("Mixed or invalid diagnostic disk identity")
@@ -49,6 +52,23 @@ def assess(console: str, runner: str, contract: dict, pattern: dict) -> dict:
         ("ORIGINAL", "pass"),
         ("ORIGINAL", "guest_shutdown"),
     ]
+    mount_error = None
+    auth_error = None
+    if mount_probe:
+        mount_rows = [row for row in rows if row[2] == "vfs_mount_result"]
+        if len(mount_rows) != 1:
+            raise ValueError("Missing or ambiguous actual VFS mount result")
+        mount_error = int(mount_rows[0][3])
+        if not 0 <= mount_error <= 4095:
+            raise ValueError("Invalid VFS errno")
+        phases = phases[:9] + [("ORIGINAL", "root_selected"), ("ORIGINAL", "vfs_mount_result")]
+        if mount_error == 0:
+            phases += [("ORIGINAL", "vfs_apfs_readonly"), ("ORIGINAL", "apple_root_auth_result")]
+        phases += [
+            ("ORIGINAL", "device_reset"),
+            ("ORIGINAL", "mount_probe_complete"),
+            ("ORIGINAL", "guest_shutdown"),
+        ]
     if appos:
         phases.insert(7, ("ORIGINAL", "apfs_container_header"))
     if [(row[0], row[2]) for row in rows] != phases or any(row[1] != nonce for row in rows):
@@ -71,8 +91,17 @@ def assess(console: str, runner: str, contract: dict, pattern: dict) -> dict:
         raise ValueError("Invalid BSD device identity")
     if values[7] != (expected_bytes, pattern["disk_fnv64"]):
         raise ValueError("Full original-family BSD readback failed")
-    if values[8:] != [(0, 0)] * 4:
+    if values[8] != (0, 0) or values[-3:] != [(0, 0)] * 3:
         raise ValueError("Device not closed/reset/shut down")
+    if mount_probe:
+        if values[9][0] != 1 or not 1 <= values[9][1] <= 128 or values[10] != (mount_error, 0):
+            raise ValueError("Invalid unique root selection/mount result")
+        if mount_error == 0:
+            if values[11] != (1, 1):
+                raise ValueError("The actual mount is not read-only APFS")
+            auth_error, unused = values[12]
+            if not 0 <= auth_error <= 4095 or unused != 0:
+                raise ValueError("Invalid actual root authentication errno")
     apfs = re.search(
         r"apfs_module_start:\d+: load: com\.apple\.filesystems\.apfs, v([^,\s]+)", console
     )
@@ -88,7 +117,11 @@ def assess(console: str, runner: str, contract: dict, pattern: dict) -> dict:
         "apfs_version": apfs.group(1) if apfs else None,
         "guest_shutdown_verified": True,
         "supervisor_exit": 0,
-        "filesystem_mount_verified": False,
+        "filesystem_mount_verified": mount_probe and mount_error == 0,
+        "root_mount_errno": mount_error,
+        "root_authentication_evaluated": auth_error is not None,
+        "root_authentication_errno": auth_error,
+        "root_authentication_verified": auth_error == 0,
         "ios_boot_verified": False,
     }
 

@@ -27,7 +27,7 @@
     "Reference framebuffer and diagnostic tools read shared guest RAM; must not run against donated protected mappings",
     "17.7.11 kernel prelink hashes and platform drivers do not establish newer iOS support",
     "Reference RAM and MMIO addresses cannot be copied to another topology",
-    "Native synthetic storage and full10MiB original Apple AppOS BSD readback pass; main system-root mount/authentication, user-space and display remain unverified",
+    "Full10MiB original Apple AppOS BSD readback passes; full main OS is downloaded/converted but its VM/root-mount/authentication path remains unqualified",
     "Third XNU trial stopped at runtime safety guard 88; exact instantaneous cause not recorded; do not call it a successful run"
   ],
   "device_contacted": true,
@@ -58,7 +58,7 @@
     "vcpus": 1,
     "synthetic_readback_bytes": 2097152,
     "uefi_normal_shutdown_verified": true,
-    "xnu_trials": 10,
+    "xnu_trials": 12,
     "xnu_owned_ram_mib": 256,
     "xnu_shared_pool_excluded": true,
     "xnu_darwin": "23.6.0",
@@ -76,7 +76,7 @@
     "host_compaction_or_policy_write": false,
     "physical_gui_input": false,
     "cpu_emulation": false,
-    "apple_os_rootfs_fetched": false,
+    "apple_os_rootfs_fetched": true,
     "ios_gui_verified": false,
     "device_consumed_inputs_and_shell_stages_removed": true,
     "app_private_spent_receipts_and_logs_retained": true,
@@ -107,7 +107,7 @@
   "host_system_configuration_modified": false,
   "app_private_diagnostic_files_created": true,
   "validation": {
-    "host_tests": 281,
+    "host_tests": 289,
     "skipped": 6,
     "native_android_runner_compilation": "NDK ARM64 -Wall -Wextra -Werror passed",
     "apk_changed": false,
@@ -134,7 +134,7 @@
     "newer_media_kernel_device_booted": true,
     "media_diagnostic_service_registered": true
   },
-  "firmware_download_scope": "Official manifest/kernelcache, separate10MiB AppOS and six small root/trust metadata members; no main OS/SystemOS image or full IPSW",
+  "firmware_download_scope": "Official manifest/kernelcache,10MiB AppOS, main OS DMG and small root/trust metadata; no SystemOS image or full IPSW",
   "apple_payload_inspection": {
     "official_https_range_bytes": 17790160,
     "full_restore_zip_bytes": 6835124840,
@@ -209,6 +209,72 @@
       "personalized_im4m_present": false,
       "device_modified": false,
       "main_os_or_systemos_fetched": false
+    },
+    "main_os_layout_inspection": {
+      "range_bytes": 2603624,
+      "member": "044-76040-038.dmg",
+      "stored_bytes": 5157406069,
+      "expanded_bytes": 6077580800,
+      "udif_plist_bytes": 234240,
+      "partition_names": [
+        "MBR",
+        "Primary GPT Header",
+        "Primary GPT Table",
+        "Apple_APFS",
+        "Backup GPT Table",
+        "Backup GPT Header"
+      ],
+      "whole_image_fetched": false,
+      "whole_image_digest_verified": false,
+      "device_modified": false
+    },
+    "main_os_download": {
+      "product": "iPad7,1",
+      "version": "17.7.11",
+      "build": "21H461",
+      "member": "044-76040-038.dmg",
+      "bytes": 5157406069,
+      "sha256": "3f99b859c9728379110b66657c7b15285bcb1925ad8b5726542e2cdcf8b1028d",
+      "sha384": "d41b9ea8cbe5220f77ff0cfa24d3267aba9ee74a4487551d8c7f1dcc753fcc750e085aedac6fb0f71d875a97f87eb73f",
+      "both_restore_digests_matched": true,
+      "selected_member_crc_checked": true,
+      "range_bytes": 5182569064,
+      "expanded_bytes_planned": 6077580800,
+      "reserved_mac_bytes": 14935950848,
+      "full_ipsw_downloaded": false,
+      "raw_disk_created": false,
+      "apple_signature_authentication_qualified": false,
+      "device_modified": false,
+      "vm_started": false,
+      "ios_boot_verified": false
+    },
+    "main_os_raw_disk": {
+      "product": "iPad7,1",
+      "version": "17.7.11",
+      "build": "21H461",
+      "source_sha256": "3f99b859c9728379110b66657c7b15285bcb1925ad8b5726542e2cdcf8b1028d",
+      "source_sha384": "d41b9ea8cbe5220f77ff0cfa24d3267aba9ee74a4487551d8c7f1dcc753fcc750e085aedac6fb0f71d875a97f87eb73f",
+      "source_both_manifest_digests_verified": true,
+      "raw_bytes": 6077580800,
+      "raw_sha256": "e5634d04a8ac35f024845f583394e0a35deb26a04cb0c00286a8674e25a9a4f2",
+      "prefix_bytes": 4096,
+      "prefix_fnv64": 729933198653461872,
+      "raw_geometry_matches_udif": true,
+      "apple_signature_authentication_qualified": false,
+      "android_contacted": false,
+      "vm_started": false,
+      "ios_boot_verified": false
+    },
+    "main_os_volume_inspection": {
+      "volume_name": "DawnUpdate21H461.J120J121J207J208OS",
+      "volume_uuid": "04769D26-2CA0-4825-B443-E2E5F88300F2",
+      "source_raw_sha256": "e5634d04a8ac35f024845f583394e0a35deb26a04cb0c00286a8674e25a9a4f2",
+      "writable": false,
+      "snapshot_query_exit": 0,
+      "snapshots": {
+        "Snapshots": []
+      },
+      "raw_hash_after_readonly_inspection_matched": true
     }
   },
   "original_apple_storage": {
@@ -259,6 +325,29 @@
       "guest_system_volume_auth_blob_missing": true,
       "ios_boot_verified": false,
       "automatic_retries": false
+    },
+    "appos_root_mount_trial_1": {
+      "whole_appos_readback_bytes": 10485760,
+      "selected_volume": "AppCryptex",
+      "uuid_selection_verified": true,
+      "mac_readonly_snapshot_count": 0,
+      "guest_panic": "No root snapshot; original RELEASE APFS rejects rooting from sealed live filesystem",
+      "supervisor_exit": 124,
+      "normal_guest_shutdown_verified": false,
+      "host_postflight_passed": true,
+      "vfs_mount_verified": false,
+      "root_authentication_evaluated": false,
+      "ios_boot_verified": false
+    },
+    "appos_regression_trial": {
+      "data_bytes": 10485760,
+      "diagnostic_passed": true,
+      "guest_shutdown_verified": true,
+      "supervisor_exit": 0,
+      "host_postflight_passed": true,
+      "mount_hooks_present": false,
+      "partial_tail_and_16bit_wrap_offline_asan_ubsan_passed": true,
+      "actual_partial_tail_or_16bit_wrap_device_tested": false
     }
   }
 }
