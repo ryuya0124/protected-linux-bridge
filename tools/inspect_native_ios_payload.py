@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DEVICE_REVISION = "512350a37a80f6b368e889aee22fafbcf79a28a4"
 
 
-def im4p_kernel_payload(data: bytes) -> bytes:
+def im4p_fields(data: bytes) -> list[tuple[int, bytes]]:
     def item(at: int, end: int):
         if at + 2 > end:
             raise ValueError("Truncated IM4P item")
@@ -48,6 +48,11 @@ def im4p_kernel_payload(data: bytes) -> bytes:
         tag, start, next_at = item(at, end)
         children.append((tag, data[start:next_at]))
         at = next_at
+    return children
+
+
+def im4p_kernel_payload(data: bytes) -> bytes:
+    children = im4p_fields(data)
     if (
         len(children) < 4
         or children[0] != (0x16, b"IM4P")
@@ -56,6 +61,31 @@ def im4p_kernel_payload(data: bytes) -> bytes:
     ):
         raise ValueError("Not a kernel IM4P payload")
     return children[3][1]
+
+
+def audit_root_hash(data: bytes, component: str, member: str, identities: list[dict]) -> dict:
+    fields = im4p_fields(data)
+    if [tag for tag, _ in fields] != [0x16, 0x16, 0x16, 4] or fields[0][1] != b"IM4P":
+        raise ValueError("Expected a real root-hash IM4P, not a fabricated authentication manifest")
+    digest = hashlib.sha384(data).digest()
+    if len(identities) != 2 or any(
+        identity["Manifest"][component]["Info"].get("Path") != member
+        or identity["Manifest"][component].get("Digest") != digest
+        or identity["Manifest"][component]["Info"].get("Personalize") is not True
+        for identity in identities
+    ):
+        raise ValueError("Root-hash input disagrees with both target restore identities")
+    return {
+        "bytes": len(data),
+        "sha256": hashlib.sha256(data).hexdigest(),
+        "sha384": digest.hex(),
+        "payload_type": fields[1][1].decode("ascii"),
+        "payload_bytes": len(fields[3][1]),
+        "both_restore_digests_matched": True,
+        "personalization_required": True,
+        "personalized_im4m_present": False,
+        "signature_authentication_qualified": False,
+    }
 
 
 def decode_kernel(output: Path, expected: str) -> dict:
@@ -218,6 +248,7 @@ def inspect(
     kernelcache: bool = False,
     decode: bool = False,
     appos: bool = False,
+    root_metadata: bool = False,
 ) -> dict:
     source = source.resolve(strict=True)
     output = output.resolve()
@@ -274,6 +305,7 @@ def inspect(
         (output / "BuildManifest.plist").write_bytes(manifest_bytes)
         fetched_kernel = None
         fetched_appos = None
+        fetched_root_metadata = {}
         if kernelcache or decode:
             info = archive.getinfo(components["KernelCache"]["member"])
             if info.file_size > 96 * 1024**2 or info.compress_size > 96 * 1024**2:
@@ -294,6 +326,32 @@ def inspect(
             fetched_appos = extract_bounded_member(
                 archive, components["Cryptex1,AppOS"]["member"], output / "AppOS.dmg", 32 * 1024**2
             )
+        if root_metadata:
+            target_identities = [
+                i
+                for i in manifest["BuildIdentities"]
+                if i["Info"]["DeviceClass"] == config["device_class"]
+            ]
+            names = (
+                "SystemVolume",
+                "Cryptex1,AppVolume",
+                "Cryptex1,SystemVolume",
+                "StaticTrustCache",
+                "Cryptex1,AppTrustCache",
+                "Cryptex1,SystemTrustCache",
+            )
+            for name in names:
+                member = components[name]["member"]
+                destination = output / Path(member).name
+                record = extract_bounded_member(archive, member, destination, 128 * 1024)
+                digest = hashlib.sha384(destination.read_bytes()).digest()
+                if digest != identities[0]["Manifest"][name]["Digest"]:
+                    raise ValueError("Selected metadata digest does not match the actual manifest")
+                if name.endswith("Volume"):
+                    record.update(
+                        audit_root_hash(destination.read_bytes(), name, member, target_identities)
+                    )
+                fetched_root_metadata[name] = record
     result = {
         "product": config["product"],
         "version": config["version"],
@@ -304,6 +362,8 @@ def inspect(
         "components": components,
         "kernelcache": fetched_kernel,
         "appos": fetched_appos,
+        "root_metadata": fetched_root_metadata,
+        "root_authentication_qualified": False,
         "full_ipsw_downloaded": False,
         "os_rootfs_downloaded": False,
         "device_modified": False,
@@ -327,6 +387,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "--appos", action="store_true", help="Extract only the bounded small AppOS image"
     )
+    parser.add_argument(
+        "--root-metadata",
+        action="store_true",
+        help="Extract only six small root-hash/trust-cache members; no system image",
+    )
     args = parser.parse_args()
     report = inspect(
         args.source,
@@ -334,5 +399,6 @@ if __name__ == "__main__":
         kernelcache=args.kernelcache,
         decode=args.decode_kernelcache,
         appos=args.appos,
+        root_metadata=args.root_metadata,
     )
     print(json.dumps({k: v for k, v in report.items() if k != "components"}, indent=2))

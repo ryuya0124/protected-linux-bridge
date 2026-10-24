@@ -1,5 +1,5 @@
 /* MIT. Isolated read-only PCI disk behind Apple's original storage family.
- * Only the nonce-pattern fixture is accepted by BridgePciMediaDevice.c.
+ * Only the separate 2 MiB pattern or pinned 10 MiB AppOS fixture is accepted.
  * No public-source storage-family implementation is linked into this variant.
  */
 #include <IOKit/IOBSD.h>
@@ -23,13 +23,18 @@
 extern "C" const int nchrdev;
 
 namespace {
-constexpr uint64_t diskBytes = 2097152;
+#ifndef PLB_PCI_DATA_BYTES
+#define PLB_PCI_DATA_BYTES 2097152
+#endif
+constexpr uint64_t diskBytes = PLB_PCI_DATA_BYTES;
 void receipt(const char *phase, uint64_t a = 0, uint64_t b = 0) {
     kprintf("PLB_XNU_ORIGINAL nonce=" PLB_PCI_NONCE " phase=%s a=%llu b=%llu\n", phase, a, b);
 }
+#if !defined(PLB_PCI_APFS_FIXTURE)
 uint8_t expectedByte(uint64_t offset) {
     return static_cast<uint8_t>(offset * 17 + (offset >> 9) * 29 + plb_pci_seed[offset % 16]);
 }
+#endif
 } // namespace
 
 class BridgeOriginalPciBlock : public IOBlockStorageDevice {
@@ -239,14 +244,27 @@ OSDefineMetaClassAndStructors(BridgeOriginalPciBlock, IOBlockStorageDevice)
             if (request) {
                 uio_free(request);
             }
+#if defined(PLB_PCI_APFS_FIXTURE)
+            if (pass && offset == 0) {
+                pass = memcmp(bytes + 32, "NXSB", 4) == 0;
+                if (pass) {
+                    receipt("apfs_container_header", diskBytes, 4096);
+                }
+            }
+#endif
             for (unsigned i = 0; pass && i < 4096; i++) {
+#if !defined(PLB_PCI_APFS_FIXTURE)
                 pass = bytes[i] == expectedByte(offset + i);
+#endif
                 digest = (digest ^ bytes[i]) * 1099511628211ULL;
             }
             if (!pass) {
                 receipt("bsd_read_failed", offset, static_cast<uint64_t>(result));
             }
         }
+#if defined(PLB_PCI_APFS_FIXTURE)
+        pass = pass && digest == PLB_PCI_EXPECTED_FNV;
+#endif
         if (pass) {
             receipt("bsd_read_pass", diskBytes, digest);
         }

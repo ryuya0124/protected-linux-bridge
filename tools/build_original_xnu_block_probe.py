@@ -19,6 +19,7 @@ from audit_native_xnu_storage import BUILD_REVISION, STORAGE_REVISION, require_r
 
 CLASS = "BridgeOriginalPciBlock"
 MANGLED = str(len(CLASS)) + CLASS
+APPOS_SHA256 = "52e568e1eaaede5fde4684ad10afc60f8fb236bfb5a23e0869bb0ed8a1d275d7"
 
 
 def digest(path: Path) -> str:
@@ -115,7 +116,12 @@ def object_table(parser, obj: bytes) -> tuple[list[tuple[str, int, int]], list[s
 
 
 def compile_probe(
-    source: Path, output: Path, audit_path: Path, candidate: Path, nonce: str
+    source: Path,
+    output: Path,
+    audit_path: Path,
+    candidate: Path,
+    nonce: str,
+    apfs_fixture: Path | None = None,
 ) -> dict:
     source = source.resolve(strict=True)
     audit_path = audit_path.resolve(strict=True)
@@ -134,6 +140,30 @@ def compile_probe(
     # Existing fresh-directory and nonce checks also create the immutable fixture.
     pattern = build(source, output, nonce)
     output = output.resolve()
+    if apfs_fixture is not None:
+        fixture = apfs_fixture.resolve(strict=True)
+        if not fixture.is_relative_to(private) or fixture.stat().st_size != 10485760:
+            raise ValueError("Use the private, pinned10MiB official AppOS fixture")
+        data = fixture.read_bytes()
+        if hashlib.sha256(data).hexdigest() != APPOS_SHA256 or data[32:36] != b"NXSB":
+            raise ValueError("Wrong official APFS fixture")
+        fnv = 14695981039346656037
+        for byte in data:
+            fnv = ((fnv ^ byte) * 1099511628211) & (2**64 - 1)
+        (output / "pattern.raw").write_bytes(data)
+        with (output / "pci_contract.generated.h").open("a") as header:
+            header.write(
+                f"#define PLB_PCI_DATA_BYTES {len(data)}\n"
+                f"#define PLB_PCI_APFS_FIXTURE 1\n#define PLB_PCI_EXPECTED_FNV {fnv}ULL\n"
+            )
+        pattern.update(
+            disk_bytes=len(data),
+            disk_sha256=APPOS_SHA256,
+            disk_fnv64=fnv,
+            fixture="official Cryptex1,AppOS",
+            original_raw_probe_not_linked=True,
+        )
+        (output / "pci-probe.json").write_text(json.dumps(pattern, indent=2) + "\n")
     includes = source / "build/storage-abi/include"
     header = includes / "IOKit/storage/IOBlockStorageDevice.h"
     if digest(header) != digest(public_source / "IOBlockStorageDevice.h"):
@@ -245,6 +275,7 @@ def compile_probe(
             path.name: digest(path) for path in (ROOT / "tools/native_xnu_probe").glob("Bridge*.*")
         },
         "disk_sha256": pattern["disk_sha256"],
+        "disk_bytes": pattern["disk_bytes"],
         "disk_fnv64": pattern["disk_fnv64"],
         "virtual_methods_checked": 190,
         "concrete_overrides": overrides,
@@ -266,10 +297,13 @@ if __name__ == "__main__":
     parser.add_argument("--audit", required=True, type=Path)
     parser.add_argument("--candidate", required=True, type=Path)
     parser.add_argument("--nonce", required=True)
+    parser.add_argument("--apfs-fixture", type=Path, help="Only the exact pinned small AppOS image")
     args = parser.parse_args()
     print(
         json.dumps(
-            compile_probe(args.source, args.output, args.audit, args.candidate, args.nonce),
+            compile_probe(
+                args.source, args.output, args.audit, args.candidate, args.nonce, args.apfs_fixture
+            ),
             indent=2,
         )
     )

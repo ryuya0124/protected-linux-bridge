@@ -94,13 +94,14 @@ struct fake {
     uint8_t registers[56], dma[8192];
     uint32_t feature_select;
     uint64_t ticks;
+    uint64_t capacity;
     unsigned writes, requests, error;
     bool readonly;
 };
 static uint64_t fake_read(void *p, unsigned region, unsigned offset, unsigned width) {
     struct fake *f = p;
     if (region == PLB_DEVICE)
-        return offset == 0 ? 4096 : 0;
+        return offset == 0 ? (uint32_t)f->capacity : f->capacity >> 32;
     if (offset == 4)
         return f->feature_select ? 3 : f->readonly ? 32 : 0;
     if (offset == 24)
@@ -164,7 +165,7 @@ static struct plb_vpci_queue make_queue(struct fake *f) {
 }
 int main(void) {
     parser_tests();
-    struct fake f = {.readonly = true};
+    struct fake f = {.readonly = true, .capacity = 4096};
     struct plb_vpci_queue q = make_queue(&f);
     uint64_t capacity = 0;
     assert(plb_vpci_capacity(&q.io, &capacity) && capacity == 4096);
@@ -179,6 +180,7 @@ int main(void) {
     for (unsigned fault = 1; fault <= 4; fault++) {
         memset(&f, 0, sizeof(f));
         f.readonly = true;
+        f.capacity = 4096;
         q = make_queue(&f);
         assert(plb_vpci_start(&q));
         f.error = fault;
@@ -195,5 +197,23 @@ int main(void) {
     f.writes = 0;
     q.dma_physical = 0x84404000;
     assert(!plb_vpci_start(&q) && f.writes == 0); /* Never submit private guest RAM. */
+    memset(&f, 0, sizeof(f));
+    f.readonly = true;
+    f.capacity = 20480; /* Actual10MiB AppOS previously hit a stale2MiB guard. */
+    q = make_queue(&f);
+    assert(plb_vpci_start(&q) && q.capacity_sectors == 20480);
+    assert(plb_vpci_read_page(&q, 4096));
+    assert(plb_vpci_read_page(&q, 20472));
+    unsigned requests = f.requests;
+    assert(!plb_vpci_read_page(&q, 20473));
+    assert(!plb_vpci_read_page(&q, UINT64_MAX));
+    assert(requests == f.requests);
+    assert(plb_vpci_reset(&q));
+    const uint64_t invalid_capacities[] = {0, 7, UINT64_MAX / 512 + 1};
+    for (unsigned i = 0; i < sizeof(invalid_capacities) / sizeof(invalid_capacities[0]); i++) {
+        f.capacity = invalid_capacities[i];
+        q = make_queue(&f);
+        assert(!plb_vpci_start(&q));
+    }
     puts("virtio_pci_block: capability bounds, read-only DMA, ring wrap and fault controls passed");
 }

@@ -13,6 +13,7 @@ from inspect_native_ios_payload import (
     BoundedAppleArchive,
     im4p_kernel_payload,
     extract_bounded_member,
+    audit_root_hash,
 )
 
 
@@ -104,3 +105,26 @@ class ApplePayloadRangeTest(unittest.TestCase):
             self.assertEqual(result["bytes"], 1024)
             with self.assertRaises(FileExistsError):
                 extract_bounded_member(archive, "small.dmg", output, 1024)
+
+    def test_real_root_hash_digest_match_does_not_claim_signature_authentication(self):
+        import hashlib
+        import copy
+
+        fields = b"\x16\x04IM4P\x16\x04rfta\x16\x01v\x04\x04data"
+        data = b"\x30" + bytes([len(fields)]) + fields
+        metadata = {
+            "Manifest": {
+                "SystemVolume": {
+                    "Digest": hashlib.sha384(data).digest(),
+                    "Info": {"Path": "root_hash", "Personalize": True},
+                }
+            }
+        }
+        identities = [metadata, copy.deepcopy(metadata)]
+        result = audit_root_hash(data, "SystemVolume", "root_hash", identities)
+        self.assertTrue(result["both_restore_digests_matched"])
+        self.assertFalse(result["signature_authentication_qualified"])
+        self.assertFalse(result["personalized_im4m_present"])
+        identities[1]["Manifest"]["SystemVolume"]["Digest"] = b"changed"
+        with self.assertRaises(ValueError):
+            audit_root_hash(data, "SystemVolume", "root_hash", identities)

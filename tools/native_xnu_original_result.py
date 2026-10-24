@@ -8,11 +8,17 @@ import re
 
 from native_xnu_result import assess as assess_kernel
 
+APPOS_SHA256 = "52e568e1eaaede5fde4684ad10afc60f8fb236bfb5a23e0869bb0ed8a1d275d7"
+
 
 def assess(console: str, runner: str, contract: dict, pattern: dict) -> dict:
     nonce = contract["nonce"]
-    if pattern["nonce"] != nonce or pattern["disk_bytes"] != 2097152:
-        raise ValueError("Mixed or invalid synthetic disk identity")
+    appos = contract.get("fixture_kind") == "official_appos"
+    expected_bytes = 10485760 if appos else 2097152
+    if pattern["nonce"] != nonce or pattern["disk_bytes"] != expected_bytes:
+        raise ValueError("Mixed or invalid diagnostic disk identity")
+    if appos and pattern.get("disk_sha256") != APPOS_SHA256:
+        raise ValueError("Wrong official AppOS fixture")
     if contract.get("source_storage_archive_linked") is not False:
         raise ValueError("This is not the isolated original-storage variant")
     if re.findall(r"PLB_NATIVE_XNU_RUNNER nonce=([0-9a-f]{32}) result=(\d+)", runner) != [
@@ -43,12 +49,19 @@ def assess(console: str, runner: str, contract: dict, pattern: dict) -> dict:
         ("ORIGINAL", "pass"),
         ("ORIGINAL", "guest_shutdown"),
     ]
+    if appos:
+        phases.insert(7, ("ORIGINAL", "apfs_container_header"))
     if [(row[0], row[2]) for row in rows] != phases or any(row[1] != nonce for row in rows):
         raise ValueError("Incomplete or ambiguous original-family evidence")
     values = [(int(row[3]), int(row[4])) for row in rows]
+    if appos:
+        if values.pop(7) != (expected_bytes, 4096):
+            raise ValueError("Real APFS container header was not observed")
     if values[0] != (0, 0) or values[1] != (144, 144):
         raise ValueError("Live original class layout was not qualified")
-    if {values[2][1], values[3][1]} != {4096, 131072} or values[2][0] == values[3][0]:
+    if {values[2][1], values[3][1]} != {expected_bytes // 512, 131072} or values[2][0] == values[3][
+        0
+    ]:
         raise ValueError("Unexpected or duplicate PCI devices")
     if any(not 0 <= values[index][0] < 256 for index in (2, 3)):
         raise ValueError("Invalid PCI function")
@@ -56,7 +69,7 @@ def assess(console: str, runner: str, contract: dict, pattern: dict) -> dict:
         raise ValueError("Wrong DMA pool or block startup failure")
     if not 0 <= values[6][0] <= 255 or not 0 <= values[6][1] <= 0xFFFFFF:
         raise ValueError("Invalid BSD device identity")
-    if values[7] != (2097152, pattern["disk_fnv64"]):
+    if values[7] != (expected_bytes, pattern["disk_fnv64"]):
         raise ValueError("Full original-family BSD readback failed")
     if values[8:] != [(0, 0)] * 4:
         raise ValueError("Device not closed/reset/shut down")
@@ -65,7 +78,9 @@ def assess(console: str, runner: str, contract: dict, pattern: dict) -> dict:
     )
     return {
         "original_storage_family_bsd_readback_verified": True,
-        "bytes_verified": 2097152,
+        "bytes_verified": expected_bytes,
+        "fixture_kind": "official_appos" if appos else "nonce_pattern",
+        "apfs_container_header_verified": appos,
         "live_original_base_class_bytes": 144,
         "bsd_device_closed": True,
         "original_corecrypto_post_passed": True,

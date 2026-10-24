@@ -13,10 +13,18 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def build(
-    output: Path, snapshot: Path, sdk: Path, *, xnu_serial: bool = False, pci_probe: bool = False
+    output: Path,
+    snapshot: Path,
+    sdk: Path,
+    *,
+    xnu_serial: bool = False,
+    pci_probe: bool = False,
+    apfs_probe: bool = False,
 ) -> None:
     if pci_probe and not xnu_serial:
         raise ValueError("The PCI readback is a distinct XNU-only diagnostic")
+    if apfs_probe and not (pci_probe and xnu_serial):
+        raise ValueError("The small APFS fixture requires the distinct XNU PCI profile")
     output = output.resolve(strict=True)
     if not output.is_relative_to((ROOT / "artifacts").resolve()):
         raise ValueError("Use a private artifacts directory")
@@ -81,12 +89,19 @@ def build(
     if pci_probe:
         pattern = (output / "pattern.raw").read_bytes()
         pci = json.loads((output / "pci-probe.json").read_text())
+        expected_bytes = 10485760 if apfs_probe else 2097152
         if (
             pci["nonce"] != nonce
-            or len(pattern) != 2097152
+            or len(pattern) != expected_bytes
             or hashlib.sha256(pattern).hexdigest() != pci["disk_sha256"]
         ):
             raise ValueError("The independent synthetic PCI disk changed")
+        if (
+            apfs_probe
+            and pci["disk_sha256"]
+            != "52e568e1eaaede5fde4684ad10afc60f8fb236bfb5a23e0869bb0ed8a1d275d7"
+        ):
+            raise ValueError("Wrong pinned small APFS fixture")
         header += "#define PLB_UEFI_PCI_PROBE 1\n"
         header += '#define PLB_UEFI_PATTERN_SHA256 "' + pci["disk_sha256"] + '"\n'
     (output / "runner_contract.generated.h").write_text(header)
@@ -129,6 +144,7 @@ if __name__ == "__main__":
         "--xnu-serial", action="store_true", help="Build the distinct XNU serial-only profile"
     )
     parser.add_argument("--pci-probe", action="store_true")
+    parser.add_argument("--apfs-probe", action="store_true")
     args = parser.parse_args()
     build(
         args.output,
@@ -136,4 +152,5 @@ if __name__ == "__main__":
         args.sdk,
         xnu_serial=args.xnu_serial,
         pci_probe=args.pci_probe,
+        apfs_probe=args.apfs_probe,
     )

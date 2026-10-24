@@ -162,6 +162,7 @@ struct plb_vpci_queue {
     struct plb_vpci_io io;
     volatile uint8_t *dma;
     uint64_t dma_physical;
+    uint64_t capacity_sectors;
     uint32_t dma_bytes;
     uint32_t notify_bytes, notify_multiplier, notify_offset;
     uint16_t available;
@@ -222,6 +223,9 @@ static bool plb_vpci_start(struct plb_vpci_queue *q) {
     if (!(io->read(io->context, PLB_COMMON, 20, 1) & 8)) {
         return false;
     }
+    if (!plb_vpci_capacity(io, &q->capacity_sectors) || q->capacity_sectors < 8) {
+        return false;
+    }
     io->write(io->context, PLB_COMMON, 22, 2, 0);
     if (io->read(io->context, PLB_COMMON, 24, 2) < 8 ||
         io->read(io->context, PLB_COMMON, 28, 2) != 0) {
@@ -253,7 +257,7 @@ static bool plb_vpci_start(struct plb_vpci_queue *q) {
 }
 
 static bool plb_vpci_read_page(struct plb_vpci_queue *q, uint64_t sector) {
-    if (!q->ready || sector > 4096 - 8) {
+    if (!q->ready || q->capacity_sectors < 8 || sector > q->capacity_sectors - 8) {
         return false;
     }
     volatile uint8_t *p = q->dma;

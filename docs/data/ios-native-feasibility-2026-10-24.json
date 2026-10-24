@@ -27,7 +27,7 @@
     "Reference framebuffer and diagnostic tools read shared guest RAM; must not run against donated protected mappings",
     "17.7.11 kernel prelink hashes and platform drivers do not establish newer iOS support",
     "Reference RAM and MMIO addresses cannot be copied to another topology",
-    "Native XNU PCI/shared-DMA synthetic transport passes; synthetic IOMedia/BSD publication passes; general root-disk/filesystem integration and iOS rootfs remain absent",
+    "Native synthetic storage and full10MiB original Apple AppOS BSD readback pass; main system-root mount/authentication, user-space and display remain unverified",
     "Third XNU trial stopped at runtime safety guard 88; exact instantaneous cause not recorded; do not call it a successful run"
   ],
   "device_contacted": true,
@@ -58,7 +58,7 @@
     "vcpus": 1,
     "synthetic_readback_bytes": 2097152,
     "uefi_normal_shutdown_verified": true,
-    "xnu_trials": 8,
+    "xnu_trials": 10,
     "xnu_owned_ram_mib": 256,
     "xnu_shared_pool_excluded": true,
     "xnu_darwin": "23.6.0",
@@ -78,7 +78,7 @@
     "cpu_emulation": false,
     "apple_os_rootfs_fetched": false,
     "ios_gui_verified": false,
-    "device_consumed_inputs_and_shell_stages_removed": "PCI1/PCI2/media1 inputs removed; original-dependency trial inputs retained until receipt-checked cleanup",
+    "device_consumed_inputs_and_shell_stages_removed": true,
     "app_private_spent_receipts_and_logs_retained": true,
     "xnu_pci_trials": 2,
     "xnu_pci_trial_1": "Guest pmap panic from invalid mapping/unmap pairing; supervisor124",
@@ -107,7 +107,7 @@
   "host_system_configuration_modified": false,
   "app_private_diagnostic_files_created": true,
   "validation": {
-    "host_tests": 279,
+    "host_tests": 281,
     "skipped": 6,
     "native_android_runner_compilation": "NDK ARM64 -Wall -Wextra -Werror passed",
     "apk_changed": false,
@@ -134,7 +134,7 @@
     "newer_media_kernel_device_booted": true,
     "media_diagnostic_service_registered": true
   },
-  "firmware_download_scope": "Official Apple manifest and kernelcache only; no OS/SystemOS rootfs or full IPSW",
+  "firmware_download_scope": "Official manifest/kernelcache, separate10MiB AppOS and six small root/trust metadata members; no main OS/SystemOS image or full IPSW",
   "apple_payload_inspection": {
     "official_https_range_bytes": 17790160,
     "full_restore_zip_bytes": 6835124840,
@@ -153,8 +153,62 @@
       "sha256": "52e568e1eaaede5fde4684ad10afc60f8fb236bfb5a23e0869bb0ed8a1d275d7",
       "additional_range_bytes": 4700776,
       "format": "Raw APFS, confirmed offline",
-      "vm_attached": false,
+      "vm_attached": true,
       "main_os_or_systemos_image_fetched": false
+    },
+    "root_metadata": {
+      "range_bytes": 2603624,
+      "components": {
+        "SystemVolume": {
+          "sha256": "559decd34e5c73119b55706ee546016a06ee8faad3c2364a796c728efe7c6192",
+          "bytes": 229,
+          "sha384": "dae58a3cf623866c291e7618bd2df7005fdcd44f2fb5463c7e38ea6c3dc7002dd609c56c81ed9dfb9ac30b18ddc627c2",
+          "payload_type": "isys",
+          "payload_bytes": 208,
+          "both_restore_digests_matched": true,
+          "personalization_required": true,
+          "personalized_im4m_present": false,
+          "signature_authentication_qualified": false
+        },
+        "Cryptex1,AppVolume": {
+          "sha256": "bd60eb419f4aa10e1a5994d8fb848d1224bd5ad89c0f990528ebf3e40b25f903",
+          "bytes": 229,
+          "sha384": "4252d1598d03cb85a80869435c9b22cc3aa66cbb98ab97e5e795f6ec5c7c5363784f4bd68596ab077fbf6f9240242217",
+          "payload_type": "casy",
+          "payload_bytes": 208,
+          "both_restore_digests_matched": true,
+          "personalization_required": true,
+          "personalized_im4m_present": false,
+          "signature_authentication_qualified": false
+        },
+        "Cryptex1,SystemVolume": {
+          "sha256": "adb214bf2ab59e2ef5103dee5b6d2104643dd5c373401567013d4cb34a8b6d80",
+          "bytes": 229,
+          "sha384": "56e91c70274e64ee0475a8a1a58d01d119b96546ca781383010d694f69ed91692861be5fa35387c43ed9619aa9cf21f0",
+          "payload_type": "cssy",
+          "payload_bytes": 208,
+          "both_restore_digests_matched": true,
+          "personalization_required": true,
+          "personalized_im4m_present": false,
+          "signature_authentication_qualified": false
+        },
+        "StaticTrustCache": {
+          "sha256": "4563bdbf6ed8f72237d45dbba3ccde432634338f95c10d79d5d4631678a97c7c",
+          "bytes": 59519
+        },
+        "Cryptex1,AppTrustCache": {
+          "sha256": "5d9bf23c900cb0b6ea241b1208a08aeef9cd863536452d85e68d1c0ef98e77c4",
+          "bytes": 767
+        },
+        "Cryptex1,SystemTrustCache": {
+          "sha256": "9742f3d566369e6c48f63b3dc0740b06c243d13c6650e25bbf44616e13d6d097",
+          "bytes": 1871
+        }
+      },
+      "root_authentication_qualified": false,
+      "personalized_im4m_present": false,
+      "device_modified": false,
+      "main_os_or_systemos_fetched": false
     }
   },
   "original_apple_storage": {
@@ -179,6 +233,32 @@
     "ios_boot_verified": false,
     "live_class_size_bytes": 144,
     "original_family_bsd_readback_bytes": 2097152,
-    "apfs_version": "2236.140.6"
+    "apfs_version": "2236.140.6",
+    "live_metaclass_check_scope": "Actual base-class size only; upstream full live metadata audit remains separate",
+    "appos_trial_1": {
+      "data_bytes": 10485760,
+      "supervisor_exit": 0,
+      "diagnostic_passed": false,
+      "guest_shutdown_verified": true,
+      "host_postflight_passed": true,
+      "failure": "Stale2MiB capacity limit rejected APFS checkpoint read",
+      "automatic_retries": false
+    },
+    "appos_trial_2": {
+      "data_bytes": 10485760,
+      "sha256": "52e568e1eaaede5fde4684ad10afc60f8fb236bfb5a23e0869bb0ed8a1d275d7",
+      "fnv64": 170739723996550954,
+      "supervisor_exit": 0,
+      "diagnostic_passed": true,
+      "guest_shutdown_verified": true,
+      "host_postflight_passed": true,
+      "apfs_checkpoint_xid": 18,
+      "checkpoint_descriptor_index": 4,
+      "checkpoint_data_index": 45,
+      "vfs_mount_verified": false,
+      "guest_system_volume_auth_blob_missing": true,
+      "ios_boot_verified": false,
+      "automatic_retries": false
+    }
   }
 }

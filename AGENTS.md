@@ -981,3 +981,43 @@ stay ignored/private. Do not treat this small component as a complete iOS root.
 New tests reject missing/changed virtual dispatch, unqualified imports, abstract
 destructors, partial/stale BSD evidence and unbounded/overwriting extraction.
 No iOS UI/profile or APK change; Android16 frozen refs remain unchanged.
+
+## Pinned small AppOS readback checkpoint, later 2026-10-24
+
+The first10MiB AppOS trial failed its storage diagnostic because the original
+protocol's synthetic2MiB-only read bound rejected APFS checkpoint reads near
+6MiB. It still shut down normally with supervisor0; that exit is not a passed
+read test. Failure receipts and matched host postflight are retained separately.
+The transport now reads stable actual device capacity at queue startup and
+checks each4096byte read against capacity without subtraction underflow.
+ASan/UBSan tests cover2MiB behavior,10MiB reads past2MiB, last page, out-of-range
+and zero/small/overflow capacities. The diagnostic front end admits only the
+original2MiB fixture or exact pinned10MiB AppOS, not arbitrary root disks.
+
+A fresh manually dispatched second AppOS trial passed all10485760bytes through
+original storage/BSD with FNV64 170739723996550954, real NXSB header and original
+APFS checkpoint xid18 (desc4/data45). It reset, closed the BSD device and powered
+off normally; supervisor/VMM0 and host postflight matched the existing baseline.
+The console still reports missing guest system-volume-auth-blob. No VFS mount,
+iOS user-space or GUI is verified. The main OS/SystemOS images remain unfetched.
+No original Android/Debian disk attachment or host policy/module/tuning write.
+
+During preparation a Tail ADB elevation attempt briefly failed before any new
+am kill. A later read-only check worked again; permission revocation was not
+established and no root ACL was changed/bypassed. Five subsequently freshly
+checked cached user-0 apps accepted targeted am kill requests under the user's
+memory-release permission. No foreground/core/VPN/root/keyboard target, force
+stop, task removal, data deletion, memory-floor bypass or compaction was used.
+Do not infer exact reclaimed bytes or claim the user's root permission changed.
+
+After recording the AppOS readback, the inspector fetched six small original
+root-hash/trust-cache members (additional2603624 range bytes, per-member128KiB
+cap). All three229byte IM4P root-hash files match both j120ap restore manifests;
+their208byte payloads/types isys/casy/cssy require personalization. No IM4M was
+fabricated or obtained, and manifest digest equality is not signature/root
+authentication. Root authentication remains unqualified. This was host-side
+metadata inspection, not another VM attempt or main OS/SystemOS download.
+
+Both AppOS trials subsequently had only their four consumed inputs and exact
+shell staging directories removed after nonce/receipt verification. App-private
+spent receipts/logs and all four original Android/Debian files were retained.

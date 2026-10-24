@@ -5,7 +5,7 @@ import sys
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
-from native_xnu_original_result import assess
+from native_xnu_original_result import assess, APPOS_SHA256
 
 
 class OriginalFamilyEvidenceTest(unittest.TestCase):
@@ -97,6 +97,23 @@ class OriginalFamilyEvidenceTest(unittest.TestCase):
             self.pattern,
         )
         self.assertFalse(result["apfs_initialization_observed"])
+
+    def test_small_official_apfs_fixture_requires_its_exact_pin_and_header(self):
+        contract = dict(self.contract, fixture_kind="official_appos")
+        pattern = dict(self.pattern, disk_bytes=10485760, disk_sha256=APPOS_SHA256)
+        rows = list(self.rows)
+        rows[3] = ("MEDIA", "candidate", 16, 20480)
+        rows[7] = ("ORIGINAL", "bsd_read_pass", 10485760, 456)
+        rows.insert(7, ("ORIGINAL", "apfs_container_header", 10485760, 4096))
+        result = assess(self.console(rows), self.runner, contract, pattern)
+        self.assertEqual(result["bytes_verified"], 10485760)
+        self.assertTrue(result["apfs_container_header_verified"])
+        self.assertFalse(result["filesystem_mount_verified"])
+        with self.assertRaises(ValueError):
+            assess(self.console(rows), self.runner, contract, dict(pattern, disk_sha256="0" * 64))
+        rows.pop(7)
+        with self.assertRaises(ValueError):
+            assess(self.console(rows), self.runner, contract, pattern)
 
 
 if __name__ == "__main__":

@@ -18,6 +18,9 @@ translation, remote Apple machine or host kernel module is used.
 | XNU PCI 2 | Both PCI block devices detected; all 2,097,152 synthetic bytes checked through the exclusive shared DMA tail; guest PSCI shutdown and VMM/supervisor 0 | A transport test, not IOMedia, filesystem or iOS user-space boot |
 | XNU media 1 | Real IOStorage/IOMedia/BSD node, full 2 MiB read, cross-page read and write refusal; guest shutdown and supervisor/VMM 0 | An initial dispatch refused before VM start at 79; no filesystem or iOS user-space boot |
 | Original dependency 1 | Original Apple corecrypto passed 19 POST cases; full synthetic PCI readback, reset, guest shutdown and VMM/supervisor 0 with an APFS dependency candidate | No APFS mount or APFS-specific execution receipt; the early transport probe exits before root selection |
+| Original storage 1 | Actual original base class size 144; full 2 MiB read through real BSD open/read/close; APFS initialized; normal shutdown | No filesystem mount or iOS user-space |
+| Small AppOS 1 | Real APFS attempted checkpoint reads around 6 MiB; guest shut down normally | Diagnostic failed because a stale 2 MiB protocol bound rejected those reads; supervisor 0 does not mean readback passed |
+| Small AppOS 2 | Full pinned 10 MiB AppOS readback, NXSB header and checkpoint xid 18; normal shutdown and matched host postflight | No VFS mount or system-root authentication; iOS remains unbooted |
 
 The generic XNU bootstrap initially failed to link because a disabled legacy
 video probe was referenced unconditionally. The source guard retains the real
@@ -379,3 +382,45 @@ Its extraction consumed4700776range bytes, with a32MiB member cap and the
 unchanged128MiB range budget. The main OS/SystemOS images and full IPSW were
 not downloaded. The small AppOS component is not a complete bootable iOS root
 and has not been attached to a VM at this checkpoint.
+
+## Small real APFS image through original storage
+
+The first 10 MiB AppOS trial exposed a stale bound in the lower PCI protocol:
+`plb_vpci_read_page()` still limited requests to the original 2 MiB fixture.
+APFS tried to read checkpoint blocks around 6 MiB, so the transport went offline.
+That trial's diagnostic failed even though its guest powered off and its
+supervisor returned 0. Its failure and host postflight remain recorded.
+
+Queue startup now records the device's stable actual capacity. Every page read
+checks that capacity before forming a request, including disks smaller than a
+page and integer limits. ASan/UBSan tests cover the original 2 MiB path, 10 MiB
+reads beyond 2 MiB, the final page and rejected out-of-range/overflow requests.
+The diagnostic's separate admission still permits only the 2 MiB pattern or
+exactly pinned 10 MiB AppOS. This is not general root-disk support.
+
+A fresh second trial verified all **10,485,760 bytes** through the real original
+BSD path, with FNV64 `170739723996550954` and the expected APFS NXSB header.
+Original APFS found checkpoint xid 18 and stable descriptor/data indices 4/45.
+BSD close, device reset, guest shutdown and VMM/supervisor 0 passed. Host boot,
+core/trustedVM births, taint, SELinux, six shmem policies and four original disk
+metadata identities matched. The original images stayed detached.
+
+The guest still reports missing `system-volume-auth-blob`. Reading the whole
+container and recognizing checkpoints are **not** proof of a VFS volume mount,
+a trusted system root, launchd or iOS GUI. Main OS/SystemOS image preparation,
+matching guest root-authentication metadata and file-level verification remain
+next steps. No Android AVB/Gunyah or host policy was altered.
+
+### Root metadata after the readback checkpoint
+
+The next offline step added `--root-metadata` to the bounded Apple inspector.
+It fetched only six small root-hash/trust-cache ZIP members using another
+2,603,624 range bytes. Each member is capped at 128 KiB; the main OS/SystemOS
+images and full IPSW are still not fetched. Both restore identities for the
+pinned j120ap build agree with the three real 229-byte IM4P root-hash inputs.
+Their payload types are `isys`, `casy` and `cssy`, each with 208 payload bytes.
+All three specify personalization. Their raw SHA-384 digests match the actual
+BuildManifest, but **no personalized IM4M or Apple signature authentication has
+been established**. The tool explicitly records that distinction and does not
+fabricate a manifest, clear the missing-root-auth result or enable app launch.
+A unit test also rejects disagreement between the two restore identities.

@@ -4,7 +4,13 @@
 The target remains execution on the Galaxy, with the host Android preserved.
 The Galaxy has now executed native protected UEFI and a source-built XNU
 kernel. This is **early kernel bring-up**, not an iOS home screen, a working
-iPadOS installation or an enabled app profile. No Apple OS rootfs was fetched.
+iPadOS installation or an enabled app profile. The main OS/SystemOS root images
+remain unfetched; a separate small AppOS component was obtained for diagnostics.
+
+The latest checkpoint is full **10 MiB real AppOS readback through original
+Apple storage/BSD**, with APFS checkpoint recognition and normal guest shutdown.
+Root-hash metadata has also been inspected separately. A manifest digest match
+does not establish Apple's signature authentication or a bootable system root.
 
 ## Execution model
 
@@ -151,8 +157,9 @@ physical GUI input or Android restart was used.
 3. Apply existing ownership, healthy-host and RAM admission checks. The reference
    5 GiB guest is not evidence that this Galaxy can supply that backing. Keep the
    6 GiB diagnostic cap and 1536 MiB host floor; no new compaction is approved.
-4. Extend the tested synthetic IOMedia service to a separately verified root-disk
-   profile and filesystem stack; the 2 MiB service is not a mounted filesystem.
+4. Extend the tested original-family 10 MiB APFS-container readback to a separately
+   verified main root-disk profile and filesystem mount. Supply matching root
+   authentication metadata; container/checkpoint reads are not a mounted volume.
    Provide display/input transport suitable for that memory contract,
    rather than reading protected host mappings. Reuse guest-only networking
    principles; do not copy upstream host interface or bridge changes.
@@ -173,9 +180,10 @@ the actual POST results. This is not a certification claim. The first generic bo
 legacy-display probe referenced unconditionally; the checked-in guard fixes that
 build configuration without adding a fake graphics service.
 
-Only source/build tools and small new diagnostic disks were obtained. No full
-IPSW, proprietary iOS kext collection, Apple root filesystem or complete OS
-installation was downloaded. Sources/build caches are ignored and space-bound;
+At the initial source-only checkpoint no Apple binaries had been fetched. Later
+bounded kernelcache, small AppOS and root-metadata fetches are detailed below;
+the main OS/SystemOS images and full IPSW remain unfetched.
+Sources/build caches and proprietary artifacts are ignored and space-bound;
 Android 16 frozen refs and the shipped Android/Debian runtime remain unchanged.
 See the [reproduction and evidence notes](native-xnu-bringup.md) and the
 [structured record](data/ios-native-feasibility-2026-10-24.json).
@@ -187,7 +195,7 @@ full IPSW was obtained. Its original corecrypto passed 19 POST cases on the
 Galaxy, followed by full synthetic PCI readback and normal guest shutdown.
 APFS mount and iOS user-space remain unverified; the early diagnostic produced
 no APFS-specific execution receipt. Static original storage ABI checks passed,
-but its concrete PCI adapter still needs guest-side qualification.
+but its concrete PCI adapter was not yet qualified at that earlier checkpoint.
 
 ## Other assessed approaches
 
@@ -212,3 +220,10 @@ For the next filesystem step only the separate small10MiB Cryptex1,AppOS was
 extracted from the same official restore ZIP and identified offline as raw APFS.
 Main OS/SystemOS root images/full IPSW remain unfetched, and the small component
 has not been attached to a VM. Raw proprietary artifacts remain private.
+
+The small real AppOS component has since passed full 10 MiB BSD readback, its
+NXSB header check and APFS checkpoint recognition. A stale 2 MiB protocol bound
+was fixed after retaining the first failed trial. The second guest powered off
+normally and host postflight matched. Missing guest system-volume-auth metadata
+and the absent main OS/SystemOS images still block a real iOS system-root boot;
+container readback is not a mounted system volume or iOS user-space.

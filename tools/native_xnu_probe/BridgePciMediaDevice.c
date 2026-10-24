@@ -1,9 +1,16 @@
-/* MIT. Persistent read-only PCI transport for an isolated IOMedia diagnostic.
+/* MIT. Persistent read-only PCI transport for isolated storage diagnostics.
  * Host-visible descriptors/data remain entirely in the exclusive shared tail.
  */
 #define PLB_PCI_RECEIPT_PREFIX "PLB_XNU_MEDIA"
 #include "xnu_pci_support.h"
 #include "BridgePciMediaDevice.h"
+
+#ifndef PLB_PCI_DATA_BYTES
+#define PLB_PCI_DATA_BYTES 2097152
+#endif
+#if PLB_PCI_DATA_BYTES != 2097152 && PLB_PCI_DATA_BYTES != 10485760
+#error "Only the synthetic2MiB or pinned AppOS10MiB diagnostic is supported"
+#endif
 
 static struct {
     volatile uint8_t *config;
@@ -90,7 +97,7 @@ bool plb_media_device_open(void) {
         struct plb_vpci_io io = {&mapped, region_read, region_write, elapsed_ms, io_barrier};
         valid = valid && plb_vpci_capacity(&io, &sectors) && !mapped.invalid;
         receipt("candidate", function, sectors);
-        if (valid && sectors == 4096 && selected == 0) {
+        if (valid && sectors == PLB_PCI_DATA_BYTES / 512 && selected == 0) {
             selected++;
             device.mappings = mapped;
             chosen = caps;
@@ -119,7 +126,8 @@ bool plb_media_device_open(void) {
         goto fail;
     }
     device.touched_queue = true;
-    if (!plb_vpci_start(&device.queue) || device.mappings.invalid) {
+    if (!plb_vpci_start(&device.queue) || device.mappings.invalid ||
+        device.queue.capacity_sectors != PLB_PCI_DATA_BYTES / 512) {
         goto fail;
     }
     device.online = true;
@@ -131,7 +139,7 @@ fail:
 }
 
 bool plb_media_device_read(uint64_t offset, uint8_t destination[4096]) {
-    if (!device.online || !destination || (offset & 4095) || offset > 2097152 - 4096) {
+    if (!device.online || !destination || (offset & 4095) || offset > PLB_PCI_DATA_BYTES - 4096) {
         return false;
     }
     device.requests++;
