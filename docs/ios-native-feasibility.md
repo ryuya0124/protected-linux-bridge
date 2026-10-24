@@ -199,3 +199,16 @@ but its concrete PCI adapter still needs guest-side qualification.
 - [vphone-cli](https://github.com/Lakr233/vphone-cli) uses Apple's Mac-only
   Virtualization.framework/PCC path. It is not a Galaxy-local implementation;
   a remote Mac viewer would be a different product and has not been selected.
+
+A further trial passed **original Apple storage-family BSD I/O**: the actual
+original base metaclass size matched144bytes, a real BSD node was published,
+and all2MiB were verified through its normal character-device read interface.
+Original APFS2236.140.6 logged module start and sysctl registration. The guest
+reset and shut down normally; VMM/supervisor0 and host postflight passed.
+This supersedes the earlier unqualified original-storage state. It still does
+not establish an APFS mount, iOS user-space or display/input support.
+
+For the next filesystem step only the separate small10MiB Cryptex1,AppOS was
+extracted from the same official restore ZIP and identified offline as raw APFS.
+Main OS/SystemOS root images/full IPSW remain unfetched, and the small component
+has not been attached to a VM. Raw proprietary artifacts remain private.

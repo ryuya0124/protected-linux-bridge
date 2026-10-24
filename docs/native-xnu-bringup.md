@@ -348,3 +348,34 @@ Owned firmware sources/logs were archived with CRC/hash verification. At the
 user's request, inactive Xcode simulators and regenerable caches were removed,
 reclaiming about 28 GiB; Xcode, SDKs, projects and archives were retained. The
 8 GiB build-space guard stayed enabled and the resumed link passed.
+
+## Original Apple storage: live BSD path
+
+The next protected512MiB/one-vCPU trial uses `BridgeOriginalPciBlock.cpp`,
+compiled from public block-device declarations and bound to real original
+IOStorageFamily functions/data. `build_original_xnu_block_probe.py` verifies
+190 virtual slots,14 concrete abstract operations, the exact candidate and
+header/source identities, and rejects unaudited imports or abstract complete
+destructors. Ten genuine original bindings were used; no function body was
+replaced with a success stub. The earlier source-family variant is preserved.
+
+The guest's normal metaclass API returned144bytes, matching the compiled base.
+Original storage matching created a BSD node. The diagnostic opened its actual
+character-device entry, read every2MiB via `uio`/`d_read`, verified the expected
+FNV64, and closed it. Device reset, guest PSCI shutdown and VMM/supervisor0
+passed. `native_xnu_original_result.py` verifies ordered nonce-bound receipts,
+class size, private/shared DMA boundary, full digest, crypto POST and shutdown.
+APFS2236.140.6 also logged actual module start and sysctl registration.
+**No filesystem was mounted and no iOS user-space was booted.**
+
+The host retained the same boot/core/trustedVM births, taint4608, Enforcing,
+six `never` settings and four original disk metadata identities. No fresh
+original-disk content hashes are claimed. No host tuning/restart/module change.
+
+A separate small official `Cryptex1,AppOS` image was range-fetched for the next
+filesystem step:10MiB raw APFS, SHA-256
+`52e568e1eaaede5fde4684ad10afc60f8fb236bfb5a23e0869bb0ed8a1d275d7`.
+Its extraction consumed4700776range bytes, with a32MiB member cap and the
+unchanged128MiB range budget. The main OS/SystemOS images and full IPSW were
+not downloaded. The small AppOS component is not a complete bootable iOS root
+and has not been attached to a VM at this checkpoint.

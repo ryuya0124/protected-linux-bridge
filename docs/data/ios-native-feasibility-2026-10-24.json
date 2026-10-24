@@ -58,7 +58,7 @@
     "vcpus": 1,
     "synthetic_readback_bytes": 2097152,
     "uefi_normal_shutdown_verified": true,
-    "xnu_trials": 7,
+    "xnu_trials": 8,
     "xnu_owned_ram_mib": 256,
     "xnu_shared_pool_excluded": true,
     "xnu_darwin": "23.6.0",
@@ -107,7 +107,7 @@
   "host_system_configuration_modified": false,
   "app_private_diagnostic_files_created": true,
   "validation": {
-    "host_tests": 266,
+    "host_tests": 279,
     "skipped": 6,
     "native_android_runner_compilation": "NDK ARM64 -Wall -Wextra -Werror passed",
     "apk_changed": false,
@@ -147,7 +147,15 @@
     "board_pin_matched": true,
     "os_rootfs_fetched": false,
     "full_ipsw_fetched": false,
-    "latest_ios_compatibility_claimed": false
+    "latest_ios_compatibility_claimed": false,
+    "small_appos": {
+      "bytes": 10485760,
+      "sha256": "52e568e1eaaede5fde4684ad10afc60f8fb236bfb5a23e0869bb0ed8a1d275d7",
+      "additional_range_bytes": 4700776,
+      "format": "Raw APFS, confirmed offline",
+      "vm_attached": false,
+      "main_os_or_systemos_image_fetched": false
+    }
   },
   "original_apple_storage": {
     "prelinked_dependency_components": 12,
@@ -158,16 +166,19 @@
     "static_abi_kernel_bindings": 176,
     "static_abi_pure_virtual_slots": 14,
     "compiled_class_bytes": 144,
-    "live_metaclass_checked": false,
+    "live_metaclass_checked": true,
     "genuine_corecrypto_post_passed": 19,
     "source_crypto_startup_entry_absent": true,
     "synthetic_pci_readback_bytes": 2097152,
     "guest_shutdown_verified": true,
     "supervisor_exit": 0,
     "host_postflight_passed": true,
-    "apfs_initialization_verified": false,
-    "original_storage_family_io_verified": false,
+    "apfs_initialization_verified": true,
+    "original_storage_family_io_verified": true,
     "filesystem_mounted": false,
-    "ios_boot_verified": false
+    "ios_boot_verified": false,
+    "live_class_size_bytes": 144,
+    "original_family_bsd_readback_bytes": 2097152,
+    "apfs_version": "2236.140.6"
   }
 }

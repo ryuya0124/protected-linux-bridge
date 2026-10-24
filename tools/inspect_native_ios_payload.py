@@ -191,7 +191,34 @@ class BoundedAppleArchive(io.RawIOBase):
         return done
 
 
-def inspect(source: Path, output: Path, *, kernelcache: bool = False, decode: bool = False) -> dict:
+def extract_bounded_member(
+    archive: zipfile.ZipFile, member: str, destination: Path, limit: int
+) -> dict:
+    entry = archive.getinfo(member)
+    if not 0 < entry.file_size <= limit or not 0 < entry.compress_size <= limit:
+        raise ValueError("Oversized or empty selected payload")
+    actual = 0
+    digest = hashlib.sha256()
+    with archive.open(entry) as source, destination.open("xb") as target:
+        while block := source.read(min(1024**2, limit - actual + 1)):
+            actual += len(block)
+            if actual > limit or actual > entry.file_size:
+                raise ValueError("Extracted payload exceeds its declared bound")
+            digest.update(block)
+            target.write(block)
+    if actual != entry.file_size:
+        raise ValueError("Incomplete selected payload")
+    return {"sha256": digest.hexdigest(), "bytes": actual}
+
+
+def inspect(
+    source: Path,
+    output: Path,
+    *,
+    kernelcache: bool = False,
+    decode: bool = False,
+    appos: bool = False,
+) -> dict:
     source = source.resolve(strict=True)
     output = output.resolve()
     private = (ROOT / "artifacts").resolve()
@@ -246,6 +273,7 @@ def inspect(source: Path, output: Path, *, kernelcache: bool = False, decode: bo
             }
         (output / "BuildManifest.plist").write_bytes(manifest_bytes)
         fetched_kernel = None
+        fetched_appos = None
         if kernelcache or decode:
             info = archive.getinfo(components["KernelCache"]["member"])
             if info.file_size > 96 * 1024**2 or info.compress_size > 96 * 1024**2:
@@ -260,6 +288,12 @@ def inspect(source: Path, output: Path, *, kernelcache: bool = False, decode: bo
                 "sha256": hashlib.sha256(destination.read_bytes()).hexdigest(),
                 "bytes": info.file_size,
             }
+        if appos:
+            # AppOS is a separate small image. Never substitute the multi-GiB
+            # OS/SystemOS members or fetch the entire restore ZIP as a fallback.
+            fetched_appos = extract_bounded_member(
+                archive, components["Cryptex1,AppOS"]["member"], output / "AppOS.dmg", 32 * 1024**2
+            )
     result = {
         "product": config["product"],
         "version": config["version"],
@@ -269,6 +303,7 @@ def inspect(source: Path, output: Path, *, kernelcache: bool = False, decode: bo
         "manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(),
         "components": components,
         "kernelcache": fetched_kernel,
+        "appos": fetched_appos,
         "full_ipsw_downloaded": False,
         "os_rootfs_downloaded": False,
         "device_modified": False,
@@ -289,8 +324,15 @@ if __name__ == "__main__":
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--kernelcache", action="store_true")
     parser.add_argument("--decode-kernelcache", action="store_true")
+    parser.add_argument(
+        "--appos", action="store_true", help="Extract only the bounded small AppOS image"
+    )
     args = parser.parse_args()
     report = inspect(
-        args.source, args.output, kernelcache=args.kernelcache, decode=args.decode_kernelcache
+        args.source,
+        args.output,
+        kernelcache=args.kernelcache,
+        decode=args.decode_kernelcache,
+        appos=args.appos,
     )
     print(json.dumps({k: v for k, v in report.items() if k != "components"}, indent=2))

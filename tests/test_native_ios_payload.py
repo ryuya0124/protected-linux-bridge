@@ -4,10 +4,16 @@ import io
 from pathlib import Path
 import sys
 import unittest
+import tempfile
+import zipfile
 from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
-from inspect_native_ios_payload import BoundedAppleArchive, im4p_kernel_payload
+from inspect_native_ios_payload import (
+    BoundedAppleArchive,
+    im4p_kernel_payload,
+    extract_bounded_member,
+)
 
 
 class Response(io.BytesIO):
@@ -84,3 +90,17 @@ class ApplePayloadRangeTest(unittest.TestCase):
         for data in (b"", b"\x30", b"\x30\x80", b"\x30\x84\xff\xff\xff\xff", b"\x30\x03\x16\x04x"):
             with self.assertRaises(ValueError):
                 im4p_kernel_payload(data)
+
+    def test_selected_payload_limit_and_no_overwrite(self):
+        packed = io.BytesIO()
+        with zipfile.ZipFile(packed, "w", zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr("small.dmg", b"x" * 1024)
+        with tempfile.TemporaryDirectory() as directory, zipfile.ZipFile(packed) as archive:
+            output = Path(directory) / "selected.dmg"
+            with self.assertRaises(ValueError):
+                extract_bounded_member(archive, "small.dmg", output, 512)
+            self.assertFalse(output.exists())
+            result = extract_bounded_member(archive, "small.dmg", output, 1024)
+            self.assertEqual(result["bytes"], 1024)
+            with self.assertRaises(FileExistsError):
+                extract_bounded_member(archive, "small.dmg", output, 1024)

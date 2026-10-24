@@ -958,3 +958,26 @@ No APFS-specific execution receipt or mount occurred before its early shutdown;
 selected/mapped modules are not evidence of filesystem initialization. The
 emitter's runtime-qualified/loadable flags remain false. Keep all prior source
 and original modes separate, and original APK/Android16 refs unchanged.
+
+## Original storage BSD checkpoint, later 2026-10-24
+
+The original-family PCI variant now derives from the audited real original
+IOBlockStorageDevice using190 checked slots and10 real function/data bindings.
+It does not link the public-source storage-family archive. The guest checked
+its actual base metaclass size144 against compiled144, then original storage
+matching published a real BSD device. Full2MiB were read through that character
+device's actual d_open/d_read/d_close path and checked against the fixture.
+Guest reset/PSCI shutdown and VMM/supervisor0 passed. APFS2236.140.6 actually
+logged module start and completed sysctl registration. This establishes APFS
+initialization, not filesystem mount or iOS user-space. Postflight preserved
+boot/core/trustedVM births, taint4608, Enforcing, six never policies and four
+original disk metadata identities. The isolated512MiB memory contract remains.
+
+A later bounded official fetch obtained only the separate10MiB Cryptex1,AppOS
+image (4700776 range bytes; SHA52e568e1eaaede5fde4684ad10afc60f8fb236bfb5a23e0869bb0ed8a1d275d7).
+Offline macOS imageinfo identifies raw APFS. It has not been attached to a VM.
+The main OS and SystemOS images/full IPSW remain unfetched. Raw Apple binaries
+stay ignored/private. Do not treat this small component as a complete iOS root.
+New tests reject missing/changed virtual dispatch, unqualified imports, abstract
+destructors, partial/stale BSD evidence and unbounded/overwriting extraction.
+No iOS UI/profile or APK change; Android16 frozen refs remain unchanged.
