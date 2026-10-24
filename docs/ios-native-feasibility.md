@@ -19,6 +19,11 @@ AppCryptex's sealed-root panic must not be generalized to it. See the
 [three main-root trials and authentication boundary](native-ios-root-storage.md).
 Digest equality does not establish Apple's signature authentication.
 
+The follow-up [consumed-data verification checkpoint](native-ios-block-verification.md)
+now qualifies real in-guest SHA-256 checking and a separate one-byte tamper
+refusal. Normal data still mounts read-only, then receives Apple's actual
+EAUTH (80). Owner-root acceptance remains disabled; no iOS user-space starts.
+
 ## Execution model
 
 A Linux container shares the Android/Linux kernel and cannot boot an XNU

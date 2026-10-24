@@ -20,6 +20,14 @@
 #include <sys/mount.h>
 #include "BridgePciMediaDevice.h"
 #include "pci_contract.generated.h"
+#if defined(PLB_PCI_BLOCK_POLICY)
+#include <libkern/crypto/sha2.h>
+#include "verified_read.h"
+#include "verified_hash.h"
+#include "root_policy.generated.h"
+extern "C" const uint8_t plb_root_hashes[];
+extern "C" const uint8_t plb_root_hashes_end[];
+#endif
 
 // sys/systm.h declares this under BSD_KERNEL_PRIVATE, whereas this unit uses
 // the actual IOKit compilation recipe. The kernel definition is const int.
@@ -33,6 +41,49 @@ constexpr uint64_t diskBytes = PLB_PCI_DATA_BYTES;
 void receipt(const char *phase, uint64_t a = 0, uint64_t b = 0) {
     kprintf("PLB_XNU_ORIGINAL nonce=" PLB_PCI_NONCE " phase=%s a=%llu b=%llu\n", phase, a, b);
 }
+#if defined(PLB_PCI_BLOCK_POLICY)
+bool rawPolicyRead(void *, uint64_t offset, uint8_t data[4096]) {
+    if (!plb_media_device_read(offset, data)) {
+        return false;
+    }
+#if defined(PLB_PCI_BLOCK_FAULT)
+    static bool injected = false;
+    if (!injected) {
+        // Negative control changes only the guest's completed private copy.
+        // Never alter the backing image, shared mappings or another VM.
+        data[0] ^= 1;
+        injected = true;
+        receipt("integrity_fault_injected", offset, 1);
+    }
+#endif
+    return true;
+}
+
+bool qualifyPolicy() {
+    static const uint8_t expectedAbc[32] = {0xba, 0x78, 0x16, 0xbf, 0x8f, 0x01, 0xcf, 0xea,
+                                            0x41, 0x41, 0x40, 0xde, 0x5d, 0xae, 0x22, 0x23,
+                                            0xb0, 0x03, 0x61, 0xa3, 0x96, 0x17, 0x7a, 0x9c,
+                                            0xb4, 0x10, 0xff, 0x61, 0xf2, 0x00, 0x15, 0xad};
+    uint8_t digest[32];
+    plb_verified_sha256("abc", 3, digest);
+    if (memcmp(digest, expectedAbc, sizeof(digest))) {
+        return false;
+    }
+    receipt("sha256_kat", 1, 256);
+    uintptr_t begin = reinterpret_cast<uintptr_t>(plb_root_hashes);
+    uintptr_t end = reinterpret_cast<uintptr_t>(plb_root_hashes_end);
+    if (end < begin || end - begin != PLB_ROOT_TABLE_BYTES || PLB_ROOT_IMAGE_BYTES != diskBytes) {
+        return false;
+    }
+    static const uint8_t expectedTable[32] = PLB_ROOT_TABLE_SHA256_BYTES;
+    plb_verified_sha256(plb_root_hashes, PLB_ROOT_TABLE_BYTES, digest);
+    if (memcmp(digest, expectedTable, sizeof(digest))) {
+        return false;
+    }
+    receipt("integrity_policy_ready", PLB_VERIFIED_CHUNK_BYTES, PLB_ROOT_TABLE_BYTES / 32);
+    return true;
+}
+#endif
 #if !defined(PLB_PCI_APFS_FIXTURE) && !defined(PLB_PCI_MAIN_ROOT)
 uint8_t expectedByte(uint64_t offset) {
     return static_cast<uint8_t>(offset * 17 + (offset >> 9) * 29 + plb_pci_seed[offset % 16]);
@@ -45,6 +96,10 @@ class BridgeOriginalPciBlock : public IOBlockStorageDevice {
     IOLock *gate = nullptr;
     uint8_t page[4096] = {};
     bool online = false;
+#if defined(PLB_PCI_BLOCK_POLICY)
+    plb_verified_state *integrity = nullptr;
+    bool integrityReported = false;
+#endif
 
   public:
     bool init(OSDictionary *properties = nullptr) override {
@@ -52,14 +107,29 @@ class BridgeOriginalPciBlock : public IOBlockStorageDevice {
             return false;
         }
         gate = IOLockAlloc();
+#if defined(PLB_PCI_BLOCK_POLICY)
+        integrity = static_cast<plb_verified_state *>(IOMalloc(sizeof(*integrity)));
+        if (!integrity) {
+            return false;
+        }
+        bzero(integrity, sizeof(*integrity));
+#endif
         return gate != nullptr;
     }
     bool start(IOService *provider) override {
         online = IOBlockStorageDevice::start(provider) && plb_media_device_open();
+#if defined(PLB_PCI_BLOCK_POLICY)
+        online = online && qualifyPolicy();
+#endif
         return online &&
                setProperty(kIOBlockStorageDeviceTypeKey, kIOBlockStorageDeviceTypeGeneric);
     }
     void free() override {
+#if defined(PLB_PCI_BLOCK_POLICY)
+        if (integrity) {
+            IOFree(integrity, sizeof(*integrity));
+        }
+#endif
         if (gate) {
             IOLockFree(gate);
         }
@@ -68,6 +138,10 @@ class BridgeOriginalPciBlock : public IOBlockStorageDevice {
     bool finish() {
         IOLockLock(gate);
         online = false;
+#if defined(PLB_PCI_BLOCK_POLICY)
+        receipt("integrity_stats", integrity->verified_chunks, integrity->delivered_pages);
+        receipt("integrity_failures", integrity->failures, integrity->poisoned);
+#endif
         bool reset = plb_media_device_close();
         IOLockUnlock(gate);
         return reset;
@@ -168,9 +242,26 @@ class BridgeOriginalPciBlock : public IOBlockStorageDevice {
             if (bytes > 4096 - within) {
                 bytes = 4096 - within;
             }
-            if (!plb_media_device_read(offset & ~4095ULL, page)) {
+            bool read;
+#if defined(PLB_PCI_BLOCK_POLICY)
+            read = plb_verified_read(integrity, diskBytes, plb_root_hashes, PLB_ROOT_TABLE_BYTES,
+                                     offset & ~4095ULL, page, rawPolicyRead, nullptr,
+                                     plb_verified_hash_snapshot);
+            if (!read && !integrityReported) {
+                receipt("integrity_rejected", integrity->verified_chunks,
+                        integrity->delivered_pages);
+                integrityReported = true;
+            }
+#else
+            read = plb_media_device_read(offset & ~4095ULL, page);
+#endif
+            if (!read) {
                 online = false;
+#if defined(PLB_PCI_BLOCK_POLICY)
+                status = integrity->poisoned ? kIOReturnNotPrivileged : kIOReturnIOError;
+#else
                 status = kIOReturnIOError;
+#endif
                 break;
             }
             if (buffer->writeBytes(done, page + within, bytes) != bytes) {

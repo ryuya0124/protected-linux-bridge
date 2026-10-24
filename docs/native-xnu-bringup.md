@@ -5,6 +5,10 @@ branch and leave the released Android/Debian profiles unchanged. The target is
 native ARM64 execution through the existing Gunyah/crosvm interface. No QEMU CPU
 translation, remote Apple machine or host kernel module is used.
 
+Later checkpoints cover the [read-only main APFS mount](native-ios-root-storage.md)
+and [in-guest data verification with a tamper control](native-ios-block-verification.md).
+The real Apple root-auth refusal remains preserved; iOS user-space is unbooted.
+
 ## Evidence, 2026-10-24
 
 | Trial | Actual observation | Limit |

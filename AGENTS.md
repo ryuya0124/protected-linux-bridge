@@ -1160,3 +1160,51 @@ verify consumed data inside the guest, include negative tamper tests, preserve
 the observed Apple refusal and clearly distinguish its trust anchor. Also retain
 SystemOS/Data/process/platform/display limitations. Public checkpoint details
 and explicit preparation commands are in docs/native-ios-root-storage.md.
+
+## Native consumed-read verification, later 2026-10-24
+
+The user confirmed intentionally soft-rebooting Android since the main-root
+checkpoint. Keep the old host snapshot and a SEPARATE confirmed-current-generation
+snapshot; do not silently repin a runner after an unexplained process change.
+No Android restart was performed by these two new trials. The trusted VM and
+kernel boot identity remained unchanged; both new core process births matched
+their new snapshot throughout the two trials.
+
+The exact 6,077,580,800-byte main-root image now has a first-party owner-built
+16 KiB domain/index/length-separated SHA-256 table: 370,947 rows / 11,870,304 bytes,
+fixed SHA256 a62091ae6738616977611e632597bd9a2adfee0a57708a3f264dd9ac158e4395.
+Build-time pinning refuses a substituted table even with a recomputed manifest.
+The real XNU SHA256 known-answer check and whole embedded table check precede
+publication. Read bytes enter a separately allocated PRIVATE 16 KiB snapshot;
+only cryptographically verified snapshots feed the original storage/APFS stack.
+Serialization, cached-snapshot ownership, EOF zero padding and fail-closed
+poison/offline handling must remain. No unverified fallback after a failure.
+The Mach-O table segment declares R/NX; actual guest PTE permissions were NOT
+measured. Do not present static segment inspection as a hardware permission test.
+
+Two explicitly dispatched fresh trials completed. Normal-data trial authenticated
+69 chunk loads / 330 page deliveries, mounted read-only APFS and preserved actual
+FSIOC_KERNEL_ROOTAUTH errno 80, then reset/shut down normally. These counters
+include repeated loads, NOT unique whole-disk coverage. The negative build
+flipped one byte ONLY in the first completed private copy at offset 0. It delivered
+ZERO authenticated chunks/pages, recorded one failure/poison, refused BSD read,
+never mounted/selected/authenticated root, then reset/shut down normally.
+Both supervisors/VMMs 0 and host postflights matched: current boot/core/trusted-VM
+identity, taint 4608, Enforcing, six never policies, four original disk metadata
+identities (not fresh disk hashes). No original persistent disk was attached.
+
+XNU_OWNER_ROOT_AUDIT=0 and XNU_OWNER_ROOT_TRUST=0 remain mandatory for this
+checkpoint. This is an explicit owner input policy, NOT Apple signing/IM4M or
+an accepted root policy. No launchd, iOS user-space/UI, new app installer or APK
+feature is qualified. A later distinct owner-root mode still needs actual mounted
+device/UUID/provider binding and negative controls, preserving Apple's error.
+Do not enable the upstream generic native-virtio/root-trust flags to bypass its
+build guards: those select a different, unqualified memory/device path.
+
+Both verified archives compiled against 190 original storage slots; both XNU
+source kernels linked. Full offline suite: 304 run / 6 skipped. After source formatting,
+the suite passed again; freshly recompiled driver executable __text matches each
+device-tested object. Host fixture uses real CommonCrypto/OpenSSL and ASan/UBSan,
+not a hash-success stub. Raw/OS images, tables, builds, detailed receipts and
+host identifiers remain ignored/private. Public records and preparation are in
+docs/native-ios-block-verification.md. Preserve 8 GiB Mac free-space floor.

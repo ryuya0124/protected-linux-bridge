@@ -6,6 +6,10 @@ subsequent root authentication returns **EAUTH (80)**. The diagnostic records
 that result and shuts down its own guest; iOS user-space and its UI do not run.
 No iOS launch button, installer or new APK is enabled by this result.
 
+The follow-up [guest storage verification](native-ios-block-verification.md)
+adds real per-read SHA-256 checks and a separately observed tamper refusal.
+Apple root-auth still returns 80; no owner-root acceptance is enabled.
+
 This extends [native XNU bring-up](native-xnu-bringup.md). It retains the
 qualified 512 MiB / one-vCPU VM, stock hash-pinned crosvm, private executable RAM
 and separate non-executable 32 MiB DMA pool. There are no host modules, shared
