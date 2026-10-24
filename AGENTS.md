@@ -812,3 +812,17 @@ Debian stop returned its exact receipt. The later16MiB handoff preserved content
 and PFNs but only3724/4096 pages were THP; no further VM was started. The user
 request does not authorize another compaction. Final release code26 retains
 all gates; no automatic host-wide trim feature was added.
+
+## iOS request and no CPU emulation, user 2026-10-24
+
+The user requests an iOS guest and prefers a newer OS, explicitly rejecting
+emulation. Treat this as native ARM64 hardware virtualization with guest XNU;
+Linux containers alone cannot boot iOS. Do not silently substitute legacy QEMU,
+touchHLE, a remote Mac session or an iOS-themed Android UI.
+The offline UniXNU-droidvm assessment is in docs/ios-native-feasibility.md.
+Its reference host-share/hugepage modules, protected-memory changes and host
+network bridge remain prohibited. No device boot or firmware fetch was done.
+Keep iOS work separate from functioning Android/Debian profiles, preserve frozen
+Android16 refs, and do not add an enabled launch until the memory contract and
+matching guest artifacts are verified. An upstream boot report is not a local
+Galaxy boot. Do not execute upstream rig/module or live guest-RAM peek scripts.

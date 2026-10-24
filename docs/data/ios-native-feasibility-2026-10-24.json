@@ -1,0 +1,50 @@
+{
+  "assessed_on": "2026-10-24",
+  "goal": "Recent iOS-family guest running locally using native ARM64 hardware virtualization",
+  "cpu_emulation_allowed": false,
+  "container_boot_supported": false,
+  "candidate": {
+    "name": "UniXNU-droidvm",
+    "repo": "https://github.com/Droid-VM/UniXNU-droidvm",
+    "commit": "512350a37a80f6b368e889aee22fafbcf79a28a4",
+    "build_driver_repo": "https://github.com/UniXNU/UniXNU",
+    "build_driver_commit": "1a01c2afa197d975d04da892325c56b6b14aaecb",
+    "vmm_repo": "https://github.com/Droid-VM/crosvm",
+    "vmm_commit": "61c47a4693bc2e514c5be3f4cb1b9d727727528f",
+    "guest_product": "iPad7,1",
+    "guest_os": "iPadOS 17.7.11",
+    "guest_build": "21H461",
+    "reference_ram_mib": 5120,
+    "reference_vcpus": 4,
+    "boot": "edk2-gunyah -> UniXNU.efi -> DarwinBoot.efi -> patched guest XNU",
+    "upstream_success_is_third_party_report": true,
+    "requested_build_branch_present": false
+  },
+  "blockers": [
+    "Reference runtime executable memory sharing uses an out-of-tree host module and /dev/gunyah_share",
+    "Reference memory pool depends on gh_hugepage_reserve; Bridge all-THP preparation is a different contract",
+    "Reference networking changes host interface addresses; must not copy that path",
+    "Reference framebuffer and diagnostic tools read shared guest RAM; must not run against donated protected mappings",
+    "17.7.11 kernel prelink hashes and platform drivers do not establish newer iOS support",
+    "Reference RAM and MMIO addresses cannot be copied to another topology",
+    "Mac has limited free storage; no full firmware/source build fetched"
+  ],
+  "device_contacted": false,
+  "upstream_scripts_executed": false,
+  "host_modified": false,
+  "guest_boot_attempted": false,
+  "firmware_downloaded": false,
+  "boot_verified": false,
+  "launch_enabled": false,
+  "module_free_port_hypothesis": {
+    "executable_ram": "private protected guest RAM",
+    "io_buffers": "bounded non-executable shared DMA window",
+    "requires_guest_uefi_dma_changes": true,
+    "requires_guest_xnu_dma_changes": true,
+    "reference_virtio_block_commit": "98909eb9198a4360d7a43be831887cb8b74d814d",
+    "reference_virtio_block_uses_generic_contiguous_allocations": true,
+    "native_probe_built": false,
+    "native_probe_run": false,
+    "verified": false
+  }
+}
