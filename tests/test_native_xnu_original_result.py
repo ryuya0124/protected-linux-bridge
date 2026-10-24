@@ -6,6 +6,14 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 from native_xnu_original_result import assess, APPOS_SHA256
+from native_ios_root_contract import (
+    RAW_BYTES,
+    RAW_SHA256,
+    PREFIX_FNV64,
+    TAIL_BYTES,
+    TAIL_FNV64,
+    VOLUME_UUID,
+)
 
 
 class OriginalFamilyEvidenceTest(unittest.TestCase):
@@ -169,6 +177,69 @@ class OriginalFamilyEvidenceTest(unittest.TestCase):
         ]
         with self.assertRaises(ValueError):
             assess(self.console(rows), self.runner, contract, pattern)
+
+    def main_fixture(self):
+        contract = dict(self.contract, fixture_kind="official_main_os", mount_probe=True)
+        pattern = dict(
+            self.pattern,
+            disk_bytes=RAW_BYTES,
+            disk_sha256=RAW_SHA256,
+            prefix_bytes=4096,
+            prefix_fnv64=PREFIX_FNV64,
+            tail_bytes=TAIL_BYTES,
+            tail_offset=RAW_BYTES - TAIL_BYTES,
+            tail_fnv64=TAIL_FNV64,
+            volume_uuid=VOLUME_UUID,
+        )
+        rows = self.mount_rows()
+        rows.pop(7)
+        rows[3] = ("MEDIA", "candidate", 16, RAW_BYTES // 512)
+        rows[7] = ("ORIGINAL", "bsd_gpt_prefix_pass", 4096, PREFIX_FNV64)
+        rows.insert(8, ("ORIGINAL", "bsd_partial_tail_pass", TAIL_BYTES, TAIL_FNV64))
+        registry = (
+            f"PLB_XNU_REGISTRY nonce={self.nonce} depth=5 class=AppleAPFSVolume "
+            f"bsd=disk1s1 uuid={VOLUME_UUID}\n"
+        )
+        return contract, pattern, self.console(rows) + registry
+
+    def test_main_os_bounded_reads_do_not_become_a_whole_disk_or_ios_boot(self):
+        contract, pattern, console = self.main_fixture()
+        result = assess(console, self.runner, contract, pattern)
+        self.assertEqual(result["bytes_verified"], 5632)
+        self.assertEqual(result["disk_capacity_bytes"], RAW_BYTES)
+        self.assertTrue(result["gpt_prefix_and_partial_tail_verified"])
+        self.assertTrue(result["filesystem_mount_verified"])
+        self.assertFalse(result["guest_full_disk_readback_verified"])
+        self.assertFalse(result["root_authentication_verified"])
+        self.assertFalse(result["ios_boot_verified"])
+
+    def test_main_root_requires_its_partial_tail_and_exact_volume(self):
+        contract, pattern, console = self.main_fixture()
+        for bad in (
+            console.replace("bsd_partial_tail_pass", "bsd_read_pass"),
+            console.replace(f"a=1536 b={TAIL_FNV64}", f"a=4096 b={TAIL_FNV64}"),
+            console.replace(VOLUME_UUID, "0" * 36),
+            console + console.splitlines()[-1] + "\n",
+            console.replace("class=AppleAPFSVolume", "class=IOMedia"),
+        ):
+            with self.assertRaises(ValueError):
+                assess(bad, self.runner, contract, pattern)
+
+    def test_main_root_report_cannot_select_an_arbitrary_disk(self):
+        contract, pattern, console = self.main_fixture()
+        for key, value in (
+            ("disk_sha256", APPOS_SHA256),
+            ("disk_bytes", RAW_BYTES + 512),
+            ("prefix_fnv64", 123),
+            ("tail_offset", RAW_BYTES - 4096),
+            ("tail_bytes", 4096),
+            ("tail_fnv64", TAIL_FNV64 + 1),
+            ("volume_uuid", "0" * 36),
+        ):
+            with self.assertRaises(ValueError):
+                assess(console, self.runner, contract, dict(pattern, **{key: value}))
+        with self.assertRaises(ValueError):
+            assess(console, self.runner, dict(contract, mount_probe=False), pattern)
 
 
 if __name__ == "__main__":

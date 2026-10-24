@@ -1105,3 +1105,58 @@ Android16 refs were rechecked at d38015f89374976cdac8ed0d6ce1f30635a52df5.
 Final tests:289 run,6 skipped. A later class-macro readability-only edit compiled
 with190 slots, and the guest object's entire executable __text section exactly
 matched the device-tested regression object. It was not another VM attempt.
+
+## Main OS native mount and preserved root-auth refusal, later2026-10-24
+
+The explicit main-root developer profile now admits ONLY the verified raw
+6077580800byte GPT image (SHA256
+e5634d04a8ac35f024845f583394e0a35deb26a04cb0c00286a8674e25a9a4f2).
+Builders reference the existing private Mac file and stream its hash; the
+root-owned single-link mode600 Android input is independently hashed before
+launch. The runner rechecks host identity/health and2560MiB start admission
+after hashing. Keep512MiB/oneCPU/32MiB static DMA, all six shmem never policies,
+1536MiB runtime floor, owner/maintenance locks, fresh durable nonce receipts and
+45s diagnostic supervisor. No app launch mode or APK release was enabled.
+
+Three explicit fresh trials are preserved. Main1 ended supervisor/VMM0 but
+DarwinBoot returned EFI_DEVICE_ERROR before XNU entry; this is NOT a kernel
+boot. Main2 used bounded1MiB EFI reads and qualified FAT preparation, reached
+native XNU and verified real BSD GPT-prefix/tail reads, then root selection
+failed at the old depth8 bound. These two simultaneous loader/FAT changes do
+not establish a unique cause for the first error. Main3 retained exact UUID
+selection, increased the bounded subtree search to depth16/nodes128, found the
+actual main AppleAPFSVolume at depth8 and completed vfs_mountroot() with0.
+The read-only original APFS2236.140.6 mount then returned EAUTH80 from the REAL
+FSIOC_KERNEL_ROOTAUTH call. The observation hook recorded80 and normally reset/
+shut down the guest; it did not replace the error, bypass authentication or
+continue to user-space. Source recipe confirms XNU_OWNER_ROOT_AUDIT=0 and
+XNU_OWNER_ROOT_TRUST=0. No iOS boot, launchd, UI or Apple-authenticated root.
+
+Real BSD compared4096GPT bytes and1536partial-tail bytes (5632total), not the
+whole six-GB disk. The actual tail FNV is3972727415229066478; prefix FNV remains
+729933198653461872. Whole-file SHA checks were on the Mac/Android host. Partial
+final-page I/O is now exercised on-device; queue wrap remains offline-tested.
+Original corecrypto POST, real storage ABI144/190slots and APFS checkpoint418
+were observed. Main-root UUID remains04769D26-2CA0-4825-B443-E2E5F88300F2.
+The missing-snapshot AppCryptex panic is a separate older result: the main OS
+has no snapshots yet actually mounts, then fails authentication. Never generalize
+AppCryptex's sealed-live-root refusal to this tested main volume.
+
+All three postflights retained boot/core/trusted-VM births, taint4608, Enforcing,
+six never policies and four original disk metadata identities. Those metadata
+checks are not fresh disk hashes. No host compaction/tuning/module/protection/
+partition/SELinux or reboot change occurred. No guest-RAM peeking was used.
+Guest-only DarwinBoot patch0006 includes the identical first-party bounded-read
+helper, tested with ASan/UBSan for short/zero/oversized/error reads. Its EDK2
+source was restored from the verified archived source; an unused absolute X11
+symlink was skipped, and only known AppleDouble metadata was removed. BaseTools
+304tests passed afterward. Do not run the upstream rig/module/emulator paths.
+
+The actual main root-auth blocker still needs investigation. Real SystemVolume
+IM4P metadata matches both restore digests but has no qualified personalized
+IM4M. Do not invent one, call a digest/FNV match Apple authentication, or silently
+enable owner-root trust. Any distinct owner-verified guest policy must actually
+verify consumed data inside the guest, include negative tamper tests, preserve
+the observed Apple refusal and clearly distinguish its trust anchor. Also retain
+SystemOS/Data/process/platform/display limitations. Public checkpoint details
+and explicit preparation commands are in docs/native-ios-root-storage.md.

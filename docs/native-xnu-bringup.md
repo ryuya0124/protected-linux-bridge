@@ -469,7 +469,7 @@ check or downloaded root disk. Format offsets were cross-checked against
 [Chromium's UDIF parser](https://chromium.googlesource.com/chromium/src/+/41b7abbdb0a34bc77373673dd1400dfdf8c4d84c/chrome/utility/safe_browsing/mac/udif.cc).
 The Mac's8GiB space floor remains in force.
 
-## Main OS source is now prepared, not yet booted
+## Main OS source preparation (preceding checkpoint)
 
 The separate explicit `fetch_native_ios_rootdisk.py` downloaded only the main
 OS member (5,157,406,069bytes). ZIP CRC and full SHA-384 match both restore
@@ -490,8 +490,8 @@ artifacts remain ignored/private. No firmware binary was published to GitHub.
 Read-only Mac inspection found `DawnUpdate21H461.J120J121J207J208OS`, UUID
 `04769D26-2CA0-4825-B443-E2E5F88300F2`, with no snapshots. Both temporary owned
 image attachments were ejected; a fresh raw-image digest still matched.
-**This main image has not been attached to the Galaxy.** The AppCryptex panic
-is not a main-OS boot result. A future step must investigate correct restore
+At this checkpoint the main image had not been attached to the Galaxy. The AppCryptex panic
+was not a main-OS boot result. The following step needed to investigate correct restore
 preparation/snapshot and root-hash handoff using a distinct disk copy/overlay,
 while preserving the source and its sealing. An invented snapshot name or
 manifest-digest equality does not establish authenticated boot.
@@ -511,7 +511,7 @@ The complete SystemOS image, a boot-ready deployed root, Apple signature
 qualification, iOS user-space and display/input support remain absent. The
 Android/Debian app runtime and frozen Android16 refs remain unchanged.
 
-Current validation:289 host tests,6 environment skips; actual main-OS download,
+Validation at that checkpoint:289 host tests,6 environment skips; actual main-OS download,
 whole-image checks and macOS conversion passed; original-storage AppOS regression
 passed on-device. The final class-macro readability-only edit recompiled with
 190 slots and byte-identical executable text to that tested object. Python3.11+
@@ -519,3 +519,34 @@ is required (tested3.13.5); macOS/Xcode supply the guest compiler and image tool
 The two last device trials' consumed firmware/disks/runners and exact shell
 stages were removed after receipt verification. Durable spent/log records and
 all original Android/Debian images remain. No owned native VMM remains active.
+
+## Main OS mounted natively; actual root authentication refuses it
+
+The follow-up [main-root storage report](native-ios-root-storage.md) records
+three individually dispatched Galaxy trials. The first stopped in the guest
+UEFI loader before XNU entry, despite supervisor0. A bounded EFI reader and the
+qualified FAT preparation restored native execution. The second passed real
+BSD GPT-prefix/partial-tail reads, then reached the old registry-depth bound.
+The third selected the exact main volume at depth8 using a depth16/128-node
+bound and completed the real `vfs_mountroot()` with return0.
+
+The mounted filesystem is read-only original APFS2236.140.6. The next actual
+`FSIOC_KERNEL_ROOTAUTH` returns EAUTH80; it was not replaced with success. The
+guest resets its read-only block transport and shuts down before user-space.
+This is a successful native main-root mount, **not iOS boot or Apple-authenticated
+root**. No missing snapshot was invented, no sealing check was disabled and no
+owner-trust macro was enabled. Missing `system-volume-auth-blob` is still logged.
+The unchanged real IM4P root-hash metadata does not supply a personalized IM4M.
+
+The separate explicit `--root-disk` profile admits only the exact verified
+6,077,580,800byte main raw image. Builders reference it without a second Mac
+copy and stream the whole-file hash; the runner independently hashes its
+root-owned Android copy and rechecks admission afterward. Guest BSD compares
+4,096prefix bytes and the1,536byte tail: **5,632bytes**, not6GiB. The latter is
+now a real hardware partial-tail result. Counter wrap remains offline-tested.
+The small synthetic/AppOS modes retain their existing whole-fixture checks.
+
+All three postflights retained the unchanged host boot/core/trusted-VM births,
+taint4608, Enforcing, six shmem never values and four original disk metadata
+identities. No compaction/tuning/host-module/protection/partition or reboot
+operation was used. The existing Android/Debian runtime and APK remain unchanged.

@@ -1,5 +1,5 @@
 /* MIT. Isolated read-only PCI disk behind Apple's original storage family.
- * Only the separate 2 MiB pattern or pinned 10 MiB AppOS fixture is accepted.
+ * Only separately pinned synthetic, AppOS or main restore OS disks are accepted.
  * No public-source storage-family implementation is linked into this variant.
  */
 #include <IOKit/IOBSD.h>
@@ -33,7 +33,7 @@ constexpr uint64_t diskBytes = PLB_PCI_DATA_BYTES;
 void receipt(const char *phase, uint64_t a = 0, uint64_t b = 0) {
     kprintf("PLB_XNU_ORIGINAL nonce=" PLB_PCI_NONCE " phase=%s a=%llu b=%llu\n", phase, a, b);
 }
-#if !defined(PLB_PCI_APFS_FIXTURE)
+#if !defined(PLB_PCI_APFS_FIXTURE) && !defined(PLB_PCI_MAIN_ROOT)
 uint8_t expectedByte(uint64_t offset) {
     return static_cast<uint8_t>(offset * 17 + (offset >> 9) * 29 + plb_pci_seed[offset % 16]);
 }
@@ -191,10 +191,17 @@ OSDefineMetaClassAndStructors(BridgeOriginalPciBlock, IOBlockStorageDevice);
 #if defined(PLB_PCI_APFS_MOUNT)
 namespace {
 BridgeOriginalPciBlock *mountBlock = nullptr;
-constexpr char appUuid[] = "C0DCFAA8-4E81-49CD-807D-BED3B9B6AE54";
+#if defined(PLB_PCI_MAIN_ROOT)
+#define PLB_ROOT_UUID "04769D26-2CA0-4825-B443-E2E5F88300F2"
+#else
+#define PLB_ROOT_UUID "C0DCFAA8-4E81-49CD-807D-BED3B9B6AE54"
+#endif
+constexpr char appUuid[] = PLB_ROOT_UUID;
 
 bool selectRoot(IOService *parent, unsigned depth, unsigned &visited, unsigned &matches) {
-    if (depth >= 8 || ++visited > 128) {
+    // Main restore disks include GPT partition services above APFS. Keep a
+    // finite traversal budget without assuming the shallower raw AppOS tree.
+    if (depth >= 16 || ++visited > 128) {
         return false;
     }
     OSString *identity = OSDynamicCast(OSString, parent->getProperty("UUID"));
@@ -230,10 +237,9 @@ bool configureRoot(BridgeOriginalPciBlock *block) {
         receipt("root_selection_failed", matches, visited);
         return false;
     }
-    constexpr char matching[] =
-        "<dict><key>IOProviderClass</key><string>IOMedia</string>"
-        "<key>IOPropertyMatch</key><dict><key>UUID</key>"
-        "<string>C0DCFAA8-4E81-49CD-807D-BED3B9B6AE54</string></dict></dict>";
+    constexpr char matching[] = "<dict><key>IOProviderClass</key><string>IOMedia</string>"
+                                "<key>IOPropertyMatch</key><dict><key>UUID</key>"
+                                "<string>" PLB_ROOT_UUID "</string></dict></dict>";
     IORegistryEntry *chosen = IORegistryEntry::fromPath("/chosen", gIODTPlane);
     OSData *data = OSData::withBytes(matching, sizeof(matching));
     bool pass = chosen && data && chosen->setProperty("root-matching", data);
@@ -336,7 +342,15 @@ bool verifyBsd(IOService *media) {
     uint8_t *bytes = static_cast<uint8_t *>(IOMalloc(4096));
     bool pass = bytes != nullptr;
     uint64_t digest = 14695981039346656037ULL;
-    for (uint64_t offset = 0; pass && offset < diskBytes; offset += 4096) {
+#if defined(PLB_PCI_MAIN_ROOT)
+    // Qualify real BSD I/O at both ends, including the 1536-byte final page.
+    // The multi-GiB whole image was hashed independently before admission;
+    // these bounded reads must never be labelled a whole-disk guest readback.
+    constexpr uint64_t readLimit = 4096;
+#else
+    constexpr uint64_t readLimit = diskBytes;
+#endif
+    for (uint64_t offset = 0; pass && offset < readLimit; offset += 4096) {
         uio_t request = uio_create(1, static_cast<off_t>(offset), UIO_SYSSPACE, UIO_READ);
         pass = request && uio_addiov(request, reinterpret_cast<user_addr_t>(bytes), 4096) == 0;
         int result = pass ? cdevsw[index].d_read(device, request, 0) : -1;
@@ -353,7 +367,7 @@ bool verifyBsd(IOService *media) {
         }
 #endif
         for (unsigned i = 0; pass && i < 4096; i++) {
-#if !defined(PLB_PCI_APFS_FIXTURE)
+#if !defined(PLB_PCI_APFS_FIXTURE) && !defined(PLB_PCI_MAIN_ROOT)
             pass = bytes[i] == expectedByte(offset + i);
 #endif
             digest = (digest ^ bytes[i]) * 1099511628211ULL;
@@ -365,9 +379,36 @@ bool verifyBsd(IOService *media) {
 #if defined(PLB_PCI_APFS_FIXTURE)
     pass = pass && digest == PLB_PCI_EXPECTED_FNV;
 #endif
+#if defined(PLB_PCI_MAIN_ROOT)
+    pass = pass && digest == PLB_PCI_EXPECTED_PREFIX_FNV &&
+           memcmp(bytes + 512, "EFI PART", 8) == 0 && bytes[510] == 0x55 && bytes[511] == 0xaa;
+    if (pass) {
+        receipt("bsd_gpt_prefix_pass", 4096, digest);
+        constexpr uint64_t tailOffset = diskBytes & ~4095ULL;
+        constexpr unsigned tailBytes = diskBytes - tailOffset;
+        uio_t request = uio_create(1, static_cast<off_t>(tailOffset), UIO_SYSSPACE, UIO_READ);
+        pass = request && uio_addiov(request, reinterpret_cast<user_addr_t>(bytes), tailBytes) == 0;
+        int result = pass ? cdevsw[index].d_read(device, request, 0) : -1;
+        pass = pass && result == 0 && uio_resid(request) == 0;
+        if (request) {
+            uio_free(request);
+        }
+        digest = 14695981039346656037ULL;
+        for (unsigned i = 0; pass && i < tailBytes; i++) {
+            digest = (digest ^ bytes[i]) * 1099511628211ULL;
+        }
+        pass = pass && digest == PLB_PCI_EXPECTED_TAIL_FNV;
+        if (pass) {
+            receipt("bsd_partial_tail_pass", tailBytes, digest);
+        } else {
+            receipt("bsd_tail_failed", tailOffset, static_cast<uint64_t>(result));
+        }
+    }
+#else
     if (pass) {
         receipt("bsd_read_pass", diskBytes, digest);
     }
+#endif
     if (bytes) {
         IOFree(bytes, 4096);
     }

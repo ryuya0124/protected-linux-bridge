@@ -139,7 +139,10 @@ int main(int argc, char **argv) {
         !host17_digest(PLB_UEFI_BASE "/synthetic.raw", PLB_UEFI_DISK_SHA256))
         return 80;
 #if defined(PLB_UEFI_PCI_PROBE) && PLB_UEFI_PCI_PROBE
+    struct stat pattern_stat;
     if (!owned_regular(PLB_UEFI_BASE "/pattern.raw") ||
+        lstat(PLB_UEFI_BASE "/pattern.raw", &pattern_stat) || pattern_stat.st_size < 0 ||
+        (unsigned long long)pattern_stat.st_size != PLB_UEFI_PATTERN_BYTES ||
         !host17_digest(PLB_UEFI_BASE "/pattern.raw", PLB_UEFI_PATTERN_SHA256)) {
         return 80;
     }
@@ -148,6 +151,12 @@ int main(int argc, char **argv) {
     int owner = diagnostic_owner_lock();
     if (maintenance < 0 || owner < 0)
         return 28;
+    /* Hashing a multi-GiB read-only input may take time. Recheck admission
+     * immediately before spending the receipt and starting the owned VM. */
+    if (!same_host() || !memory_floor(1024)) {
+        printf("PLB_NATIVE_GUARD phase=post_hash reason=host_identity_health_or_memory\n");
+        return 79;
+    }
     int monitor = open("/dev/kmsg", O_RDONLY | O_NONBLOCK | O_CLOEXEC | O_NOFOLLOW);
     if (monitor < 0 || lseek(monitor, 0, SEEK_END) < 0)
         return 81;

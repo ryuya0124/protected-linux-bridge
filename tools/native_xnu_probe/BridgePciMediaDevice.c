@@ -8,8 +8,9 @@
 #ifndef PLB_PCI_DATA_BYTES
 #define PLB_PCI_DATA_BYTES 2097152
 #endif
-#if PLB_PCI_DATA_BYTES != 2097152 && PLB_PCI_DATA_BYTES != 10485760
-#error "Only the synthetic2MiB or pinned AppOS10MiB diagnostic is supported"
+#if PLB_PCI_DATA_BYTES != 2097152 && PLB_PCI_DATA_BYTES != 10485760 &&                             \
+    !(defined(PLB_PCI_MAIN_ROOT) && PLB_PCI_DATA_BYTES == 6077580800ULL)
+#error "Only exact separately pinned diagnostic disks are supported"
 #endif
 
 static struct {

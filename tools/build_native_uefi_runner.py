@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import subprocess
 import uuid
+from native_ios_root_contract import validate as validate_root
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -20,11 +21,14 @@ def build(
     xnu_serial: bool = False,
     pci_probe: bool = False,
     apfs_probe: bool = False,
+    root_disk: Path | None = None,
 ) -> None:
     if pci_probe and not xnu_serial:
         raise ValueError("The PCI readback is a distinct XNU-only diagnostic")
     if apfs_probe and not (pci_probe and xnu_serial):
         raise ValueError("The small APFS fixture requires the distinct XNU PCI profile")
+    if root_disk is not None and (not (pci_probe and xnu_serial) or apfs_probe):
+        raise ValueError("Main OS requires its separate XNU PCI profile")
     output = output.resolve(strict=True)
     if not output.is_relative_to((ROOT / "artifacts").resolve()):
         raise ValueError("Use a private artifacts directory")
@@ -87,15 +91,27 @@ def build(
         header += '#define PLB_UEFI_VM_NAME "plb-native-xnu"\n'
         header += '#define PLB_UEFI_RESULT_KIND "XNU"\n'
     if pci_probe:
-        pattern = (output / "pattern.raw").read_bytes()
         pci = json.loads((output / "pci-probe.json").read_text())
-        expected_bytes = 10485760 if apfs_probe else 2097152
-        if (
-            pci["nonce"] != nonce
-            or len(pattern) != expected_bytes
-            or hashlib.sha256(pattern).hexdigest() != pci["disk_sha256"]
-        ):
-            raise ValueError("The independent synthetic PCI disk changed")
+        if root_disk is not None:
+            root = validate_root(root_disk)
+            expected_bytes = root["disk_bytes"]
+            if (
+                contract.get("fixture_kind") != "official_main_os"
+                or contract.get("mount_probe") is not True
+                or pci["nonce"] != nonce
+                or any(pci.get(key) != value for key, value in root.items())
+            ):
+                raise ValueError("Main OS diagnostic identity changed")
+        else:
+            with (output / "pattern.raw").open("rb") as stream:
+                pattern_hash = hashlib.file_digest(stream, "sha256").hexdigest()
+            expected_bytes = 10485760 if apfs_probe else 2097152
+            if (
+                pci["nonce"] != nonce
+                or (output / "pattern.raw").stat().st_size != expected_bytes
+                or pattern_hash != pci["disk_sha256"]
+            ):
+                raise ValueError("The independent synthetic PCI disk changed")
         if (
             apfs_probe
             and pci["disk_sha256"]
@@ -104,6 +120,7 @@ def build(
             raise ValueError("Wrong pinned small APFS fixture")
         header += "#define PLB_UEFI_PCI_PROBE 1\n"
         header += '#define PLB_UEFI_PATTERN_SHA256 "' + pci["disk_sha256"] + '"\n'
+        header += f"#define PLB_UEFI_PATTERN_BYTES {expected_bytes}ULL\n"
     (output / "runner_contract.generated.h").write_text(header)
     compiler = (
         sdk
@@ -145,6 +162,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--pci-probe", action="store_true")
     parser.add_argument("--apfs-probe", action="store_true")
+    parser.add_argument("--root-disk", type=Path)
     args = parser.parse_args()
     build(
         args.output,
@@ -153,4 +171,5 @@ if __name__ == "__main__":
         xnu_serial=args.xnu_serial,
         pci_probe=args.pci_probe,
         apfs_probe=args.apfs_probe,
+        root_disk=args.root_disk,
     )

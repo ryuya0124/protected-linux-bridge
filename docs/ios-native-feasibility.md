@@ -9,12 +9,15 @@ downloaded, verified and converted privately;
 SystemOS remains unfetched. A separate small AppOS component supplies the locally
 verified readback diagnostic. Neither is an enabled iOS app profile.
 
-The latest checkpoint is full **10 MiB real AppOS readback through original
-Apple storage/BSD**, with APFS checkpoint recognition and normal guest shutdown.
-The main restore volume and auxiliary AppOS both have no snapshots in separate
-read-only Mac inspection. AppOS root-mount failed; the main image has not been
-attached to the Galaxy. Root-hash metadata was inspected separately. A digest match
-does not establish Apple's signature authentication or a bootable system root.
+The latest checkpoint is **read-only mounting of the original main OS volume**
+on the Galaxy, through original Apple storage/APFS and a native protected guest.
+Its actual root-authentication operation returns EAUTH (80); the diagnostic
+records that result and shuts down without starting iOS user-space. The full
+10 MiB AppOS readback remains a separate earlier result. Both images lack
+snapshots in read-only Mac inspection, but the main root mounts successfully;
+AppCryptex's sealed-root panic must not be generalized to it. See the
+[three main-root trials and authentication boundary](native-ios-root-storage.md).
+Digest equality does not establish Apple's signature authentication.
 
 ## Execution model
 

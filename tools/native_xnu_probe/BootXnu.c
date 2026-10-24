@@ -1,4 +1,4 @@
-/* MIT. Guest-only, unattended XNU serial probe. No Apple OS rootfs is attached. */
+/* MIT. Guest-only, unattended XNU serial diagnostic with isolated read-only disks. */
 #include <Uefi.h>
 #include <Library/BaseLib.h>
 #include <Library/BaseMemoryLib.h>

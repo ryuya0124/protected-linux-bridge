@@ -7,6 +7,14 @@ from pathlib import Path
 import re
 
 from native_xnu_result import assess as assess_kernel
+from native_ios_root_contract import (
+    RAW_BYTES,
+    RAW_SHA256,
+    PREFIX_FNV64,
+    TAIL_BYTES,
+    TAIL_FNV64,
+    VOLUME_UUID,
+)
 
 APPOS_SHA256 = "52e568e1eaaede5fde4684ad10afc60f8fb236bfb5a23e0869bb0ed8a1d275d7"
 
@@ -14,14 +22,25 @@ APPOS_SHA256 = "52e568e1eaaede5fde4684ad10afc60f8fb236bfb5a23e0869bb0ed8a1d275d7
 def assess(console: str, runner: str, contract: dict, pattern: dict) -> dict:
     nonce = contract["nonce"]
     appos = contract.get("fixture_kind") == "official_appos"
+    main_os = contract.get("fixture_kind") == "official_main_os"
     mount_probe = contract.get("mount_probe") is True
-    if mount_probe and not appos:
-        raise ValueError("Mount diagnostic requires the pinned AppOS mode")
-    expected_bytes = 10485760 if appos else 2097152
+    if (mount_probe and not (appos or main_os)) or (main_os and not mount_probe):
+        raise ValueError("Mount diagnostic requires a separately pinned official disk")
+    expected_bytes = RAW_BYTES if main_os else (10485760 if appos else 2097152)
     if pattern["nonce"] != nonce or pattern["disk_bytes"] != expected_bytes:
         raise ValueError("Mixed or invalid diagnostic disk identity")
     if appos and pattern.get("disk_sha256") != APPOS_SHA256:
         raise ValueError("Wrong official AppOS fixture")
+    if main_os and (
+        pattern.get("disk_sha256") != RAW_SHA256
+        or pattern.get("prefix_fnv64") != PREFIX_FNV64
+        or pattern.get("prefix_bytes") != 4096
+        or pattern.get("tail_bytes") != TAIL_BYTES
+        or pattern.get("tail_offset") != RAW_BYTES - TAIL_BYTES
+        or pattern.get("volume_uuid") != VOLUME_UUID
+        or pattern.get("tail_fnv64") != TAIL_FNV64
+    ):
+        raise ValueError("Wrong main OS geometry, digest or bounded-read contract")
     if contract.get("source_storage_archive_linked") is not False:
         raise ValueError("This is not the isolated original-storage variant")
     if re.findall(r"PLB_NATIVE_XNU_RUNNER nonce=([0-9a-f]{32}) result=(\d+)", runner) != [
@@ -38,6 +57,28 @@ def assess(console: str, runner: str, contract: dict, pattern: dict) -> dict:
         r"PLB_XNU_(ORIGINAL|MEDIA) nonce=([0-9a-f]{32}) phase=([a-z_]+) a=(\d+) b=(\d+)",
         console,
     )
+    if main_os:
+        if len(rows) < 9 or rows[7][0:3] != ("ORIGINAL", nonce, "bsd_gpt_prefix_pass"):
+            raise ValueError("Main OS GPT prefix BSD receipt missing")
+        if rows[8] != (
+            "ORIGINAL",
+            nonce,
+            "bsd_partial_tail_pass",
+            str(TAIL_BYTES),
+            str(pattern["tail_fnv64"]),
+        ):
+            raise ValueError("Main OS partial final-page BSD receipt missing or changed")
+        # Normalize only after validating the distinct, bounded-read evidence.
+        rows[7] = ("ORIGINAL", nonce, "bsd_read_pass", rows[7][3], rows[7][4])
+        rows.pop(8)
+        roots = re.findall(
+            r"PLB_XNU_REGISTRY nonce=([0-9a-f]{32}) depth=\d+ class=(\S+) bsd=(\S+) uuid="
+            + VOLUME_UUID
+            + r"(?:\r?\n|$)",
+            console,
+        )
+        if len(roots) != 1 or roots[0][0] != nonce or roots[0][1] != "AppleAPFSVolume":
+            raise ValueError("Main root UUID was not uniquely observed on the actual APFS volume")
     phases = [
         ("ORIGINAL", "entry"),
         ("ORIGINAL", "base_class_size"),
@@ -89,7 +130,8 @@ def assess(console: str, runner: str, contract: dict, pattern: dict) -> dict:
         raise ValueError("Wrong DMA pool or block startup failure")
     if not 0 <= values[6][0] <= 255 or not 0 <= values[6][1] <= 0xFFFFFF:
         raise ValueError("Invalid BSD device identity")
-    if values[7] != (expected_bytes, pattern["disk_fnv64"]):
+    expected_read = (4096, PREFIX_FNV64) if main_os else (expected_bytes, pattern["disk_fnv64"])
+    if values[7] != expected_read:
         raise ValueError("Full original-family BSD readback failed")
     if values[8] != (0, 0) or values[-3:] != [(0, 0)] * 3:
         raise ValueError("Device not closed/reset/shut down")
@@ -107,8 +149,13 @@ def assess(console: str, runner: str, contract: dict, pattern: dict) -> dict:
     )
     return {
         "original_storage_family_bsd_readback_verified": True,
-        "bytes_verified": expected_bytes,
-        "fixture_kind": "official_appos" if appos else "nonce_pattern",
+        "bytes_verified": 4096 + TAIL_BYTES if main_os else expected_bytes,
+        "guest_full_disk_readback_verified": not main_os,
+        "disk_capacity_bytes": expected_bytes,
+        "gpt_prefix_and_partial_tail_verified": main_os,
+        "fixture_kind": (
+            "official_main_os" if main_os else ("official_appos" if appos else "nonce_pattern")
+        ),
         "apfs_container_header_verified": appos,
         "live_original_base_class_bytes": 144,
         "bsd_device_closed": True,
