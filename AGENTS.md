@@ -1208,3 +1208,34 @@ device-tested object. Host fixture uses real CommonCrypto/OpenSSL and ASan/UBSan
 not a hash-success stub. Raw/OS images, tables, builds, detailed receipts and
 host identifiers remain ignored/private. Public records and preparation are in
 docs/native-ios-block-verification.md. Preserve 8 GiB Mac free-space floor.
+
+## Mounted-root binding audit, later 2026-10-24
+
+The user confirmed another intentional NORMAL Android reboot while Tail ADB was
+unavailable. No VM or device deployment had started in that continuation. Keep
+both earlier snapshots/runners; the completed trial uses a new nonce and a
+separate confirmed-current-boot snapshot. Never silently replace identity pins.
+
+The explicit first-party --root-binding-audit option requires verified main-root
+reads, refuses fault-injection mode, and does NOT enable owner acceptance.
+It gets the actual mounted dev_t from vfs_devvp/vnode_specrdev, requires exactly
+one IOMedia with the pinned UUID, and follows its bounded provider chain to the
+exact live verified block instance. APFS/read-only/valid device/unique media/
+UUID/provider/healthy verification all must pass. Three local negative queries
+(wrong UUID, different valid dev_t, NODEV) must refuse without changing storage.
+
+The fresh trial actually passed: mounted device 1:3, unique media, provider depth
+9, check mask 127/127, negative mask 7/7, audit decision 1 with acceptance 0.
+Actual Apple root-auth remained EAUTH 80; verified counters 69/330 include repeat
+loads, not whole-disk coverage. Normal guest reset/shutdown, supervisor/VMM 0,
+and matched current boot/core/trusted-VM/policy/taint/SELinux/original metadata
+postflight. No original persistent disk attached and no host setting changed.
+
+Full suite 307 run / 3 skipped. ASan/UBSan cover the actual shared bounded
+provider/policy helpers; malformed or ambiguous evidence refuses. The separate
+binding assessor is mandatory for audit-marked contracts. Normal/tamper driver
+executable text remains identical when the new option is absent. See
+docs/native-ios-root-binding.md. This audit alone is NOT owner authorization,
+Apple authentication, launchd or an iOS boot. Any later explicit owner mode must
+retain these measured conditions, genuine per-read crypto and fail-closed I/O;
+keep Apple's actual errno separate and leave the original mode available.

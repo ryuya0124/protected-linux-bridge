@@ -25,6 +25,8 @@ POLICY_PHASES = {
 
 
 def assess(console: str, runner: str, contract: dict, pattern: dict) -> dict:
+    if contract.get("root_binding_audit", False) or pattern.get("root_binding_audit", False):
+        raise ValueError("Use the separate mounted-root binding assessor for this profile")
     nonce = contract["nonce"]
     policy = pattern.get("block_policy", {})
     if (

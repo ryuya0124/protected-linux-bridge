@@ -127,6 +127,10 @@ authentication and shutdown evidence; VMM exit 0 alone is insufficient.
 
 ## Remaining boundary
 
+The follow-up [mounted-root binding audit](native-ios-root-binding.md) now
+qualifies the actual device, UUID, exact verified provider and negative queries
+on the Galaxy. Its acceptance field is still 0.
+
 A future explicit owner-root acceptance mode must bind this verified provider
 to the actual mounted root device and UUID, prove that the path remains online
 and unpoisoned, retain the real Apple refusal, and pass negative binding controls.

@@ -18,6 +18,7 @@
 #include <sys/systm.h>
 #include <sys/uio.h>
 #include <sys/mount.h>
+#include <sys/vnode.h>
 #include "BridgePciMediaDevice.h"
 #include "pci_contract.generated.h"
 #if defined(PLB_PCI_BLOCK_POLICY)
@@ -25,6 +26,9 @@
 #include "verified_read.h"
 #include "verified_hash.h"
 #include "root_policy.generated.h"
+#if defined(PLB_PCI_ROOT_BINDING_AUDIT)
+#include "root_binding.h"
+#endif
 extern "C" const uint8_t plb_root_hashes[];
 extern "C" const uint8_t plb_root_hashes_end[];
 #endif
@@ -99,6 +103,9 @@ class BridgeOriginalPciBlock : public IOBlockStorageDevice {
 #if defined(PLB_PCI_BLOCK_POLICY)
     plb_verified_state *integrity = nullptr;
     bool integrityReported = false;
+#if defined(PLB_PCI_ROOT_BINDING_AUDIT)
+    bool policyReady = false;
+#endif
 #endif
 
   public:
@@ -119,7 +126,12 @@ class BridgeOriginalPciBlock : public IOBlockStorageDevice {
     bool start(IOService *provider) override {
         online = IOBlockStorageDevice::start(provider) && plb_media_device_open();
 #if defined(PLB_PCI_BLOCK_POLICY)
+#if defined(PLB_PCI_ROOT_BINDING_AUDIT)
+        policyReady = online && qualifyPolicy();
+        online = online && policyReady;
+#else
         online = online && qualifyPolicy();
+#endif
 #endif
         return online &&
                setProperty(kIOBlockStorageDeviceTypeKey, kIOBlockStorageDeviceTypeGeneric);
@@ -146,6 +158,17 @@ class BridgeOriginalPciBlock : public IOBlockStorageDevice {
         IOLockUnlock(gate);
         return reset;
     }
+#if defined(PLB_PCI_ROOT_BINDING_AUDIT)
+    bool policyHealthy(const char *uuid) {
+        IOLockLock(gate);
+        bool healthy = uuid && !strcmp(uuid, PLB_ROOT_VOLUME_UUID) && online && policyReady &&
+                       integrity && integrity->valid && !integrity->poisoned &&
+                       !integrity->failures && integrity->verified_chunks >= 2 &&
+                       integrity->delivered_pages >= integrity->verified_chunks;
+        IOLockUnlock(gate);
+        return healthy;
+    }
+#endif
     IOReturn doEjectMedia() override {
         return kIOReturnUnsupported;
     }
@@ -359,6 +382,96 @@ bool configureRoot(BridgeOriginalPciBlock *block) {
         __asm__ volatile("wfe");
     }
 }
+
+#if defined(PLB_PCI_ROOT_BINDING_AUDIT)
+void *bindingParent(void *node, void *) {
+    return static_cast<IOService *>(node)->getProvider();
+}
+
+plb_root_binding_facts queryRootBinding(dev_t device, const char *uuid, bool apfs, bool readonly) {
+    plb_root_binding_facts facts = {};
+    facts.apfs = apfs;
+    facts.readonly = readonly;
+    facts.device_valid = device != NODEV;
+    if (!facts.device_valid || !mountBlock || !uuid) {
+        return facts;
+    }
+    OSDictionary *matching = IOService::serviceMatching("IOMedia");
+    OSDictionary *properties = OSDictionary::withCapacity(2);
+    uint32_t encodedDevice = static_cast<uint32_t>(device);
+    OSNumber *mjr = OSNumber::withNumber(static_cast<uint32_t>(major(encodedDevice)), 32);
+    OSNumber *mnr = OSNumber::withNumber(static_cast<uint32_t>(minor(encodedDevice)), 32);
+    bool ready = matching && properties && mjr && mnr &&
+                 properties->setObject(kIOBSDMajorKey, mjr) &&
+                 properties->setObject(kIOBSDMinorKey, mnr) &&
+                 matching->setObject("IOPropertyMatch", properties);
+    if (mjr)
+        mjr->release();
+    if (mnr)
+        mnr->release();
+    if (properties)
+        properties->release();
+    OSIterator *iterator = ready ? IOService::getMatchingServices(matching) : nullptr;
+    if (matching)
+        matching->release();
+    if (!iterator) {
+        return facts;
+    }
+    // Query the actual mounted dev_t globally, then require its unique media
+    // to descend from this exact live verified block provider, not just a UUID.
+    unsigned nodes = 0;
+    while (OSObject *object = iterator->getNextObject()) {
+        if (++nodes > 128) {
+            facts.media_matches = 2; // Incomplete global search cannot qualify uniqueness.
+            break;
+        }
+        IOService *media = OSDynamicCast(IOService, object);
+        if (!media || !media->metaCast("IOMedia")) {
+            continue;
+        }
+        if (++facts.media_matches != 1) {
+            break;
+        }
+        OSString *identity = OSDynamicCast(OSString, media->getProperty("UUID"));
+        facts.uuid_matches =
+            identity && identity->getLength() == 36 && !strcmp(identity->getCStringNoCopy(), uuid);
+        facts.provider_depth = plb_root_provider_depth(media, mountBlock, bindingParent, nullptr);
+        facts.integrity_healthy = mountBlock->policyHealthy(uuid);
+    }
+    iterator->release();
+    return facts;
+}
+
+void auditRootBinding(mount_t mounted, bool apfs, bool readonly) {
+    vnode_t deviceVnode = mounted ? vfs_devvp(mounted) : nullptr;
+    dev_t device = deviceVnode ? vnode_specrdev(deviceVnode) : NODEV;
+    if (deviceVnode) {
+        vnode_put(deviceVnode);
+    }
+    plb_root_binding_facts facts = queryRootBinding(device, appUuid, apfs, readonly);
+    uint32_t encodedDevice = static_cast<uint32_t>(device);
+    receipt("root_binding_device", static_cast<uint32_t>(major(encodedDevice)),
+            static_cast<uint32_t>(minor(encodedDevice)));
+    receipt("root_binding_matches", facts.media_matches, facts.provider_depth);
+    receipt("root_binding_checks", plb_root_binding_mask(&facts), PLB_ROOT_BINDING_REQUIRED);
+    char wrongUuid[sizeof(appUuid)];
+    memcpy(wrongUuid, appUuid, sizeof(wrongUuid));
+    wrongUuid[0] = wrongUuid[0] == '0' ? '1' : '0';
+    // Local query controls only: do not change the mounted filesystem, registry,
+    // real UUID, verified state, transport bytes or persistent image.
+    plb_root_binding_facts wrongIdentity = queryRootBinding(device, wrongUuid, apfs, readonly);
+    uint32_t wrongMinor = (static_cast<uint32_t>(minor(encodedDevice)) + 1U) & 0xffffffU;
+    dev_t otherDevice = makedev(static_cast<uint32_t>(major(encodedDevice)), wrongMinor);
+    plb_root_binding_facts wrongDevice = queryRootBinding(otherDevice, appUuid, apfs, readonly);
+    plb_root_binding_facts invalidDevice = queryRootBinding(NODEV, appUuid, apfs, readonly);
+    unsigned refused = (!plb_root_binding_qualified(&wrongIdentity) ? 1U : 0U) |
+                       (!plb_root_binding_qualified(&wrongDevice) ? 2U : 0U) |
+                       (!plb_root_binding_qualified(&invalidDevice) ? 4U : 0U);
+    receipt("root_binding_negative", refused, 7);
+    // Audit result only. No owner-root acceptance or user-space continuation.
+    receipt("root_binding_audit", plb_root_binding_qualified(&facts), 0);
+}
+#endif
 } // namespace
 
 extern "C" void plb_bridge_apfs_mount_result(int error);
@@ -377,6 +490,9 @@ extern "C" void plb_bridge_apfs_auth_result(int error, mount_t mounted) {
     uint64_t readonly = mounted && (vfs_flags(mounted) & MNT_RDONLY) != 0;
     receipt("vfs_apfs_readonly", apfs, readonly);
     receipt("apple_root_auth_result", static_cast<uint64_t>(error), 0);
+#if defined(PLB_PCI_ROOT_BINDING_AUDIT)
+    auditRootBinding(mounted, apfs, readonly);
+#endif
     finishMountProbe();
 }
 #endif

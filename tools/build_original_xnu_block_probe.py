@@ -128,6 +128,7 @@ def compile_probe(
     root_disk: Path | None = None,
     block_policy: Path | None = None,
     inject_block_fault: bool = False,
+    root_binding_audit: bool = False,
 ) -> dict:
     source = source.resolve(strict=True)
     audit_path = audit_path.resolve(strict=True)
@@ -141,6 +142,8 @@ def compile_probe(
     if (block_policy is not None and root is None) or (inject_block_fault and block_policy is None):
         raise ValueError("Block verification/fault controls require the separate main-root policy")
     policy = validate_policy(block_policy) if block_policy is not None else None
+    if root_binding_audit and (policy is None or inject_block_fault):
+        raise ValueError("Root binding audit requires verified, unmodified main-root reads")
     if any(not path.is_relative_to(private) for path in (source, audit_path, candidate)):
         raise ValueError("Use private, reviewed source and audit artifacts")
     require_revision(source, BUILD_REVISION)
@@ -199,14 +202,18 @@ def compile_probe(
             header.write("#define PLB_PCI_BLOCK_POLICY 1\n")
             if inject_block_fault:
                 header.write("#define PLB_PCI_BLOCK_FAULT 1\n")
+            if root_binding_audit:
+                header.write("#define PLB_PCI_ROOT_BINDING_AUDIT 1\n")
         values = ", ".join(f"0x{byte:02x}" for byte in bytes.fromhex(policy["table_sha256"]))
         (output / "root_policy.generated.h").write_text(
             f"#define PLB_ROOT_TABLE_BYTES {TABLE_BYTES}ULL\n"
             f"#define PLB_ROOT_IMAGE_BYTES {root['disk_bytes']}ULL\n"
+            f'#define PLB_ROOT_VOLUME_UUID "{root["volume_uuid"]}"\n'
             f"#define PLB_ROOT_TABLE_SHA256_BYTES {{{values}}}\n"
         )
         pattern["block_policy"] = policy
         pattern["inject_block_fault"] = inject_block_fault
+        pattern["root_binding_audit"] = root_binding_audit
         (output / "pci-probe.json").write_text(json.dumps(pattern, indent=2) + "\n")
     includes = source / "build/storage-abi/include"
     header = includes / "IOKit/storage/IOBlockStorageDevice.h"
@@ -349,12 +356,17 @@ def compile_probe(
         "verification_headers": (
             {
                 name: digest(ROOT / "tools/native_xnu_probe" / name)
-                for name in ("verified_hash.h", "verified_read.h")
+                for name in (
+                    ("verified_hash.h", "verified_read.h", "root_binding.h")
+                    if root_binding_audit
+                    else ("verified_hash.h", "verified_read.h")
+                )
             }
             if policy is not None
             else None
         ),
         "inject_block_fault": inject_block_fault,
+        "root_binding_audit": root_binding_audit,
         "virtual_methods_checked": 190,
         "concrete_overrides": overrides,
         "bindings": {name: hex(value) for name, value in sorted(bindings.items())},
@@ -382,6 +394,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--block-policy", type=Path)
     parser.add_argument("--inject-block-fault", action="store_true")
+    parser.add_argument("--root-binding-audit", action="store_true")
     parser.add_argument(
         "--mount-probe", action="store_true", help="Guest-only root mount/authentication diagnostic"
     )
@@ -399,6 +412,7 @@ if __name__ == "__main__":
                 args.root_disk,
                 args.block_policy,
                 args.inject_block_fault,
+                args.root_binding_audit,
             ),
             indent=2,
         )
