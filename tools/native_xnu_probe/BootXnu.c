@@ -73,7 +73,11 @@ static EFI_STATUS boot_xnu(void) {
     request.Volume = volume;
     request.KernelPath = L"\\XNU";
     request.BootArgs = L"-v debug=0x108 keepsyms=1 -enable_kprintf_spam serial=3 "
-                       "disable-uart-irq=1 kt_fixed_zones=120";
+                       "disable-uart-irq=1 kt_fixed_zones=120"
+#if defined(PLB_XNU_PCI_PROBE) && PLB_XNU_PCI_PROBE
+                       " bridge-pci-probe=1"
+#endif
+        ;
     receipt("loader_ready", EFI_SUCCESS);
     return loader->Boot(loader, &request);
 }

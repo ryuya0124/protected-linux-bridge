@@ -12,7 +12,11 @@ import uuid
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def build(output: Path, snapshot: Path, sdk: Path, *, xnu_serial: bool = False) -> None:
+def build(
+    output: Path, snapshot: Path, sdk: Path, *, xnu_serial: bool = False, pci_probe: bool = False
+) -> None:
+    if pci_probe and not xnu_serial:
+        raise ValueError("The PCI readback is a distinct XNU-only diagnostic")
     output = output.resolve(strict=True)
     if not output.is_relative_to((ROOT / "artifacts").resolve()):
         raise ValueError("Use a private artifacts directory")
@@ -74,6 +78,17 @@ def build(output: Path, snapshot: Path, sdk: Path, *, xnu_serial: bool = False) 
     if xnu_serial:
         header += '#define PLB_UEFI_VM_NAME "plb-native-xnu"\n'
         header += '#define PLB_UEFI_RESULT_KIND "XNU"\n'
+    if pci_probe:
+        pattern = (output / "pattern.raw").read_bytes()
+        pci = json.loads((output / "pci-probe.json").read_text())
+        if (
+            pci["nonce"] != nonce
+            or len(pattern) != 2097152
+            or hashlib.sha256(pattern).hexdigest() != pci["disk_sha256"]
+        ):
+            raise ValueError("The independent synthetic PCI disk changed")
+        header += "#define PLB_UEFI_PCI_PROBE 1\n"
+        header += '#define PLB_UEFI_PATTERN_SHA256 "' + pci["disk_sha256"] + '"\n'
     (output / "runner_contract.generated.h").write_text(header)
     compiler = (
         sdk
@@ -113,5 +128,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--xnu-serial", action="store_true", help="Build the distinct XNU serial-only profile"
     )
+    parser.add_argument("--pci-probe", action="store_true")
     args = parser.parse_args()
-    build(args.output, args.host_snapshot, args.sdk, xnu_serial=args.xnu_serial)
+    build(
+        args.output,
+        args.host_snapshot,
+        args.sdk,
+        xnu_serial=args.xnu_serial,
+        pci_probe=args.pci_probe,
+    )

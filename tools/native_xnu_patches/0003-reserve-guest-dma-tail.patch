@@ -1,0 +1,15 @@
+--- a/GunyahPkg/Drivers/GunyahIoMmuDxe/DmaPool.c
++++ b/GunyahPkg/Drivers/GunyahIoMmuDxe/DmaPool.c
+@@ -146,5 +146,12 @@
+   DEBUG ((DEBUG_INFO, "%a: restricted-dma-pool @ 0x%lx size 0x%lx (%lu MB)\n",
+           __func__, Base, Size, Size / (1024 * 1024)));
+ 
++  // Diagnostic-only guest ownership split. The last 64 KiB is handed to
++  // XNU after ExitBootServices, so UEFI must never allocate from that tail.
++  // This changes no host memory permission or Gunyah mapping.
++  if ((Base != 0x9e000000ULL) || (Size != 0x02000000ULL)) {
++    return EFI_UNSUPPORTED;
++  }
++  Size -= 0x10000;
+   mPoolBase       = Base;
+   mPoolTotalPages = EFI_SIZE_TO_PAGES (Size);

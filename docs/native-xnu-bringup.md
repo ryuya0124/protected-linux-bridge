@@ -14,6 +14,8 @@ translation, remote Apple machine or host kernel module is used.
 | XNU 1 | Darwin 23.6.0 banner and VM bootstrap | Guest allocator assertion, owned diagnostic stopped at 45 s, result 124 |
 | XNU 2 | Allocator passed with upstream `kt_fixed_zones=120`; NVRAM, CPU 0, all 19 corecrypto POST cases passed | Missing pthread registration panic; result 124 |
 | XNU 3 | Real source pthread linked; BSD network initialization/selftests and waiting for Apple_HFS root media | Runtime safety stop 88, exact instantaneous cause unresolved; no successful boot/shutdown claim |
+| XNU PCI 1 | Both payload/transport preparation passed; first PCI block device detected | Guest panic from an incorrectly unaligned/permanent-map unmap; supervisor 124 |
+| XNU PCI 2 | Both PCI block devices detected; all 2,097,152 synthetic bytes checked through the exclusive shared DMA tail; guest PSCI shutdown and VMM/supervisor 0 | A transport test, not IOMedia, filesystem or iOS user-space boot |
 
 The generic XNU bootstrap initially failed to link because a disabled legacy
 video probe was referenced unconditionally. The source guard retains the real
@@ -29,7 +31,8 @@ this does not identify the exact consumed monitor record. One intervening Tail
 ADB root request was denied, then a subsequent root-verified read succeeded;
 that transient failure is retained and not presented as a host crash.
 The source now logs the guard
-category. No extra VM retry was made to bypass this unresolved stop.
+category. Later PCI trials retained the strict monitor and separate fresh
+receipts; they did not bypass or reinterpret this unresolved earlier stop.
 
 A diagnostic deadline, safety stop or guest panic is not successful shutdown. In particular,
 `MACH Reboot` in an XNU UART trace describes a **guest** panic path; it is not an
@@ -56,6 +59,7 @@ licenses remain their own. No Apple OS image or firmware is redistributed.
 | NativePrelink | `2b6ffb50117eee820b98aca9bd51b5c7dfb2970e` |
 | corecrypto-2023 snapshot | `11fba65b12d8830630e248dfa8344caf8b065f26` |
 | Apple libpthread 519.120.4 | `c0e60fb5ecfc54cf379c261d3f9572cc22ded891` |
+| Public IOStorageFamily, compile/link audit | `e45fbe30a7879e0b16e26dddb78538f1b00e0bff` |
 
 The corecrypto snapshot comes from
 [ONLYA/corecrypto-2023](https://github.com/ONLYA/corecrypto-2023), not an
@@ -168,14 +172,78 @@ checks, durable one-use receipts and a 45-second diagnostic-only deadline.
 separately. A version banner, normal VMM exit, missing root, timeout or crypto
 selftest log never becomes `ios_boot_verified=true`.
 
+## Guest PCI/static-DMA readback
+
+`build_native_xnu_probe.py` compiles `BridgePciBlock.c` with the recorded XNU C
+ABI and creates a new 2 MiB nonce-pattern disk. `prepare_native_xnu_adt.py
+--pci-probe` validates the successful UEFI FDT's exact CAM topology, bus 0 and
+PCI apertures before adding the diagnostic node. CAM is not ECAM: the mapped
+first bus uses 256 bytes per function, at `0x10000+0x10000`.
+
+Apply patch `0003-reserve-guest-dma-tail.patch` only to the pinned **guest EDK2
+GunyahIoMmuDxe** source. It excludes the final 64 KiB from the firmware's
+32 MiB bounce allocator. XNU uses 8 KiB at `0x9fff0000` within that exclusive
+tail for split-queue descriptors, request/status and a 4 KiB data buffer. General
+and executable XNU RAM still excludes the shared pool. No host page permission,
+kernel, module or policy is changed.
+
+Build this distinct kernel with its generated archive force-loaded through
+`XNU_EXTRA_LD_ARCHIVES`; compile guest `BootXnu.c` with
+`PLB_XNU_PCI_PROBE=1`. Prepare a new 64 MiB FAT payload containing that kernel,
+ADT and DarwinBoot, plus the separate 2 MiB synthetic disk. Use the runner's
+explicit `--xnu-serial --pci-probe`. Never attach an existing guest disk.
+
+The driver accepts exactly the two expected capacities, negotiates a read-only
+modern VirtIO PCI queue, checks every byte of the synthetic disk and resets the
+device before guest-only PSCI shutdown. There is no write API. Capability/BAR
+bounds, private-DMA refusal, malformed completions, timeouts and ring wrap are
+exercised offline with ASan/UBSan. Later parser hardening also rejects a 64-bit
+BAR's upper half and prevents queue reuse after an invalid completion. That
+hardening was recompiled and tested offline, not rerun on the device.
+
+PCI trial 1 incorrectly paired `ml_io_map` with a 56-byte `ml_io_unmap`, causing
+a guest pmap panic. Trial 2 uses `ml_io_map_unmappable(..., VM_WIMG_IO)` and
+page-rounded kernel-map unmapping. It read all 2 MiB, checked the nonce-derived
+pattern/FNV64, shut down its guest and returned supervisor/VMM 0. Original disks
+remained detached; postflight boot/core/trusted-VM births, taint 4608, Enforcing,
+six `never` policies and original disk metadata matched.
+
+`native_xnu_pci_result.py` requires the complete ordered receipts, exact byte
+count/digest, shared address, fresh runner identity and absence of a kernel
+panic. Reused firmware may carry a separate `firmware_nonce`; its successful
+old runner cannot authorize a new trial. `ios_boot_verified` remains false.
+
+## Public storage source build
+
+`audit_native_xnu_storage.py` compiles unmodified pinned IOStorageFamily sources
+against the actual XNU `IOService` compiler record. It generates the genuine
+DriverKit header/implementation from the public `.iig`, rather than substituting
+a class stub. The initial audit compiled 8/10 units: generated DriverKit headers
+were missing and C++23 rejected legacy `register` spelling. A second audit
+compiled 13/14 after generation, but found an incorrect generated-header include
+layout. The corrected audit compiled all 14 units. Only `-Wno-register` changes
+the spelling diagnostic; third-party storage sources remain unmodified.
+
+The 443 distinct object imports resolved against the source kernel plus the
+compiled objects. Four helpers are defined inside the kernel but not exported
+to independent kexts: three UBSan overflow handlers and `__zone_site_register`.
+No alias/stub/export patch was added. Force-loading the genuine source archive
+during the existing full XNU source link succeeded, including real POST HMAC
+population. That linked kernel has **not** been booted. Compile/link success does
+not establish class registration, ABI qualification, IOMedia publication or mount.
+
+Both tools are compile/audit-only; they never contact ADB or launch a VM.
+
 ## Remaining I/O contract
 
 UEFI's PCI VirtIO disk uses `GunyahIoMmuDxe` to bounce I/O through the static
 shared pool. That does not automatically fix XNU. The reviewed NativeVirtioBlock
 uses MMIO and general contiguous allocations; the current stock crosvm disk is
-PCI and private guest buffers are not host-readable. A guest PCI transport and
-bounded shared-DMA allocator/bounce path are still needed before an iOS rootfs
-can be attached safely. Display, input and networking need the same ownership
+PCI and private guest buffers are not host-readable. The new PCI readback proves
+the transport and exclusive shared bounce-buffer path for a tiny synthetic
+read-only disk. It still needs connection to actual storage services, general
+read sizes/concurrency and filesystem support before an iOS rootfs is attached.
+Display, input and networking need the same ownership
 review. The reference executable-share module and RAM-peeking GPU path remain
 excluded.
 
@@ -183,3 +251,9 @@ Keep raw logs, boot IDs, nonces, seeds, compiled kernels, firmware and signing
 material private. Preserve negative trials as well as progress. Newer iOS-family
 firmware requires separate version/ABI work; the upstream 17.7.11 prelink recipe
 is not compatibility proof for iOS 18/26/27.
+
+Mac disk pressure interrupted one corrected kernel link before VM deployment.
+Owned firmware sources/logs were archived with CRC/hash verification. At the
+user's request, inactive Xcode simulators and regenerable caches were removed,
+reclaiming about 28 GiB; Xcode, SDKs, projects and archives were retained. The
+8 GiB build-space guard stayed enabled and the resumed link passed.

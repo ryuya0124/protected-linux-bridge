@@ -27,7 +27,7 @@ def cpu_metadata(console: str, nonce: str) -> tuple[int, int]:
     return frequency, mpidr & 0xFF00FFFFFF
 
 
-def prepare(source: Path, probe: Path, output: Path) -> dict:
+def prepare(source: Path, probe: Path, output: Path, *, pci_probe: bool = False) -> dict:
     source = source.resolve(strict=True)
     probe = probe.resolve(strict=True)
     output = output.resolve()
@@ -59,6 +59,44 @@ def prepare(source: Path, probe: Path, output: Path) -> dict:
     uart = fdt[uart_path]
     if uart.get("compatible") != b"ns16550a\0" or uart.get("reg") != struct.pack(">QQ", 0x3F8, 8):
         raise ValueError("The qualified byte-wide virtual UART changed")
+    pci_node = b""
+    if pci_probe:
+        pci = fdt.get("/pci", {})
+        expected_ranges = struct.pack(
+            ">14I",
+            0x02000000,
+            0,
+            0x02000000,
+            0,
+            0x02000000,
+            0,
+            0x02000000,
+            0x43000000,
+            0,
+            0xE0000000,
+            0,
+            0xE0000000,
+            0xFF,
+            0x20000000,
+        )
+        if (
+            pci.get("compatible") != b"pci-host-cam-generic\0"
+            or pci.get("reg") != struct.pack(">QQ", 0x10000, 0x1000000)
+            or pci.get("bus-range") != bytes(8)
+            or pci.get("ranges") != expected_ranges
+        ):
+            raise ValueError("The qualified PCI CAM/aperture layout changed")
+        pci_node = upstream["node"](
+            "bridge-pci",
+            [
+                ("reg", struct.pack("<QQ", 0x10000, 0x10000)),
+                (
+                    "pci-apertures",
+                    struct.pack("<4Q", 0x02000000, 0x02000000, 0xE0000000, 0xFF20000000),
+                ),
+                ("shared-probe", struct.pack("<QQ", 0x9FFF0000, 8192)),
+            ],
+        )
     # The 32 MiB shared DMA window must never become executable/general XNU RAM.
     # Keep the kernel's owned allocation at 256 MiB; do not reclaim firmware RAM.
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -83,10 +121,11 @@ def prepare(source: Path, probe: Path, output: Path) -> dict:
     properties, children = struct.unpack_from("<II", tree)
     if properties == 0 or children == 0:
         raise ValueError("Empty generated Apple-format device tree")
-    struct.pack_into("<I", tree, 4, children + 1)
+    struct.pack_into("<I", tree, 4, children + 1 + bool(pci_probe))
     tree += upstream["node"](
         "bridge-uart", [("compatible", b"ns16550a\0"), ("reg", struct.pack("<QQ", 0x3F8, 8))]
     )
+    tree += pci_node
     output.write_bytes(tree)
     report = {
         "adt_sha256": hashlib.sha256(tree).hexdigest(),
@@ -97,6 +136,7 @@ def prepare(source: Path, probe: Path, output: Path) -> dict:
         "private_ram_bytes": 480 * 1024**2,
         "kernel_window_bytes": 256 * 1024**2,
         "shared_ram_excluded": True,
+        "pci_readback_probe": pci_probe,
         "device_boot_verified": False,
         "ios_boot_verified": False,
     }
@@ -109,5 +149,10 @@ if __name__ == "__main__":
     parser.add_argument("--device-source", type=Path, required=True)
     parser.add_argument("--probe", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--pci-probe", action="store_true")
     args = parser.parse_args()
-    print(json.dumps(prepare(args.device_source, args.probe, args.output), indent=2))
+    print(
+        json.dumps(
+            prepare(args.device_source, args.probe, args.output, pci_probe=args.pci_probe), indent=2
+        )
+    )

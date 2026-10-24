@@ -27,7 +27,7 @@
     "Reference framebuffer and diagnostic tools read shared guest RAM; must not run against donated protected mappings",
     "17.7.11 kernel prelink hashes and platform drivers do not establish newer iOS support",
     "Reference RAM and MMIO addresses cannot be copied to another topology",
-    "Native protected XNU reached root-media wait but has no shared-DMA/PCI XNU storage port or iOS rootfs",
+    "Native XNU PCI/shared-DMA synthetic transport passes; IOMedia/filesystem integration and iOS rootfs remain absent",
     "Third XNU trial stopped at runtime safety guard 88; exact instantaneous cause not recorded; do not call it a successful run"
   ],
   "device_contacted": true,
@@ -45,7 +45,7 @@
     "reference_virtio_block_uses_generic_contiguous_allocations": true,
     "native_probe_built": true,
     "native_probe_run": true,
-    "verified": "UEFI full synthetic readback plus early XNU serial execution only",
+    "verified": "UEFI and XNU full synthetic PCI/shared-DMA readback with guest shutdown; not filesystem/iOS boot",
     "firmware_has_static_dma_bounce_driver": true
   },
   "uefi_firmware_built": true,
@@ -58,7 +58,7 @@
     "vcpus": 1,
     "synthetic_readback_bytes": 2097152,
     "uefi_normal_shutdown_verified": true,
-    "xnu_trials": 3,
+    "xnu_trials": 5,
     "xnu_owned_ram_mib": 256,
     "xnu_shared_pool_excluded": true,
     "xnu_darwin": "23.6.0",
@@ -79,15 +79,41 @@
     "apple_os_rootfs_fetched": false,
     "ios_gui_verified": false,
     "device_consumed_inputs_and_shell_stages_removed": true,
-    "app_private_spent_receipts_and_logs_retained": true
+    "app_private_spent_receipts_and_logs_retained": true,
+    "xnu_pci_trials": 2,
+    "xnu_pci_trial_1": "Guest pmap panic from invalid mapping/unmap pairing; supervisor124",
+    "xnu_pci_trial_2": "Full2MiB nonce-pattern readback through exclusive8KiB shared tail; device reset, guest shutdown, VMM/supervisor0",
+    "xnu_pci_readback_verified": true,
+    "xnu_pci_readback_bytes": 2097152,
+    "xnu_pci_shared_tail_bytes": 8192,
+    "xnu_normal_shutdown_verified": true
   },
   "host_system_configuration_modified": false,
   "app_private_diagnostic_files_created": true,
   "validation": {
-    "host_tests": 250,
+    "host_tests": 256,
     "skipped": 6,
     "native_android_runner_compilation": "NDK ARM64 -Wall -Wextra -Werror passed",
     "apk_changed": false,
     "ios_launch_enabled": false
+  },
+  "storage_source_audit": {
+    "revision": "e45fbe30a7879e0b16e26dddb78538f1b00e0bff",
+    "initial_components_compiled": 8,
+    "initial_components_total": 10,
+    "second_components_compiled": 13,
+    "second_components_total": 14,
+    "final_components_compiled": 14,
+    "final_components_total": 14,
+    "genuine_driverkit_iig_generation": true,
+    "source_modified": false,
+    "distinct_imports": 443,
+    "kernel_local_helpers": 4,
+    "unresolved_imports_after_kernel_and_objects": 0,
+    "full_xnu_source_link_passed": true,
+    "linked_kernel_device_booted": false,
+    "storage_service_registered": false,
+    "filesystem_mount_verified": false,
+    "ios_boot_verified": false
   }
 }

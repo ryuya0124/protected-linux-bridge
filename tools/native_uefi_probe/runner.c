@@ -33,13 +33,43 @@ static void request_stop(int number) {
 
 static int read_file(const char *path, char *buffer, size_t capacity) {
     int fd = open(path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
-    if (fd < 0)
+    if (fd < 0) {
+        printf("PLB_NATIVE_GUARD read_open_errno=%d path=%s\n", errno, path);
         return 0;
+    }
     ssize_t count = read(fd, buffer, capacity - 1);
     close(fd);
-    if (count <= 0 || count == (ssize_t)capacity - 1)
+    if (count <= 0 || count == (ssize_t)capacity - 1) {
+        printf("PLB_NATIVE_GUARD read_count=%lld path=%s\n", (long long)count, path);
         return 0;
+    }
     buffer[count] = 0;
+    return 1;
+}
+
+/* Keep the original strict classification. Record the precise stop instead of
+ * treating later healthy postflight as proof the earlier condition was false. */
+static int kernel_monitor(int fd) {
+    char record[8192];
+    for (unsigned index = 0; index < 256; index++) {
+        ssize_t count = read(fd, record, sizeof(record) - 1);
+        if (count < 0 && errno == EINTR) {
+            continue;
+        }
+        if (count < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+            return 0;
+        }
+        if (count <= 0) {
+            printf("PLB_NATIVE_GUARD monitor_read_errno=%d count=%lld\n", errno, (long long)count);
+            return 1;
+        }
+        record[count] = 0;
+        if (plb_diagnostic_kernel_bad_text(record, 0)) {
+            printf("PLB_NATIVE_GUARD monitor_record=%s\n", record);
+            return 1;
+        }
+    }
+    printf("PLB_NATIVE_GUARD monitor_budget_exhausted=256\n");
     return 1;
 }
 
@@ -98,6 +128,12 @@ int main(int argc, char **argv) {
         !host17_digest(PLB_UEFI_BASE "/firmware.fd", PLB_UEFI_FIRMWARE_SHA256) ||
         !host17_digest(PLB_UEFI_BASE "/synthetic.raw", PLB_UEFI_DISK_SHA256))
         return 80;
+#if defined(PLB_UEFI_PCI_PROBE) && PLB_UEFI_PCI_PROBE
+    if (!owned_regular(PLB_UEFI_BASE "/pattern.raw") ||
+        !host17_digest(PLB_UEFI_BASE "/pattern.raw", PLB_UEFI_PATTERN_SHA256)) {
+        return 80;
+    }
+#endif
     int maintenance = profile_maintenance_lock(LOCK_SH);
     int owner = diagnostic_owner_lock();
     if (maintenance < 0 || owner < 0)
@@ -138,7 +174,11 @@ int main(int argc, char **argv) {
               "--swiotlb", "32", "--no-balloon", "--no-usb", "--no-rng", "--no-pmu", "--serial",
               "type=file,path=" PLB_UEFI_BASE "/console.log,console=true,earlycon=true", "--block",
               "path=" PLB_UEFI_BASE "/synthetic.raw,ro=true,lock=false", "--dump-device-tree-blob",
-              PLB_UEFI_BASE "/guest-generated.dtb", PLB_UEFI_BASE "/firmware.fd", (char *)NULL);
+              PLB_UEFI_BASE "/guest-generated.dtb",
+#if defined(PLB_UEFI_PCI_PROBE) && PLB_UEFI_PCI_PROBE
+              "--block", "path=" PLB_UEFI_BASE "/pattern.raw,ro=true,lock=false",
+#endif
+              PLB_UEFI_BASE "/firmware.fd", (char *)NULL);
         _exit(86);
     }
     if (child < 0)
@@ -156,7 +196,7 @@ int main(int argc, char **argv) {
             result = 88;
             break;
         }
-        if (plb_diagnostic_kernel_bad(monitor)) {
+        if (kernel_monitor(monitor)) {
             printf("PLB_NATIVE_GUARD reason=kernel_monitor\n");
             result = 88;
             break;
@@ -177,7 +217,7 @@ int main(int argc, char **argv) {
         kill(child, SIGTERM);
         (void)plb_probe_wait(child, 1500);
     }
-    if (!same_host() || plb_diagnostic_kernel_bad(monitor)) {
+    if (!same_host() || kernel_monitor(monitor)) {
         printf("PLB_NATIVE_GUARD reason=postflight_identity_health_or_monitor\n");
         result = 88;
     }

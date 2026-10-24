@@ -865,3 +865,36 @@ Read docs/native-xnu-bringup.md and docs/ios-native-feasibility.md for exact pin
 the two different patch targets and remaining private/shared DMA plus PCI/MMIO
 storage work. ARM64 XNU compilation and early serial execution do not establish
 recent iOS user-space, graphics, signature policy or device support.
+
+## Native XNU PCI/storage checkpoint, later 2026-10-24
+
+The module-free modern PCI diagnostic now reads and checks the entire separate
+2MiB nonce-pattern disk through 8KiB at0x9fff0000 in the static shared DMA pool.
+Guest EDK2 reserves its final64KiB from its own allocator; this is a guest-only
+ownership split, not a host permission/module/policy change. Private executable
+RAM remains distinct. The first PCI trial panicked in XNU pmap after permanent
+ml_io_map was incorrectly unmapped with56bytes. The second uses the actual
+ml_io_map_unmappable API plus page-rounded unmapping, reads every byte, resets
+the device, powers off its guest and returns VMM/supervisor0. Its completed
+postflight preserved boot/core/trustedVM births, taint4608, Enforcing, six never
+policies and four original disk metadata identities. No fresh full-disk hashes.
+
+Preserve the first panic, the prior unresolved stop88 and all consumed receipts.
+Current strict kernel-monitor classification remains enabled with exact stop
+diagnostics. A separate12s read-only log follow found no monitor failures; this
+does not reconstruct or clear the earlier instantaneous stop. Later malformed
+BAR/completion hardening was recompiled/offline-tested, not device-rerun.
+
+The public IOStorageFamily pin e45fbe30a7879e0b16e26dddb78538f1b00e0bff compiles
+14units using real generated DriverKit headers; its unmodified source archive
+links into XNU with no import stubs or export patches. Three UBSan handlers and
+__zone_site_register are kernel-local, not external-kext exports. That linked
+kernel is not device-qualified; IOMedia/class registration/mount remain absent.
+Do not call the successful synthetic transport or source link an iOS boot.
+
+At user request inactive Xcode simulators and regenerable caches were removed,
+reclaiming about28GiB while preserving Xcode/SDK/project/archive data. The
+8GiB build-space guard was not lowered. Owned unpacked guest firmware sources
+were archived with CRC/hash verification; preserve exact final firmware/pins.
+No new compaction, host settings, Android restart, original-disk attachment,
+Apple rootfs download or enabled iOS app profile is authorized by this result.

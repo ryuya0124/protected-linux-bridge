@@ -112,7 +112,20 @@ linked the real matching source pthread component, passed BSD network
 initialization/selftests and reached waiting for Apple_HFS root media. It ended
 with runtime safety stop 88, whose exact instantaneous cause was not captured;
 postflight matching does not turn that stop into a successful trial. The runner
-now records guard categories, and no further VM retry was made.
+now records guard categories. Later fresh PCI trials retained the same strict
+guard; they do not reinterpret the earlier unexplained stop as harmless.
+
+The later module-free XNU PCI test read and verified every byte of a separate
+2 MiB synthetic disk, then powered off the guest and returned VMM/supervisor 0.
+The firmware excludes a 64 KiB tail from its shared allocator, and XNU uses only
+an exclusive 8 KiB portion for queues and data. The first PCI attempt's guest
+unmap panic is preserved; corrected page-rounded unmapping passed. This proves
+the narrow PCI/shared-DMA transport, not IOMedia, filesystem mount or iOS boot.
+
+An additional source-only build compiled 14 public IOStorageFamily units and
+linked their genuine source archive into the same XNU kernel build. Its four
+kernel-local helper imports required no stub or export change. That larger
+kernel has not been device-booted or registered as a working storage service.
 
 Postflight verified unchanged host boot and core/trusted-VM process births,
 taint 4608, Enforcing SELinux, all six shmem settings still `never`, and
@@ -132,7 +145,9 @@ physical GUI input or Android restart was used.
 3. Apply existing ownership, healthy-host and RAM admission checks. The reference
    5 GiB guest is not evidence that this Galaxy can supply that backing. Keep the
    6 GiB diagnostic cap and 1536 MiB host floor; no new compaction is approved.
-4. Provide storage/display/input transport suitable for that memory contract,
+4. Connect the tested read-only PCI/shared-DMA transport to actual XNU storage
+   services and a new filesystem disk; compile/link alone is insufficient.
+   Provide display/input transport suitable for that memory contract,
    rather than reading protected host mappings. Reuse guest-only networking
    principles; do not copy upstream host interface or bridge changes.
 5. Verify serial boot, guest shutdown and unchanged host state before display.
