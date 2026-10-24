@@ -80,6 +80,9 @@ def build(source: Path, output: Path, nonce: str) -> dict:
         "transport_header_sha256": hashlib.sha256(
             guest_source.with_name("virtio_pci_block.h").read_bytes()
         ).hexdigest(),
+        "mapping_header_sha256": hashlib.sha256(
+            guest_source.with_name("xnu_pci_support.h").read_bytes()
+        ).hexdigest(),
         "vm_started": False,
         "ios_boot_verified": False,
     }

@@ -16,6 +16,7 @@ translation, remote Apple machine or host kernel module is used.
 | XNU 3 | Real source pthread linked; BSD network initialization/selftests and waiting for Apple_HFS root media | Runtime safety stop 88, exact instantaneous cause unresolved; no successful boot/shutdown claim |
 | XNU PCI 1 | Both payload/transport preparation passed; first PCI block device detected | Guest panic from an incorrectly unaligned/permanent-map unmap; supervisor 124 |
 | XNU PCI 2 | Both PCI block devices detected; all 2,097,152 synthetic bytes checked through the exclusive shared DMA tail; guest PSCI shutdown and VMM/supervisor 0 | A transport test, not IOMedia, filesystem or iOS user-space boot |
+| XNU media 1 | Real IOStorage/IOMedia/BSD node, full 2 MiB read, cross-page read and write refusal; guest shutdown and supervisor/VMM 0 | An initial dispatch refused before VM start at 79; no filesystem or iOS user-space boot |
 
 The generic XNU bootstrap initially failed to link because a disabled legacy
 video probe was referenced unconditionally. The source guard retains the real
@@ -234,6 +235,43 @@ not establish class registration, ABI qualification, IOMedia publication or moun
 
 Both tools are compile/audit-only; they never contact ADB or launch a VM.
 
+## Genuine media connection
+
+The subsequent **media diagnostic kernel** adds a real `IOStorage` subclass and
+the source family's `IOMedia`/`IOMediaBSDClient`. It runs from the actual
+`IOKitBSDInit` point after `publishResource("IOBSD")`, guarded by the guest-only
+compile switch and diagnostic boot argument. Patch 0004 targets guest XNU,
+not Android/Xposed; disassembly confirms the call. The diagnostics share guest
+mapping support. The media build must link `libBridgePciMedia.a`, never the raw
+probe's early-shutdown archive.
+
+The adapter serializes its queue, bounces through the same exclusive 8 KiB
+shared window and copies into private memory descriptors. It publishes only the
+separate read-only 2 MiB fixture. Device writes/unmap are not implemented.
+A reset failure retains mappings until guest teardown.
+
+The first dispatch ended 79 before a spent receipt or VMM existed. A nearby
+snapshot had about 2.24 GiB available, below the unchanged 2.5 GiB start floor.
+Six freshly checked cached third-party processes accepted supported BACKGROUND
+trim notifications; Chrome was skipped after its state changed. No app was
+killed; no cache data, compaction, tuning or policy was changed. A later snapshot
+was about 2.86 GiB; causation by trim is not established. A separate manual
+dispatch, after confirming no prior VM receipt, passed.
+
+Actual receipts prove source-family registration, read-only media publication,
+a real BSD name, full 2 MiB content/FNV64 verification through IOMedia and a
+4096-byte read at offset 512 crossing two DMA pages. The source iOS IOMedia's
+LockedWrite error rejected a write; device requests stayed 514 before/after.
+Device reset, guest PSCI shutdown and VMM/supervisor 0 followed. Host postflight
+matched. This newer media kernel was booted; the earlier standalone source-link
+kernel was not. Neither mounts a filesystem.
+
+`build_native_xnu_media_probe.py` is compile-only with source/archive pin checks.
+`native_xnu_media_result.py` rejects partial reads, writable media, absent BSD
+nodes, private DMA, issued writes, stale runner IDs, panic and partial shutdown.
+The runner now also names each admission-79 category; that logging-only change
+was compiled after this trial, not substituted into its pinned runner.
+
 ## Remaining I/O contract
 
 UEFI's PCI VirtIO disk uses `GunyahIoMmuDxe` to bounce I/O through the static
@@ -241,8 +279,9 @@ shared pool. That does not automatically fix XNU. The reviewed NativeVirtioBlock
 uses MMIO and general contiguous allocations; the current stock crosvm disk is
 PCI and private guest buffers are not host-readable. The new PCI readback proves
 the transport and exclusive shared bounce-buffer path for a tiny synthetic
-read-only disk. It still needs connection to actual storage services, general
-read sizes/concurrency and filesystem support before an iOS rootfs is attached.
+read-only disk. The later media trial connects it to genuine storage services
+and verifies one cross-page read. A general root-disk profile, broader
+sizes/concurrency and filesystem support remain before an iOS rootfs is attached.
 Display, input and networking need the same ownership
 review. The reference executable-share module and RAM-peeking GPU path remain
 excluded.

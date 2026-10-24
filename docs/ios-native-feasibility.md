@@ -127,6 +127,12 @@ linked their genuine source archive into the same XNU kernel build. Its four
 kernel-local helper imports required no stub or export change. That larger
 kernel has not been device-booted or registered as a working storage service.
 
+A subsequent kernel **has** exercised the source storage family: its PCI-backed
+IOStorage adapter published a real read-only IOMedia and BSD node, verified all
+2 MiB through IOMedia plus a cross-page read, rejected a write without issuing
+device I/O, reset and powered off normally. This is a synthetic-disk service
+test; no filesystem mount, Apple rootfs or iOS user-space has been booted.
+
 Postflight verified unchanged host boot and core/trusted-VM process births,
 taint 4608, Enforcing SELinux, all six shmem settings still `never`, and
 unchanged device/inode/size/mtime/ctime of the three original Android files and
@@ -145,8 +151,8 @@ physical GUI input or Android restart was used.
 3. Apply existing ownership, healthy-host and RAM admission checks. The reference
    5 GiB guest is not evidence that this Galaxy can supply that backing. Keep the
    6 GiB diagnostic cap and 1536 MiB host floor; no new compaction is approved.
-4. Connect the tested read-only PCI/shared-DMA transport to actual XNU storage
-   services and a new filesystem disk; compile/link alone is insufficient.
+4. Extend the tested synthetic IOMedia service to a separately verified root-disk
+   profile and filesystem stack; the 2 MiB service is not a mounted filesystem.
    Provide display/input transport suitable for that memory contract,
    rather than reading protected host mappings. Reuse guest-only networking
    principles; do not copy upstream host interface or bridge changes.

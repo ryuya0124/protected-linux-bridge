@@ -898,3 +898,31 @@ reclaiming about28GiB while preserving Xcode/SDK/project/archive data. The
 were archived with CRC/hash verification; preserve exact final firmware/pins.
 No new compaction, host settings, Android restart, original-disk attachment,
 Apple rootfs download or enabled iOS app profile is authorized by this result.
+
+## Genuine XNU media checkpoint, still 2026-10-24
+
+After publishing5459f26 the user explicitly requested continuing, and later
+allowed memory release. A separate guest-only media adapter connects the PCI
+queue to real public IOStorage/IOMedia/IOMediaBSDClient source. Guest XNU
+patch0004 calls it after IOBSD publication; it does not hook Android. Only the
+distinct2MiB synthetic disk is published, serialized and read-only. No filesystem
+disk or original Android/Debian disk was attached.
+
+The first transport dispatch refused79 before any VM/spent receipt. Near-term
+available RAM was2.24GiB, below the unchanged2.5GiB start requirement. Six freshly
+checked cached user-0 third-party processes accepted BACKGROUND trim notices;
+Chrome's changed state caused it to be skipped. No kill, cache-data deletion,
+compaction, policy or tuning write was performed. Later RAM was2.86GiB; do not
+assert trim caused the increase. One new manual dispatch of the still-unused
+trial passed, without automatic retry or weakened admission.
+
+A genuine BSD node was published. All2MiB were checked via IOMedia, a4096byte
+read starting512 crossed two DMA pages correctly, and iOS IOMedia returned its
+real LockedWrite error without increasing device requests (514 before/after).
+Reset, guest PSCI shutdown and VMM/supervisor0 passed. Host boot/core/trustedVM
+births, taint4608, Enforcing, six never settings and four original disk metadata
+identities remained unchanged; no fresh content hashes. The earlier standalone
+source-link kernel remains unbooted; the newer media kernel exercised that
+source family. Filesystem mount/iOS user-space/GUI remain absent. Preserve the
+initial79 and negative build audits. Admission-reason logging was compiled
+afterward, not device-rerun. No extra compaction or host changes are authorized.

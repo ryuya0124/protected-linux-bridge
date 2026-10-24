@@ -121,8 +121,18 @@ int main(int argc, char **argv) {
     setvbuf(stdout, NULL, _IONBF, 0);
     if (getuid() || argc != 2 || strcmp(argv[1], "--run"))
         return 40;
-    if (!host17_admitted() || !same_host() || !memory_floor(1024))
+    if (!host17_admitted()) {
+        printf("PLB_NATIVE_GUARD phase=admission reason=host_artifact_or_platform\n");
         return 79;
+    }
+    if (!same_host()) {
+        printf("PLB_NATIVE_GUARD phase=admission reason=host_identity_or_health\n");
+        return 79;
+    }
+    if (!memory_floor(1024)) {
+        printf("PLB_NATIVE_GUARD phase=admission reason=memory_floor\n");
+        return 79;
+    }
     if (!owned_regular(PLB_UEFI_BASE "/firmware.fd") ||
         !owned_regular(PLB_UEFI_BASE "/synthetic.raw") ||
         !host17_digest(PLB_UEFI_BASE "/firmware.fd", PLB_UEFI_FIRMWARE_SHA256) ||

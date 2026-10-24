@@ -1,0 +1,14 @@
+--- a/iokit/bsddev/IOKitBSDInit.cpp
++++ b/iokit/bsddev/IOKitBSDInit.cpp
+@@ -111,5 +111,11 @@
+ IOKitBSDInit( void )
+ {
+ 	IOService::publishResource("IOBSD");
++#if defined(XNU_BRIDGE_PCI_MEDIA) && XNU_BRIDGE_PCI_MEDIA
++	// Guest-only diagnostic, after the real BSD resource exists.
++	// The separate archive performs bounded read-only IOMedia verification.
++	extern void plb_bridge_pci_media_probe(void);
++	plb_bridge_pci_media_probe();
++#endif
+ 
+ #if IOPOLLED_COREFILE

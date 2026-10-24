@@ -27,7 +27,7 @@
     "Reference framebuffer and diagnostic tools read shared guest RAM; must not run against donated protected mappings",
     "17.7.11 kernel prelink hashes and platform drivers do not establish newer iOS support",
     "Reference RAM and MMIO addresses cannot be copied to another topology",
-    "Native XNU PCI/shared-DMA synthetic transport passes; IOMedia/filesystem integration and iOS rootfs remain absent",
+    "Native XNU PCI/shared-DMA synthetic transport passes; synthetic IOMedia/BSD publication passes; general root-disk/filesystem integration and iOS rootfs remain absent",
     "Third XNU trial stopped at runtime safety guard 88; exact instantaneous cause not recorded; do not call it a successful run"
   ],
   "device_contacted": true,
@@ -58,7 +58,7 @@
     "vcpus": 1,
     "synthetic_readback_bytes": 2097152,
     "uefi_normal_shutdown_verified": true,
-    "xnu_trials": 5,
+    "xnu_trials": 6,
     "xnu_owned_ram_mib": 256,
     "xnu_shared_pool_excluded": true,
     "xnu_darwin": "23.6.0",
@@ -86,12 +86,28 @@
     "xnu_pci_readback_verified": true,
     "xnu_pci_readback_bytes": 2097152,
     "xnu_pci_shared_tail_bytes": 8192,
-    "xnu_normal_shutdown_verified": true
+    "xnu_normal_shutdown_verified": true,
+    "xnu_media_trial": {
+      "initial_dispatch": 79,
+      "initial_vm_started": false,
+      "later_manual_dispatch": 0,
+      "iomedia_readback_bytes": 2097152,
+      "bsd_node_published": true,
+      "cross_page_offset": 512,
+      "cross_page_bytes": 4096,
+      "write_refusal": "iOS IOMedia LockedWrite",
+      "device_requests_before_write": 514,
+      "device_requests_after_write": 514,
+      "guest_shutdown_verified": true,
+      "host_postflight_passed": true,
+      "filesystem_mounted": false,
+      "ios_boot_verified": false
+    }
   },
   "host_system_configuration_modified": false,
   "app_private_diagnostic_files_created": true,
   "validation": {
-    "host_tests": 256,
+    "host_tests": 259,
     "skipped": 6,
     "native_android_runner_compilation": "NDK ARM64 -Wall -Wextra -Werror passed",
     "apk_changed": false,
@@ -114,6 +130,8 @@
     "linked_kernel_device_booted": false,
     "storage_service_registered": false,
     "filesystem_mount_verified": false,
-    "ios_boot_verified": false
+    "ios_boot_verified": false,
+    "newer_media_kernel_device_booted": true,
+    "media_diagnostic_service_registered": true
   }
 }
