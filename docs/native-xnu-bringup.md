@@ -1,0 +1,185 @@
+# Native protected XNU diagnostics
+
+These developer tools are not an iOS installer. They run on the Android 17
+branch and leave the released Android/Debian profiles unchanged. The target is
+native ARM64 execution through the existing Gunyah/crosvm interface. No QEMU CPU
+translation, remote Apple machine or host kernel module is used.
+
+## Evidence, 2026-10-24
+
+| Trial | Actual observation | Limit |
+| --- | --- | --- |
+| UEFI 1 | EL1 entry, 32 MiB shared DMA pool, exact full 2 MiB pattern read, guest shutdown, VMM 0 | Not XNU or an OS |
+| UEFI 2 | Same complete read/shutdown, plus generated FDT and CPU register metadata | Raw FDT includes random seeds and stays private |
+| XNU 1 | Darwin 23.6.0 banner and VM bootstrap | Guest allocator assertion, owned diagnostic stopped at 45 s, result 124 |
+| XNU 2 | Allocator passed with upstream `kt_fixed_zones=120`; NVRAM, CPU 0, all 19 corecrypto POST cases passed | Missing pthread registration panic; result 124 |
+| XNU 3 | Real source pthread linked; BSD network initialization/selftests and waiting for Apple_HFS root media | Runtime safety stop 88, exact instantaneous cause unresolved; no successful boot/shutdown claim |
+
+The generic XNU bootstrap initially failed to link because a disabled legacy
+video probe was referenced unconditionally. The source guard retains the real
+enabled-feature call. Later builds linked the real platform, crypto and pthread
+components; no function-table or crypto-success stub was added.
+
+The third trial's safety result is preserved even though postflight identities,
+health, policies and disk metadata matched. The original runner did not record
+which of identity/read-health, memory-floor or kernel-monitor checks stopped it;
+postflight cannot reconstruct that instant. A later read-only kernel-log
+follow-up contained the already documented normal `svprt` BUG-prefixed printks;
+this does not identify the exact consumed monitor record. One intervening Tail
+ADB root request was denied, then a subsequent root-verified read succeeded;
+that transient failure is retained and not presented as a host crash.
+The source now logs the guard
+category. No extra VM retry was made to bypass this unresolved stop.
+
+A diagnostic deadline, safety stop or guest panic is not successful shutdown. In particular,
+`MACH Reboot` in an XNU UART trace describes a **guest** panic path; it is not an
+Android restart command. Each completed trial separately checked the host boot
+identity, core and trusted-VM process births, taint, SELinux, six shmem policies
+and original disk metadata. Full original-disk hashes were not recomputed.
+
+## Sources and build inputs
+
+All third-party sources, generated files and OS images stay in ignored
+`artifacts/ios-native-research/`. First-party diagnostics are MIT; dependency
+licenses remain their own. No Apple OS image or firmware is redistributed.
+
+| Component | Reviewed revision |
+| --- | --- |
+| edk2-gunyah | `90c4d52c7d11485318bbb4fb9291a15ea1550ab2` |
+| Its EDK2 submodule | `b7a715f7c03c45c6b4575bf88596bfd79658b8ce` |
+| UniXNU build scripts | `1a01c2afa197d975d04da892325c56b6b14aaecb` |
+| Device ADT generator | `512350a37a80f6b368e889aee22fafbcf79a28a4` |
+| Apple XNU 10063.141.1 | `d8b80295118ef25ac3a784134bcf95cd8e88109f` |
+| ArmCpu | `1951cc8444b340d7d8879e9418220cf29eb711d7` |
+| ArmDTPlatform | `0d544705c2e89725caabc0542bb96bc8febd8c70` |
+| DarwinBoot | `d099354d0eab34df5088ca1ba89c9c88bc3260bb` |
+| NativePrelink | `2b6ffb50117eee820b98aca9bd51b5c7dfb2970e` |
+| corecrypto-2023 snapshot | `11fba65b12d8830630e248dfa8344caf8b065f26` |
+| Apple libpthread 519.120.4 | `c0e60fb5ecfc54cf379c261d3f9572cc22ded891` |
+
+The corecrypto snapshot comes from
+[ONLYA/corecrypto-2023](https://github.com/ONLYA/corecrypto-2023), not an
+independently authenticated Apple archive. Logs of its software POST tests are
+not a module certification or proof of a complete iOS security architecture.
+
+UEFI was compiled in native ARM64 Linux with GCC and EDK2 BaseTools. XNU was
+compiled natively on the development Mac with Xcode 27.1, for ordinary ARM64,
+iOS 17 deployment and 4 KiB guest pages. The diagnostic host runner uses Android
+NDK 28.2.13676358. A native ARM64 Docker build is not target CPU emulation.
+
+## UEFI probe preparation
+
+Use a fresh source directory below this repository's ignored `artifacts/`.
+Checkout the exact firmware revision, initialize its recorded EDK2 submodule,
+and initialize EDK2's **first-level** dependency pins. Avoid recursive OpenSSL
+test/development checkouts. Build in one consistent workspace so submodule Git
+paths remain valid. Keep the build network disabled after fetching dependencies.
+
+```sh
+python3 tools/prepare_native_uefi_probe.py \
+    --source artifacts/ios-native-research/edk2-gunyah \
+    --output artifacts/ios-native-research/new-uefi-trial
+```
+
+This command never connects to a device or starts a VM. It refuses unreviewed
+source/output paths and existing result directories. It creates a nonce-pattern
+2 MiB disk and injects the guest-only UART/readback probe into the boot manager.
+The current probe also reports CNTFRQ and MPIDR. Build the firmware with
+`./build.sh -DPCI_CAM_MODE=TRUE -n 2` in the audited native Linux toolchain, then
+copy `edk2-gunyah.fd` to the new trial's `firmware.fd`.
+
+```sh
+python3 tools/build_native_uefi_runner.py \
+    --output artifacts/ios-native-research/new-uefi-trial \
+    --host-snapshot artifacts/ios-native-research/fresh-host.private.json \
+    --sdk /path/to/Android/sdk
+```
+
+The private snapshot supplies the current host boot UUID and exactly three
+`cores` entries for zygote64, system_server and the trusted Samsung crosvm:
+`name`, `pid`, and `/proc/PID/stat` field 22 as `start_ticks`. The builder compiles
+but does not deploy or launch. Never reuse an old boot's identities or copy a
+spent trial's nonce to obtain another run.
+
+Deployment is deliberately manual. Stage only the new firmware, synthetic disk
+and runner, verify their hashes, then copy to the exact newly generated
+`device_directory` under app-private storage as root-owned mode 0600 (runner
+0700). Run that runner with `--run` once. Do not replace this with a direct VMM
+invocation or an upstream rig script. Preserve its `spent` receipt and collect
+`console.log`, `vmm.log`, `guest-generated.dtb` and the supervisor output before
+removing only that trial's shell staging files. After these completed trials,
+their consumed device-side firmware/disks/runners and shell duplicates were
+removed, while app-private spent receipts and logs were preserved.
+
+`native_uefi_result.py` checks the full ordered, nonce-bound EL/DMA/readback/
+shutdown record and VMM exit separately. `ios_boot_verified` remains false.
+
+## XNU serial port
+
+The first patch in `tools/native_xnu_patches/` applies to the pinned **UniXNU
+build-script tree**. The second is a patch for the **XNU source worktree** and
+can be placed as `patches/xnu/bridge-ns16550-console.patch` in the private
+UniXNU tree so its existing baseline build applies it. Do not apply either to
+an Android host kernel. `BridgeUart16550.inc` is the readable source of that
+second patch's polling UART addition.
+
+Bootstrap the existing upstream 4 KiB build with `XNU_BOOTSTRAP=1`. Use its
+actual compiler records to build ArmDTPlatform and ArmCpu with the reviewed
+device repository's `build-arm-driver.py`. Build the pinned corecrypto provider
+plain and namespaced; link only the namespaced version. Build matching
+libpthread with `build-libpthread-kernel.py`. Then build with:
+
+- `XNU_BOOTSTRAP=0`, `XNU_SOURCE_CORECRYPTO14=1`, `XNU_SOURCE_PTHREAD=1`.
+- `XNU_ARM_DT_PLATFORM=1`, `XNU_ARMCPU=1`, `XNU_DT_PANIC_REGION=1`.
+- `XNU_BOOT_PROGRESS=0`, two build jobs, and `-DXNU_BRIDGE_UART16550=1` added to
+  `XNU_EXTRA_CFLAGS` **alongside** the baseline warning flags.
+
+Keep the baseline's real POST HMAC sealing step. Build DarwinBoot's driver INF
+against the same pinned EDK2 plus the UniXNU protocol package; no graphical menu
+is required for the serial-only diagnostic. The guest firmware uses
+`BootXnu.c` in place of the readback probe, a fresh nonce header and the unchanged
+reviewed `UniXNULoader.h` interface. Add SimpleFileSystem to that boot-manager
+INF's protocol dependencies. Each compiled firmware remains separately pinned.
+
+```sh
+python3 tools/prepare_native_xnu_adt.py \
+    --device-source artifacts/ios-native-research/device \
+    --probe artifacts/ios-native-research/completed-uefi-trial \
+    --output artifacts/ios-native-research/new-xnu-trial/XNU.ADT
+```
+
+This generator validates the upstream source pin, successful UEFI evidence,
+nonce-bound CPU metadata, RAM/DMA boundary and byte-wide virtual UART. It gives
+XNU 256 MiB private owned RAM, excludes the top 32 MiB shared DMA region, and
+adds a root-level absolute-address UART node. It does not invent a physical
+Galaxy peripheral or use a protected-memory reader. Its receipt is preparation,
+not evidence of device boot.
+
+Create a **new** 64 MiB FAT16 disk with dosfstools/mtools, containing `XNU`,
+`XNU.ADT`, and `DARWIN.EFI`. Check it with `fsck.fat -n`. Attach it read-only;
+never attach an existing Android/Debian disk. Record SHA-256 for every component
+and the resulting disk in that trial's private `probe.json`. The existing runner
+builder's explicit `--xnu-serial` selects this separate profile and its disk
+shape. It still does not launch or deploy anything. The common supervisor retains
+exact host/VMM pins, boot/process births, owner/maintenance leases, health/RAM
+checks, durable one-use receipts and a 45-second diagnostic-only deadline.
+
+`native_xnu_result.py` records kernel execution, panic and supervisor status
+separately. A version banner, normal VMM exit, missing root, timeout or crypto
+selftest log never becomes `ios_boot_verified=true`.
+
+## Remaining I/O contract
+
+UEFI's PCI VirtIO disk uses `GunyahIoMmuDxe` to bounce I/O through the static
+shared pool. That does not automatically fix XNU. The reviewed NativeVirtioBlock
+uses MMIO and general contiguous allocations; the current stock crosvm disk is
+PCI and private guest buffers are not host-readable. A guest PCI transport and
+bounded shared-DMA allocator/bounce path are still needed before an iOS rootfs
+can be attached safely. Display, input and networking need the same ownership
+review. The reference executable-share module and RAM-peeking GPU path remain
+excluded.
+
+Keep raw logs, boot IDs, nonces, seeds, compiled kernels, firmware and signing
+material private. Preserve negative trials as well as progress. Newer iOS-family
+firmware requires separate version/ABI work; the upstream 17.7.11 prelink recipe
+is not compatibility proof for iOS 18/26/27.

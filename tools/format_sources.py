@@ -35,7 +35,7 @@ def main():
         p
         for folder in ("native", "tools", "tests", "kernels")
         for p in (ROOT / folder).rglob("*")
-        if p.suffix in (".c", ".h", ".cpp")
+        if p.suffix in (".c", ".h", ".cpp", ".inc")
     ]
     java = [
         p

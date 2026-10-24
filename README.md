@@ -75,6 +75,6 @@ Debianでは複数マイク入力の選択と、明示的に許可した表示�
 
 ## 開発・ライセンス
 
-[開発・ビルド手順](docs/development.md)、[Android 17の解析記録](docs/android17-port.md)、[表示接続の実装](docs/android17-owned-display.md)、[整形方針](docs/code-style.md)。16版の実機記録は固定ブランチで参照できます。
+[開発・ビルド手順](docs/development.md)、[Android 17の解析記録](docs/android17-port.md)、[表示接続の実装](docs/android17-owned-display.md)、[XNUのネイティブ起動調査](docs/ios-native-feasibility.md)、[整形方針](docs/code-style.md)。XNUの調査は初期カーネル実行までで、iOSを利用できる機能ではありません。16版の実機記録は固定ブランチで参照できます。
 
 アプリは[MIT License](LICENSE)です。依存ライブラリのライセンスはアプリの「ライセンス」と`third_party/`に掲載しています。ROM、OSイメージ、署名鍵、私的な実機ログは公開しません。

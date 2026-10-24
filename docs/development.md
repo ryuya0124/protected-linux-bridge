@@ -260,3 +260,12 @@ checking its PID/port. Do not restart host Android or switch back to LAN. Once
 transport is restored, distinguish `unauthorized` from network reachability.
 The Tail ADB shell's `su` shim accepts `su -c` and does not implement KSU's `-M`
 option; this differs from the Bridge app's own real-root `su -M` environment.
+
+## Native XNU bring-up
+
+The separate [iOS-family assessment](ios-native-feasibility.md) now includes
+local module-free protected UEFI readback and early XNU serial execution.
+[Exact pins, build steps and negative trials](native-xnu-bringup.md) distinguish
+kernel initialization/root-media wait from a working iOS guest. No iOS app
+profile or APK runtime is enabled. All original Android/Debian disks stay
+detached from these small diagnostics, with no host module or policy changes.

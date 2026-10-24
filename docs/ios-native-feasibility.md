@@ -1,9 +1,10 @@
-# Native iOS-family guest: source assessment
+# Native iOS-family guest: module-free XNU bring-up
 
 2026-10-24. The user prefers a recent iOS and explicitly rejects CPU emulation.
 The target remains execution on the Galaxy, with the host Android preserved.
-No iOS guest has been built, installed or booted. This is an offline assessment,
-not an enabled app profile or a working iOS release.
+The Galaxy has now executed native protected UEFI and a source-built XNU
+kernel. This is **early kernel bring-up**, not an iOS home screen, a working
+iPadOS installation or an enabled app profile. No Apple OS rootfs was fetched.
 
 ## Execution model
 
@@ -55,38 +56,76 @@ Do not read a donated/protected mapping using those framebuffer/debug tools.
 The repository records host watchdog failures; changing the ADT or omitting a
 host module does not establish a safe fallback.
 
-## A concrete module-free research direction
+## Module-free path and local results
 
 Bridge's already inspected crosvm source distinguishes executable private guest
 RAM/BIOS regions from a non-executable static SWIOTLB shared region. A candidate
 port would keep UEFI/XNU executable code in private guest RAM and use a bounded,
-non-executable shared DMA window only for I/O. This is a source-derived design
-hypothesis, not evidence of successful XNU execution or compatibility with the
-installed host. The current protected VM and its memory ownership rules must
-remain intact.
+non-executable shared DMA window only for I/O. This contract has now been
+exercised by the local UEFI probes and the early
+XNU serial boot described below. It does not establish a complete iOS I/O stack.
+The current protected VM and its memory ownership rules remain intact.
 
 Simply changing the VMM flag is insufficient. At the inspected build-driver pin,
 [NativeVirtioBlock](https://github.com/UniXNU/NativeVirtioBlock/blob/98909eb9198a4360d7a43be831887cb8b74d814d/NativeVirtioBlock.cpp)
 allocates its virtqueue and transfer storage from general physically contiguous
 kernel memory and submits their physical addresses to the device. In a private
-protected guest this does not establish host readability. A port needs an actual
-shared-DMA allocator/bounce-buffer path in guest UEFI and the guest XNU drivers,
+protected guest this does not establish host readability. The inspected firmware
+already supplies a shared-DMA bounce-buffer allocator
+through GunyahIoMmuDxe; a port still needs the equivalent in the guest XNU drivers,
 plus a matching reserved device-tree window and checked buffer bounds. Display
 and input have equivalent ownership requirements. A comment or ADT entry alone
 cannot move allocations into that window.
 
-This provides a specific adaptation target before considering a large iPadOS
-build. Do not copy upstream's live-memory readers to work around it. First
-establish a separately built, small native UEFI serial/DMA probe through allowed
-interfaces, with no original data disk attached. Its firmware build and device
-execution have **not** been performed in this assessment.
+Two separate 512 MiB / one-vCPU UEFI trials passed on SM-S948Q, Android 17
+S948QOPU1BZI9. They used the stock, hash-pinned APEX crosvm, protected private
+executable RAM and its 32 MiB non-executable restricted DMA pool. The only block
+device was a new, read-only 2 MiB nonce-pattern disk. Every byte was read and
+checked, followed by guest PSCI shutdown and VMM exit 0. A closed-channel
+VcpuControl warning during teardown remains in the raw record.
 
-## Required adaptation before any Galaxy boot
+The second trial also supplied the generated FDT and guest register receipts:
+RAM `0x80000000+0x20000000`, shared DMA `0x9e000000+0x02000000`, GIC distributor
+`0x3fff0000`, redistributor `0x3ffd0000`, virtual byte-wide 16550 UART `0x3f8`,
+19.2 MHz architectural counter and boot CPU affinity 0. These are this VM's
+virtual devices, not physical Galaxy device addresses. The second FDT contains
+fresh seeds, so the raw binary and trial identities stay private.
 
-1. Establish a guest boot-memory contract using the existing permitted host
-   interfaces. Remove dependency on executable runtime host-share parcels;
-   do not replace it by loading a module or altering Gunyah protection.
-2. Build a separately pinned UEFI/XNU runtime and its matching device tree.
+The first XNU serial trial loaded the newly built DarwinBoot EFI driver and a
+source-built Darwin 23.6.0 / XNU 10063.141.1 kernel. It reached `kprintf initialized`,
+printed its Darwin version, completed VM bootstrap and then panicked at
+`kalloc.c:1779`, `n_zones_sig + n_zones_type + 1 <= 32`. The supervisor stopped
+only its owned VMM at its 45-second diagnostic deadline (exit 124). A guest
+panic/banner is not an iOS boot or successful normal guest shutdown.
+
+The XNU ADT gives DarwinBoot a 256 MiB private allocation and excludes the
+32 MiB shared DMA window from general/executable RAM. No original guest disk,
+GPU, network or forwarded physical device is attached. First-party guest polling
+UART code supplies diagnostics without peeking into protected guest RAM.
+The second XNU trial used the upstream board's supported
+`kt_fixed_zones=120` budget and passed that point. It published the CHRP NVRAM
+proxy, registered CPU 0 and logged all 19 corecrypto POST cases passed, including
+integrity. It later panicked because the pthread function table was absent.
+No allocator assertion or crypto selftest was removed. Both failures remain
+recorded separately; neither is a root-filesystem or iOS boot. A third trial
+linked the real matching source pthread component, passed BSD network
+initialization/selftests and reached waiting for Apple_HFS root media. It ended
+with runtime safety stop 88, whose exact instantaneous cause was not captured;
+postflight matching does not turn that stop into a successful trial. The runner
+now records guard categories, and no further VM retry was made.
+
+Postflight verified unchanged host boot and core/trusted-VM process births,
+taint 4608, Enforcing SELinux, all six shmem settings still `never`, and
+unchanged device/inode/size/mtime/ctime of the three original Android files and
+Debian persistent disk. Disk metadata checks are not claimed as fresh full-disk
+content hashes. No host module, compaction, pressure helper, policy write,
+physical GUI input or Android restart was used.
+
+## Remaining work before an iOS guest
+
+1. Preserve the locally verified private-executable/static-shared-DMA contract.
+   Do not reintroduce executable runtime host-share parcels or host modules.
+2. Continue the separately pinned UEFI/XNU runtime and matching device tree.
    Preserve the current Android 17 and Debian runtimes and disks. Start with
    kernel serial output and a new guest-only disk, without GPU/network/hardware
    forwarding or attachment of existing guest disks.
@@ -100,14 +139,24 @@ execution have **not** been performed in this assessment.
    Only then qualify a new release. Treat iOS/iPadOS 18/26/27 as separate ports,
    not firmware selectors for the 17.7.11 prelink configuration.
 
-The first step is unresolved. The upstream launch is therefore **blocked under
-the current host constraints**. This assessment does not request lifting them.
-No placeholder launch button, emulator fallback or iOS success claim was added.
+The reference launch remains incompatible with the host constraints, but the
+module-free native UEFI and early XNU path is no longer just a hypothesis.
+The app still has no iOS launch action: the remaining storage, user-space,
+graphics and input requirements are substantial.
 
-Only about 8 MiB of research sources were retrieved; no Apple firmware,
-submodule/source tree build, host security adjustment or device connection was
-performed. Full firmware extraction/build is deferred because the Mac has
-limited space. Pinned findings are also in the
+The kernel builds use Apple's open-source XNU tag, a separately pinned
+third-party corecrypto source snapshot and upstream ArmDTPlatform/ArmCpu.
+Provider compilation, namespace checks and POST HMAC population alone do not
+prove runtime crypto selftests; the second local XNU trial subsequently logged
+the actual POST results. This is not a certification claim. The first generic bootstrap link failed on a disabled
+legacy-display probe referenced unconditionally; the checked-in guard fixes that
+build configuration without adding a fake graphics service.
+
+Only source/build tools and small new diagnostic disks were obtained. No full
+IPSW, proprietary iOS kext collection, Apple root filesystem or complete OS
+installation was downloaded. Sources/build caches are ignored and space-bound;
+Android 16 frozen refs and the shipped Android/Debian runtime remain unchanged.
+See the [reproduction and evidence notes](native-xnu-bringup.md) and the
 [structured record](data/ios-native-feasibility-2026-10-24.json).
 
 ## Other assessed approaches

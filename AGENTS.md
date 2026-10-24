@@ -821,8 +821,47 @@ Linux containers alone cannot boot iOS. Do not silently substitute legacy QEMU,
 touchHLE, a remote Mac session or an iOS-themed Android UI.
 The offline UniXNU-droidvm assessment is in docs/ios-native-feasibility.md.
 Its reference host-share/hugepage modules, protected-memory changes and host
-network bridge remain prohibited. No device boot or firmware fetch was done.
+network bridge remain prohibited. At the initial assessment no device boot or
+firmware fetch had been done; the later native diagnostics below supersede that
+execution status without relaxing host constraints.
 Keep iOS work separate from functioning Android/Debian profiles, preserve frozen
 Android16 refs, and do not add an enabled launch until the memory contract and
 matching guest artifacts are verified. An upstream boot report is not a local
 Galaxy boot. Do not execute upstream rig/module or live guest-RAM peek scripts.
+
+## Module-free native guest diagnostics, user 2026-10-24
+
+The user then explicitly said to try the native route. Separate app-private,
+stock-crosvm protected 512 MiB / one-vCPU UEFI and source-XNU diagnostics are
+within that request. No host module/protection/policy change or new compaction
+is authorized. Keep all original disks detached; never use the reference
+pseudo-unprotected executable-share or guest-memory-peeking paths.
+
+Two nonce-bound UEFI trials passed EL1 entry, static32 MiB DMA bounce I/O,
+full2 MiB synthetic readback, guest shutdown and VMM0. The second captured
+the generated FDT and architectural counter/CPU metadata through normal guest
+interfaces. The firmware's existing GunyahIoMmuDxe supplies its shared bounce
+allocator. Do not claim XNU inherits this allocator automatically.
+
+XNU1 reached Darwin23.6.0/VM bootstrap then panicked on the allocator zone
+count. XNU2 used the reference board's supported kt_fixed_zones=120 budget,
+passed all19 source-provider crypto POST cases, NVRAM and CPU registration,
+then panicked for missing pthread registration. Both diagnostic supervisors
+ended124 at45s; neither was a successful iOS/rootfs boot or normal shutdown.
+XNU3 linked real source libpthread and reached BSD network selftests and
+waiting for Apple_HFS root media. It ended with runtime safety stop88. The
+original runner did not record which instantaneous guard failed; matching
+postflight does not prove that guard was spurious. Source now logs categories;
+do not relabel the trial as successful or bypass the guard for a retry.
+
+All completed postflights retained host boot/core/trusted-VM births, taint4608,
+Enforcing, all six shmem never values and four original disk metadata identities.
+These metadata checks are not fresh full-disk hashes. No Android restart,
+host policy/module/compaction, physical GUI input, GPU or original-disk attachment
+was used. No Apple OS rootfs/IPSW was fetched. No iOS launch UI/APK release was
+added. Keep diagnostics and consumed receipts separate from the released app.
+
+Read docs/native-xnu-bringup.md and docs/ios-native-feasibility.md for exact pins,
+the two different patch targets and remaining private/shared DMA plus PCI/MMIO
+storage work. ARM64 XNU compilation and early serial execution do not establish
+recent iOS user-space, graphics, signature policy or device support.
