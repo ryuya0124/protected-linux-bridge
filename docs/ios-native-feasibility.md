@@ -180,6 +180,15 @@ Android 16 frozen refs and the shipped Android/Debian runtime remain unchanged.
 See the [reproduction and evidence notes](native-xnu-bringup.md) and the
 [structured record](data/ios-native-feasibility-2026-10-24.json).
 
+Later work fetched only the official Apple manifest/kernelcache ranges (about
+18 MB of a 6.8 GB restore archive), verified the original decoded kernel pin,
+and emitted a separate APFS dependency candidate. No OS/SystemOS root image or
+full IPSW was obtained. Its original corecrypto passed 19 POST cases on the
+Galaxy, followed by full synthetic PCI readback and normal guest shutdown.
+APFS mount and iOS user-space remain unverified; the early diagnostic produced
+no APFS-specific execution receipt. Static original storage ABI checks passed,
+but its concrete PCI adapter still needs guest-side qualification.
+
 ## Other assessed approaches
 
 - [darwin-vm](https://github.com/jprx/darwin-vm) uses a QEMU fork and documents

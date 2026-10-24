@@ -17,6 +17,7 @@ translation, remote Apple machine or host kernel module is used.
 | XNU PCI 1 | Both payload/transport preparation passed; first PCI block device detected | Guest panic from an incorrectly unaligned/permanent-map unmap; supervisor 124 |
 | XNU PCI 2 | Both PCI block devices detected; all 2,097,152 synthetic bytes checked through the exclusive shared DMA tail; guest PSCI shutdown and VMM/supervisor 0 | A transport test, not IOMedia, filesystem or iOS user-space boot |
 | XNU media 1 | Real IOStorage/IOMedia/BSD node, full 2 MiB read, cross-page read and write refusal; guest shutdown and supervisor/VMM 0 | An initial dispatch refused before VM start at 79; no filesystem or iOS user-space boot |
+| Original dependency 1 | Original Apple corecrypto passed 19 POST cases; full synthetic PCI readback, reset, guest shutdown and VMM/supervisor 0 with an APFS dependency candidate | No APFS mount or APFS-specific execution receipt; the early transport probe exits before root selection |
 
 The generic XNU bootstrap initially failed to link because a disabled legacy
 video probe was referenced unconditionally. The source guard retains the real
@@ -271,6 +272,57 @@ kernel was not. Neither mounts a filesystem.
 nodes, private DMA, issued writes, stale runner IDs, panic and partial shutdown.
 The runner now also names each admission-79 category; that logging-only change
 was compiled after this trial, not substituted into its pinned runner.
+
+## Original Apple dependency route
+
+`inspect_native_ios_payload.py` reads the pinned Apple CDN archive using exact
+HTTP206 byte ranges, matching Content-Range and ETag. Its total fetch budget is
+128 MiB; a server's whole-file response is rejected before body reading. It
+validates the board/build identity, bounds ZIP members and extracts only the
+manifest/optional kernelcache. IM4P parsing and the LZFSE child are bounded;
+decoded ARM64 kernelcache must match the board's exact SHA-256. It never flashes
+a device, downloads the complete IPSW or starts a VM. Use `--decode-kernelcache`
+to qualify the decoded kernel, rather than treating ZIP CRC as a board pin.
+
+The actual reference archive is 6,835,124,840 bytes. Reading the manifest and
+kernelcache fetched 17,790,160 range bytes. The decoded 46,415,872-byte kernel
+matches `f18b4df865405f2a287b84977d7aca745e056d656d9fc9df1662970ce2969de7`.
+No OS/SystemOS root image was fetched. This is the upstream iPad7,1 / iPadOS
+17.7.11 compatibility anchor, not a claim to support the newest iOS.
+
+The pinned upstream NativePrelink planner/emitter resolved APFS's 12 declared
+components, including original IOStorageFamily/corecrypto/CoreTrust/AppleImage4.
+It rebound 17,883 kernel and 7,920 component pointer sites while preserving
+original executable bytes. The candidate remains experimental: static
+resolution is not runtime qualification or a complete instruction/ABI proof.
+The actual original storage ABI audit also passed: 190 slots, 176 kernel
+bindings, 14 abstract slots, public class size 0x90, real protected constructor
+forwarding to IOService and trapping abstract complete destructors. Its live
+metaclass check remains unperformed; host guest-RAM peek tools are forbidden.
+
+For the separate original-dependency diagnostic, build with
+`XNU_CRYPTO_BOOTSTRAP=prelinked`: the source provider's startup entry is absent,
+so the original corecrypto starts normally rather than registering twice.
+Keep the source-family archive out of this variant; including it together with
+the original family would duplicate classes. The source-family media mode above
+remains independently preserved. Prelink the raw-probe source kernel with the
+original APFS closure at the reviewed -0x1000000 slide; do not run rig scripts.
+
+This separate 512 MiB test actually booted, logged the original corecrypto's
+19 POST passes including integrity and successful initialization, read all
+2 MiB through static shared DMA and shut down with VMM/supervisor0. Postflight
+preserved boot/core/trustedVM births, taint4608, Enforcing, six never policies and
+four original disk metadata identities. No APFS-specific console receipt or
+filesystem mount occurred: presence in a prelink image is not proof a filesystem
+was initialized. Original storage imports must next be bound to a concrete PCI
+device and checked inside the guest before a general root-disk profile.
+
+The user subsequently allowed memory release in response to closing heavy apps.
+Six narrowly targeted cached user-0 apps received ActivityManager `am kill`
+requests after fresh state checks. Foreground/process-protected targets stayed
+excluded; no force-stop, kill-all, task/data deletion, tuning or compaction was
+used. This is later than the trim-only media trial above. Request acceptance and
+memory snapshots are not proof of exact causal reclaimed bytes.
 
 ## Remaining I/O contract
 

@@ -926,3 +926,35 @@ source-link kernel remains unbooted; the newer media kernel exercised that
 source family. Filesystem mount/iOS user-space/GUI remain absent. Preserve the
 initial79 and negative build audits. Admission-reason logging was compiled
 afterward, not device-rerun. No extra compaction or host changes are authorized.
+
+## Original Apple dependency checkpoint, later 2026-10-24
+
+The user answered "メモリ解放していいよ" to the request to close heavy apps for
+VM work. Interpreting this as ordinary cached-app cleanup, six freshly checked
+cached user-0 apps received targeted ActivityManager am kill requests. No
+force-stop/kill-all, foreground/core/root/VPN/keyboard/VM target, task removal,
+data deletion, compaction, tuning or policy write was used. Do not infer exact
+reclaimed bytes or permission for broader destructive/host operations.
+
+The bounded official Apple fetch obtained manifest/kernelcache only:17790160
+range bytes from the6835124840byte pinned restore archive. ARM64 decoded kernel
+46415872bytes matches f18b4df865405f2a287b84977d7aca745e056d656d9fc9df1662970ce2969de7.
+No OS/SystemOS rootfs or full IPSW was obtained; proprietary binaries stay
+private. The reference remains iPad7,1/iPadOS17.7.11, not newest-iOS compatibility.
+
+NativePrelink resolved/emitted the12-component original APFS dependency closure
+with unchanged original executable bytes and25803 pointer bindings. The actual
+original storage static audit passed190 slots/176 kernel bindings/14 abstract
+slots/class size0x90 plus constructor/destructor checks. Live metaclass and
+original-family disk I/O remain unqualified; never use host guest-RAM peeking.
+
+A separate512MiB original-dependency trial uses XNU_CRYPTO_BOOTSTRAP=prelinked,
+with source-provider startup absent and no source IOStorageFamily archive.
+Original Apple corecrypto actually passed all19 POST cases including integrity;
+full2MiB synthetic PCI readback, reset, guest PSCI shutdown and VMM/supervisor0
+passed. Postflight boot/core/trustedVM births, taint4608, Enforcing, six never
+values and four original disk metadata identities matched. No content hashes.
+No APFS-specific execution receipt or mount occurred before its early shutdown;
+selected/mapped modules are not evidence of filesystem initialization. The
+emitter's runtime-qualified/loadable flags remain false. Keep all prior source
+and original modes separate, and original APK/Android16 refs unchanged.
